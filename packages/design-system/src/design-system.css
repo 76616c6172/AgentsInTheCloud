@@ -277,6 +277,55 @@
   --floating-surface-shadow: 0 22px 56px rgba(0, 0, 0, .135);
 }
 
+/* Nox Oscura: the personal Pi palette, mapped to the app's semantic roles. */
+[data-theme="nox-oscura"] {
+  color-scheme: dark;
+  --bg: #131419;
+  --panel: #1b1d24;
+  --elev: #20232b;
+  --line: #32333b;
+  --line-strong: #46474f;
+  --text: #e6e6e6;
+  --text-bright: #ffffff;
+  --text-muted: #868f97;
+  --accent: #868f97;
+  --accent-contrast: #131419;
+  --success: #4ebe96;
+  --warning: #e6e7a3;
+  --danger: #d84f68;
+  --decorative: #7a7f92;
+  --syntax-keyword: #5c6974;
+  --syntax-string: #e6e6e6;
+  --syntax-number: #f9b98c;
+  --syntax-comment: #46474f;
+  --syntax-function: #e6e7a3;
+  --syntax-variable: #e6e6e6;
+  --syntax-type: #e6e6e6;
+  --syntax-literal: #f9b98c;
+  --syntax-attribute: #e6e6e6;
+  --syntax-tag: #e6e6e6;
+  --syntax-constant: #f9b98c;
+  --syntax-punctuation: #5c6974;
+  --terminal-black: #1b1d24;
+  --terminal-red: #d84f68;
+  --terminal-green: #4ebe96;
+  --terminal-yellow: #e6e7a3;
+  --terminal-blue: #479ffa;
+  --terminal-magenta: #7a7f92;
+  --terminal-cyan: #54c0a3;
+  --terminal-white: #e6e6e6;
+  --terminal-bright-black: #6a7782;
+  --terminal-bright-red: #ff5c5c;
+  --terminal-bright-green: #54c0a3;
+  --terminal-bright-yellow: #e6e7a3;
+  --terminal-bright-blue: #479ffa;
+  --terminal-bright-magenta: #7a7f92;
+  --terminal-bright-cyan: #54c0a3;
+  --terminal-bright-white: #ffffff;
+  --shadow: 0 22px 56px rgba(0, 0, 0, .5);
+  --floating-surface-shadow: 0 22px 56px rgba(0, 0, 0, .15);
+}
+
 /* Shiki fragments emit stable role classes so existing markup recolors instantly. */
 .syntax-keyword { color: var(--syntax-keyword); }
 .syntax-string, .syntax-string-expression { color: var(--syntax-string); }

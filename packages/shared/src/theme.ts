@@ -8,6 +8,7 @@ export const agentsInTheCloudThemes = [
   { id: "tokyo-night", label: "Tokyo Night", appearance: "dark", background: "#1a1b26" },
   { id: "midnight", label: "Midnight", appearance: "dark", background: "#0d1117" },
   { id: "nord", label: "Nord", appearance: "dark", background: "#2e3440" },
+  { id: "nox-oscura", label: "Nox Oscura", appearance: "dark", background: "#131419" },
 ] as const;
 
 export type AgentsInTheCloudTheme = (typeof agentsInTheCloudThemes)[number]["id"];
