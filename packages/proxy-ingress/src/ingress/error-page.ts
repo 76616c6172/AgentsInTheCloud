@@ -1,6 +1,7 @@
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 import { response } from "@agents-in-the-cloud/shared/http";
+import { readThemeSetting } from "@agents-in-the-cloud/shared/theme";
 import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
 import { inlineDesignSystemCss } from "@agents-in-the-cloud/design-system/styles/server";
 import { errorCategory, WorkspaceConnectionError, WorkspaceUpstreamError } from "./failure.ts";
@@ -101,7 +102,7 @@ export async function ingressErrorPage(error: Error, workspaceName: string): Pro
   const css = await (styles ??= inlineDesignSystemCss());
   // An empty reference navigates to this document’s URL, including its query.
   const retry = actionLinkHtml({ href: "", variant: "secondary", content: { kind: "caption", caption: "Retry" } });
-  return response(`<!doctype html><html lang="en" data-theme="nord"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)} · AgentsInTheCloud</title><style>${css}
+  return response(`<!doctype html><html lang="en" data-theme="${readThemeSetting()}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)} · AgentsInTheCloud</title><style>${css}
 body {
   margin: 0;
   background: var(--bg);

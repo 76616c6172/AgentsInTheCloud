@@ -31,36 +31,33 @@ function themeColor(name: string, fallbackKey: keyof typeof DEFAULT_OBSERVABLE_T
 /**
  * Map AgentsInTheCloud's active UI theme onto Gespenst's complete 16-color ANSI palette.
  * Agent themes (Claude, Codex, Pi) draw with these slots, so the roles are a
- * contract: bright white emphasizes, bright black recedes, blue is the accent.
+ * contract: bright white emphasizes, bright black recedes. Themes may distinguish
+ * terminal blue/cyan from a neutral UI accent.
  */
 export function agentsInTheCloudObservableTerminalTheme(): ObservableTerminalTheme {
   const background = themeColor("--bg", "background");
   const foreground = themeColor("--text", "foreground");
   const accent = themeColor("--accent", "brightBlue");
-  const red = cssVariable("--danger") ?? foreground;
-  const green = cssVariable("--success") ?? foreground;
-  const amber = cssVariable("--warning") ?? foreground;
-  const violet = cssVariable("--decorative") ?? accent;
   return {
     background,
     foreground,
     cursor: accent,
-    black: themeColor("--panel", "black"),
-    red,
-    green,
-    yellow: amber,
-    blue: accent,
-    magenta: violet,
-    cyan: accent,
-    white: foreground,
-    brightBlack: themeColor("--text-muted", "brightBlack"),
-    brightRed: red,
-    brightGreen: green,
-    brightYellow: amber,
-    brightBlue: accent,
-    brightMagenta: violet,
-    brightCyan: accent,
-    brightWhite: themeColor("--text-bright", "brightWhite"),
+    black: themeColor("--terminal-black", "black"),
+    red: cssVariable("--terminal-red") ?? foreground,
+    green: cssVariable("--terminal-green") ?? foreground,
+    yellow: cssVariable("--terminal-yellow") ?? foreground,
+    blue: cssVariable("--terminal-blue") ?? accent,
+    magenta: cssVariable("--terminal-magenta") ?? accent,
+    cyan: cssVariable("--terminal-cyan") ?? accent,
+    white: cssVariable("--terminal-white") ?? foreground,
+    brightBlack: themeColor("--terminal-bright-black", "brightBlack"),
+    brightRed: cssVariable("--terminal-bright-red") ?? foreground,
+    brightGreen: cssVariable("--terminal-bright-green") ?? foreground,
+    brightYellow: cssVariable("--terminal-bright-yellow") ?? foreground,
+    brightBlue: themeColor("--terminal-bright-blue", "brightBlue"),
+    brightMagenta: cssVariable("--terminal-bright-magenta") ?? accent,
+    brightCyan: cssVariable("--terminal-bright-cyan") ?? accent,
+    brightWhite: themeColor("--terminal-bright-white", "brightWhite"),
   };
 }
 

@@ -17,6 +17,7 @@ class AgentsInTheCloudThemeController extends Controller<HTMLElement> {
     const root = document.documentElement;
     if (root.dataset.theme === this.nameValue) return;
     root.dataset.theme = this.nameValue;
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!.content = getComputedStyle(root).getPropertyValue("--bg").trim();
     document.dispatchEvent(new CustomEvent("agents-in-the-cloud:theme-change", { detail: { theme: this.nameValue } }));
   }
 }

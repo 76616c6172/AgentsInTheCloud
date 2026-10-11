@@ -339,7 +339,7 @@ export const entries: CatalogueEntry[] = [
     title: "Foundations & composition",
     when: "Role tokens and shared layout primitives, not a second set of component sizes.",
     contract:
-      "Use --bg, --panel, --elev, --text, --text-bright, --text-muted, --accent, --success, --warning and --danger by semantic role. Theme is data-theme on the root. surface-lighting.css owns the shared rim, inner-glow and background-image roles for panels, Content rows, buttons and domain surfaces. Typography uses --font-sans / --font-mono, --text-body / --text-title / --text-code. title supplies visual heading style, not heading semantics. Action lists use a single bounded grid column so long row contents cannot widen the collection. form-stack, form-section, form-actions, action-list, work-view-toolbar and empty-state own composition spacing. viewport-overlay bounds browser-owned overlays.",
+      "Use --bg, --panel, --elev, --text, --text-bright, --text-muted, --accent, --success, --warning and --danger by semantic role. Theme is data-theme on the root. Shared --syntax-* tokens color code, editors and diffs. The 16 --terminal-* ANSI tokens default to UI roles but can be overridden independently. surface-lighting.css owns the shared rim, inner-glow and background-image roles for panels, Content rows, buttons and domain surfaces. Typography uses --font-sans / --font-mono, --text-body / --text-title / --text-code. title supplies visual heading style, not heading semantics. Action lists use a single bounded grid column so long row contents cannot widen the collection. form-stack, form-section, form-actions, action-list, work-view-toolbar and empty-state own composition spacing. viewport-overlay bounds browser-owned overlays.",
     sources: ["design-system.css", "surface-lighting.css"],
     examples: [
       {
@@ -361,6 +361,11 @@ export const entries: CatalogueEntry[] = [
             )
             .join("") +
           '</div><div class="form-section"><span>Fields in a form section</span><span>Share a smaller gap than sections.</span></div></div>',
+      },
+      {
+        title: "Syntax and terminal palettes",
+        render: () => '<pre><code><span class="syntax-comment">// Shared by code blocks, diffs and Files</span>\n<span class="syntax-keyword">const</span> <span class="syntax-variable">message</span> = <span class="syntax-function">greet</span>(<span class="syntax-string">"hello"</span>, <span class="syntax-number">42</span>);</code></pre><div class="catalogue-swatches">' +
+          ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"].flatMap((color) => [color, `bright-${color}`]).map((color) => `<span style="color:var(--terminal-${color})">■ ${color}</span>`).join("") + '</div>',
       },
     ],
   },

@@ -13,6 +13,15 @@ function addAgentsInTheCloudThemeParams(url: URL): void {
   url.searchParams.set("agentsInTheCloudText", cssVariable("--text"));
   url.searchParams.set("agentsInTheCloudLine", cssVariable("--line"));
   url.searchParams.set("agentsInTheCloudAccent", cssVariable("--accent"));
+  url.searchParams.set("agentsInTheCloudAccentContrast", cssVariable("--accent-contrast"));
+  for (const role of ["comment", "string", "keyword", "number", "function", "variable", "type", "punctuation"]) {
+    url.searchParams.set(`agentsInTheCloudSyntax-${role}`, cssVariable(`--syntax-${role}`));
+  }
+  for (const color of ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]) {
+    for (const prefix of ["", "bright-"]) {
+      url.searchParams.set(`agentsInTheCloudTerminal-${prefix}${color}`, cssVariable(`--terminal-${prefix}${color}`));
+    }
+  }
 }
 
 export const vscodeClientModule: WorkspaceClientModule = {
