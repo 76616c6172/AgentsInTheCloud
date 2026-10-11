@@ -66,7 +66,8 @@ ARG ATELIER_COMMIT_ID
 ARG ATELIER_DEFAULT_WORKSPACE_IMAGE
 ARG ATELIER_EAGERLY_PRELOAD="[]"
 ENV ATELIER_COMMIT_ID=${ATELIER_COMMIT_ID}
-LABEL org.opencontainers.image.source="https://github.com/lucasmeijer/atelier" \
+ARG ATELIER_SOURCE=https://github.com/lucasmeijer/atelier
+LABEL org.opencontainers.image.source="${ATELIER_SOURCE}" \
       org.opencontainers.image.revision="${ATELIER_COMMIT_ID}" \
       eagerly-preload="${ATELIER_EAGERLY_PRELOAD}"
 RUN printf '%s\n' "$ATELIER_DEFAULT_WORKSPACE_IMAGE" > /app/.agents-in-the-cloud-default-workspace-image

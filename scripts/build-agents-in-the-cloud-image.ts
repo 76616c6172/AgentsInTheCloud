@@ -161,7 +161,7 @@ function authenticateGhcr(options: Options): void {
   if (!token) throw new Error("GH_PACKAGE_TOKEN is required to publish images to ghcr.io");
 
   const result = Bun.spawnSync(
-    ["docker", "login", "ghcr.io", "--username", "lucasmeijer", "--password-stdin"],
+    ["docker", "login", "ghcr.io", "--username", options.image.split("/")[1]!, "--password-stdin"],
     { stdin: new TextEncoder().encode(token), stdout: "inherit", stderr: "inherit" },
   );
   if (result.exitCode !== 0) throw new Error(`docker login ghcr.io failed with exit code ${result.exitCode}`);

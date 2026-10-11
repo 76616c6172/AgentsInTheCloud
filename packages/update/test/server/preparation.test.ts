@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { detectSelfUpdateRuntime, prepareUpdate, pruneUnusedAgentsInTheCloudImages, pullImageReference, type DockerImage, type PullProgress, type PullLayerProgress } from "../../src/server/docker.ts";
 
-const app = `ghcr.io/lucasmeijer/agents-in-the-cloud@sha256:${"a".repeat(64)}`;
+const app = `ghcr.io/76616c6172/agents-in-the-cloud@sha256:${"a".repeat(64)}`;
 const workspace = `ghcr.io/lucasmeijer/workspace@sha256:${"b".repeat(64)}`;
 const appImage: DockerImage = { Id: "sha256:app" };
 
@@ -145,7 +145,7 @@ test("prunes only AgentsInTheCloud app and workspace images using Docker's unuse
     return { code: 0, stdout: "", stderr: "" };
   });
   expect(calls).toEqual([
-    ["image", "prune", "--all", "--force", "--filter", "label=org.opencontainers.image.source=https://github.com/lucasmeijer/atelier", "--filter", "label=eagerly-preload"],
+    ["image", "prune", "--all", "--force", "--filter", "label=org.opencontainers.image.source=https://github.com/76616c6172/AgentsInTheCloud", "--filter", "label=eagerly-preload"],
     ["image", "prune", "--all", "--force", "--filter", "label=com.agents-in-the-cloud.workspace-image.signature"],
   ]);
 });

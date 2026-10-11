@@ -22,13 +22,14 @@ import { TailscaleHttps, TailscaleCertificateError } from "./tailscale-https.ts"
 import { setSupervisorRoutes } from "./tailscale.ts";
 import { supervisorFragment, page } from "./ui.ts";
 import { readAppTheme } from "./app-theme.ts";
+import { appImage } from "../../../packages/shared/src/distribution.ts";
 
 const { values } = parseArgs({
   options: {
     "access-mode": { type: "string", default: "tailscale" },
     "app-image": {
       type: "string",
-      default: "ghcr.io/lucasmeijer/agents-in-the-cloud:latest",
+      default: `${appImage}:latest`,
     },
   },
   strict: true,

@@ -2,7 +2,8 @@ import { type UpdateChannel } from "./update-channel.ts";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
-export const repository = "lucasmeijer/agents-in-the-cloud";
+import { distribution } from "../../../shared/src/distribution.ts";
+export const repository = distribution.repository;
 
 export type HttpFetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
