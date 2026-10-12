@@ -40,19 +40,16 @@ We're all just figuring out this new world in real time :-). Hope you like the p
 
 ### Bring in upstream improvements
 
-Start with a clean checkout and an `upstream` remote pointing to `https://github.com/lucasmeijer/AgentsInTheCloud.git`:
+Start on a clean `nox` checkout with an `upstream` remote pointing to `https://github.com/lucasmeijer/AgentsInTheCloud.git`:
 
 ```sh
-git switch main
-git pull --ff-only upstream main
-git push origin main
-git switch nox
-git merge main
-bun run check
-git push origin nox
+bun scripts/nox-upstream.ts            # merge and check locally
+bun scripts/nox-upstream.ts --publish  # recheck, then push main+nox atomically
 ```
 
-Resolve any merge conflicts before continuing. Keeping the fork's `main` current also records the correct upstream base in each release manifest.
+The helper fetches both remotes, refuses diverged `main` or an outdated `nox`, fast-forwards `main`, merges into `nox`, installs locked dependencies, and runs checks and focused tests. It never stashes, force-pushes, promotes, or deploys. Conflicts remain for you to resolve and commit (or `git merge --abort`); rerun after resolution. Fix and commit any check failures before rerunning. Publishing both branches keeps the release manifest's upstream base accurate.
+
+The fork uses **Ctrl+K** for the command palette, **Ctrl+F** for Files, **Ctrl+B** for Browser, **Ctrl+O** for the composer, **Ctrl+P** for terminal/transcript, **Ctrl+\\** for dictation, and **Ctrl+'** for a new workspace. **Ctrl+, / Ctrl+.** select previous/next workspaces, **Ctrl+[ / Ctrl+]** select work views, and **Ctrl+/** selects the oldest workspace needing attention. These take precedence over editor/terminal shortcuts while the app has keyboard focus (including Vim's Ctrl+[); embedded editors/websites retain control of keys while their iframe has focus. Copy/paste, word-deletion, and browser-reserved keys are not reassigned. The remaining actions are available from the command palette. Personal Pi extensions are maintained separately using `pi-cloud` in the `dotvulpix` repository, without rebuilding these images.
 
 A push to `nox` runs the **Nox release** workflow: checks, focused tests, and production builds for this server's `linux/amd64` platform. It publishes a **candidate** GitHub release named `nox-<12-character-commit>` with a `release.json` asset pinning app, System, and workspace images by digest. It does not change either update channel or the server. On a new fork, GHCR packages must be public for anonymous installation/update access.
 
