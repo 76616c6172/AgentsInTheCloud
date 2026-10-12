@@ -11,6 +11,7 @@ export interface HostResults {
   create: HostTerminal;
   terminate: null;
   sample: HostSample;
+  "private-network-access": null;
 }
 export type HostResult = HostResults[keyof HostResults];
 const terminalId = Type.String({ pattern: "^host-[a-f0-9-]{36}$" });
@@ -19,6 +20,12 @@ const requestSchema = Type.Union([
   Type.Object({ operation: Type.Literal("create") }),
   Type.Object({ operation: Type.Literal("terminate"), id: terminalId }),
   Type.Object({ operation: Type.Literal("sample"), fresh: Type.Optional(Type.Boolean()) }),
+  // Replaces the TCP destinations each workspace bridge may reach on private networks.
+  Type.Object({ operation: Type.Literal("private-network-access"), destinations: Type.Array(Type.Object({
+    bridge: Type.String({ pattern: "^atw-[a-f0-9]{11}$" }),
+    address: Type.String({ format: "ipv4" }),
+    port: Type.Integer({ minimum: 1, maximum: 65535 }),
+  }, { additionalProperties: false }), { maxItems: 100_000 }) }),
   Type.Object({ operation: Type.Literal("attach"), id: terminalId, cols: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })), rows: Type.Optional(Type.Integer({ minimum: 1, maximum: 1000 })) }),
 ]);
 export type HostRequest = Static<typeof requestSchema>;

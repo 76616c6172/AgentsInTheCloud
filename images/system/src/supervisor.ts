@@ -9,7 +9,7 @@ import { PullProgress } from "./pull-progress.ts";
 import { prepareChannelUpdate } from "./channel-update.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { installWorkspaceFirewall, resolverAddresses } from "./firewall.ts";
+import { installWorkspaceFirewall, resolverAddresses, setPrivateNetworkAccess } from "./firewall.ts";
 import { filesystemFailure } from "./filesystems.ts";
 import { initializeResources } from "./resources.ts";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -677,7 +677,7 @@ async function initialize() {
     return;
   }
   resources = await initializeResources();
-  await startHostService({ root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory });
+  await startHostService({ root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory, privateNetworkAccess: setPrivateNetworkAccess });
   await chown(hostSocketPath, 1000, 1000);
   await installWorkspaceFirewall(resources.buildClientsCgroupParent, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")));
   // Privileged containers only copy device nodes the host /dev already has; some
