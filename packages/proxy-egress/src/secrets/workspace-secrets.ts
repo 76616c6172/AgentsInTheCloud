@@ -1,8 +1,8 @@
 import { clearGitHubToken as clearStoredGitHubToken, discoverGitHubToken, hasGitHubToken as hasStoredGitHubToken, setGitHubToken as setStoredGitHubToken } from "@agents-in-the-cloud/core";
-import { workspaceTemplateIdOfInit, revealEffectiveSecrets, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath } from "@agents-in-the-cloud/workspace-templates";
+import { workspaceTemplateIdOfInit, revealEffectiveSecrets, effectivePrivateNetworkAccess, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath, type PrivateNetworkDestination } from "@agents-in-the-cloud/workspace-templates";
 import { getWorkspaceInit, type WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
 import { matchHostname } from "./patterns.ts";
-import { isWorkspaceEgressAddress } from "@agents-in-the-cloud/shared/egress-policy";
+import { isPrivateNetworkAddress, isWorkspaceEgressAddress } from "@agents-in-the-cloud/shared/egress-policy";
 import { createHttpHooks, type RequestTransformHttpHooks, type SecretRequestTransform, type SecretDefinition } from "./placeholder-hooks.ts";
 
 export const githubTokenEnvVar = "GH_TOKEN";
@@ -76,11 +76,13 @@ export async function createWorkspaceSecretContext(workspaceId: string, init?: W
   const secrets: Record<string, SecretDefinition> = token
     ? { [githubTokenEnvVar]: { value: token, hosts: githubAllowedHosts(), placeholder: workspaceTemplateSecretPlaceholder(githubTokenEnvVar) } }
     : {};
-  for (const secret of await revealEffectiveSecrets(workspaceTemplateIdOfInit(init))) {
+  const workspaceTemplateId = workspaceTemplateIdOfInit(init);
+  const privateNetworkAccess = await effectivePrivateNetworkAccess(workspaceTemplateId);
+  for (const secret of await revealEffectiveSecrets(workspaceTemplateId)) {
     secrets[secret.envName] = { value: secret.secretValue, allowInPath: workspaceTemplateSecretAllowsPath(secret), hosts: workspaceTemplateSecretHosts(secret.hostPattern), placeholder: secret.placeholder ?? workspaceTemplateSecretPlaceholder(secret.envName) };
   }
   if (generation !== configurationGeneration) return createWorkspaceSecretContext(workspaceId, init);
-  const created = buildContext(workspaceId, { ...secrets, ...subscriptionSecrets });
+  const created = buildContext(workspaceId, { ...secrets, ...subscriptionSecrets }, privateNetworkAccess);
   contexts.set(workspaceId, created);
   return created;
 }
@@ -98,11 +100,18 @@ export function forgetWorkspaceSecretContext(workspaceId: string): void {
   contexts.delete(workspaceId);
 }
 
-function buildContext(workspaceId: string, secrets: Record<string, SecretDefinition>): WorkspaceSecretContext {
+/** Public addresses, plus private network addresses of a listed exact host and port. */
+export function privateNetworkAccessAllows(destinations: readonly PrivateNetworkDestination[], { hostname, ip, port }: { hostname: string; ip: string; port: number }): boolean {
+  if (isWorkspaceEgressAddress(ip)) return true;
+  const host = hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1");
+  return isPrivateNetworkAddress(ip) && destinations.some((destination) => destination.host === host && destination.port === port);
+}
+
+function buildContext(workspaceId: string, secrets: Record<string, SecretDefinition>, privateNetworkAccess: PrivateNetworkDestination[]): WorkspaceSecretContext {
   const hooks = createHttpHooks({
     allowedHosts: ["*"],
     blockInternalRanges: false,
-    isIpAllowed: ({ ip }) => isWorkspaceEgressAddress(ip),
+    isIpAllowed: (info) => privateNetworkAccessAllows(privateNetworkAccess, info),
     replaceSecretsInQuery: false,
     secrets,
     onRequest: async (request, registerSecret) => {

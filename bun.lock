@@ -393,6 +393,7 @@
       "name": "@agents-in-the-cloud/proxy-egress",
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/host": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
         "@agents-in-the-cloud/workspace-templates": "workspace:*",
@@ -496,6 +497,7 @@
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
         "@agents-in-the-cloud/observable-terminal": "workspace:*",
+        "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
         "typebox": "^1.0.57",
       },
