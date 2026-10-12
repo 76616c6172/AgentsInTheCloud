@@ -60,7 +60,7 @@ const browserWorkspaceCommands: WorkspaceCommandContribution[] = [
     label: "Open Browser",
     description: "Open the first existing Browser view, or create one if none exists.",
     scope: "workspace",
-    surfaces: { shortcut: { defaultBinding: "Meta+Alt+KeyB" } },
+    surfaces: { shortcut: { defaultBinding: "Control+KeyB" } },
   },
   {
     id: browserCreateCommandId,

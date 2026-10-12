@@ -92,7 +92,7 @@ export function renderCliTranscriptControls(adapter: CliAgentAdapter): CliTransc
       { iconHtml: Icons.TranscriptPending, label: "Will autoswitch to transcript when agent is done", state: "pending", action: "showTerminal" },
     ].map(({ iconHtml, label, state, action }) => buttonHtml({
       type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml, label },
-      attributesHtml: `data-popular-button data-cli-transcript-button="${state}" data-action="cli-terminal#${action}" aria-keyshortcuts="Meta+Alt+P"`,
+      attributesHtml: `data-popular-button data-cli-transcript-button="${state}" data-action="cli-terminal#${action}" aria-keyshortcuts="Control+P"`,
     })).join(""),
     followLatest: renderFollowLatestButton('data-cli-terminal-target="transcriptEnd" data-action="cli-terminal#scrollToTranscriptEnd"'),
   };

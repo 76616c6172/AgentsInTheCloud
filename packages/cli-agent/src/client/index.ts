@@ -13,7 +13,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         id: "cli-agent.toggle-mode",
         label: "Switch terminal / transcript",
         scope: "agent",
-        binding: "Meta+Alt+KeyP",
+        binding: "Control+KeyP",
         run: () => terminal.toggleMode(),
       }] : [];
     });

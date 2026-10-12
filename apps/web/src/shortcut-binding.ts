@@ -3,7 +3,7 @@ export function formatShortcutBinding(binding: string): string {
     switch (part) {
       case "Meta": return "⌘";
       case "Alt": return "⌥";
-      case "Control": return "⌃";
+      case "Control": return "Ctrl+";
       case "Shift": return "⇧";
       case "Comma": return ",";
       case "Period": return ".";

@@ -61,12 +61,12 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   }
 
   private readonly keydown = (event: KeyboardEvent): void => {
-    if (event.repeat || event.isComposing || !event.altKey) return;
-    const metaAlt = event.metaKey && !event.ctrlKey;
-    // Prompt-template shortcuts use Ctrl+Alt off Apple platforms. Windows reports
-    // AltGr as Ctrl+Alt; those presses type characters.
-    const controlAlt = event.ctrlKey && !event.metaKey && !isApplePlatform() && !event.getModifierState("AltGraph");
-    if (!metaAlt && !controlAlt) return;
+    if (event.repeat || event.isComposing || event.getModifierState("AltGraph")) return;
+    const metaAlt = event.metaKey && event.altKey && !event.ctrlKey;
+    // Ctrl shortcuts work on every platform. Keep Ctrl+Alt prompt-template
+    // shortcuts off Apple platforms, without consuming AltGr text input.
+    const control = event.ctrlKey && !event.metaKey && (!event.altKey || !isApplePlatform());
+    if (!metaAlt && !control) return;
 
     if (event.key === "Meta" || event.key === "Alt" || event.key === "Control") {
       if (metaAlt) this.scheduleShortcutOverlay();
@@ -74,12 +74,6 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     }
 
     this.hideShortcutOverlay();
-    if (this.matchesBinding(event, "Meta+Alt+KeyK")) {
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      void this.openPalette();
-      return;
-    }
     const command = this.currentCommands().find((candidate) => candidate.binding && this.matchesBinding(event, candidate.binding));
     if (!command) return;
     event.preventDefault();
@@ -100,42 +94,42 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       id: "workspace.open-previous",
       label: "Open previous workspace",
       scope: "global",
-      binding: "Meta+Alt+Comma",
+      binding: "Control+Comma",
       run: () => this.openAdjacentWorkspace(-1),
     });
     clientHooks.registerCommand({
       id: "workspace.open-next",
       label: "Open next workspace",
       scope: "global",
-      binding: "Meta+Alt+Period",
+      binding: "Control+Period",
       run: () => this.openAdjacentWorkspace(1),
     });
     clientHooks.registerCommand({
       id: "workspace.open-oldest-attention",
       label: "Open oldest workspace needing attention",
       scope: "global",
-      binding: "Meta+Alt+Slash",
+      binding: "Control+Slash",
       run: () => this.openOldestAttentionWorkspace(),
     });
     clientHooks.registerCommand({
       id: "work-view.open-previous",
       label: "Open previous Work view",
       scope: "workspace",
-      binding: "Meta+Alt+BracketLeft",
+      binding: "Control+BracketLeft",
       run: () => this.openAdjacentWorkView(-1),
     });
     clientHooks.registerCommand({
       id: "work-view.open-next",
       label: "Open next Work view",
       scope: "workspace",
-      binding: "Meta+Alt+BracketRight",
+      binding: "Control+BracketRight",
       run: () => this.openAdjacentWorkView(1),
     });
     clientHooks.registerCommand({
       id: "agents-in-the-cloud.open-palette",
       label: "Open palette",
       scope: "global",
-      binding: "Meta+Alt+KeyK",
+      binding: "Control+KeyK",
       run: () => this.openPalette(),
     });
     clientHooks.registerCommand({
