@@ -73,7 +73,8 @@ test("an update needing a newer System is offered normally; choosing it points t
   const instance = manager({ readSystemVersion: async () => 2, fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 3 }), prepareUpdate: async () => { throw new Error("must not download"); } });
   await instance.initialize(ctx);
   expect(instance.snapshot()).toMatchObject({ state: "available", systemOutdated: false });
-  expect(broadcasts.at(-1)!).toContain("Download update");
+  expect(broadcasts.at(-1)!).toContain("Get update");
+  expect(broadcasts.at(-1)!).not.toContain("Download update");
   expect(broadcasts.at(-1)!).not.toContain("installer");
 
   await instance.startPull();
@@ -81,7 +82,7 @@ test("an update needing a newer System is offered normally; choosing it points t
   for (const html of [sidebar.at(-1)!, broadcasts.at(-1)!]) {
     expect(html).toContain("To get this version, run the installer again");
     expect(html).toContain("curl -fsSL https://agentsinthecloud.com/install.sh | bash");
-    expect(html).not.toContain("Download update");
+    expect(html).not.toContain("Get update");
   }
   // Background checks keep the installer guidance for the same update.
   await instance.checkNow();
@@ -91,7 +92,7 @@ test("an update needing a newer System is offered normally; choosing it points t
   const url = new URL("http://localhost/update/dismiss-installer");
   expect((await route(new Request(url, { method: "POST" }), url))!.status).toBe(200);
   expect(instance.snapshot().state).toBe("available");
-  expect(broadcasts.at(-1)!).toContain("Download update");
+  expect(broadcasts.at(-1)!).toContain("Get update");
 });
 test("an app running on an older System keeps asking for the installer, whatever the updater is doing", async () => {
   const { ctx, sidebar, broadcasts } = context();

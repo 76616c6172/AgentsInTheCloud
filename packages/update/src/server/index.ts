@@ -35,6 +35,8 @@ interface StateSnapshot {
   progressMessage?: string;
   /** This app needs a newer System than the one running it: the installer finishes the update. */
   systemOutdated: boolean;
+  /** The offered update needs a newer System, so only the installer can install it. */
+  targetNeedsInstaller: boolean;
 }
 
 export interface UpdateManagerDeps {
@@ -90,7 +92,8 @@ export class UpdateManager {
 
   snapshot(): StateSnapshot {
     const systemOutdated = this.systemVersion !== undefined && requiredSystemVersion > this.systemVersion;
-    return { state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, progressMessage: this.progressMessage, systemOutdated };
+    const targetNeedsInstaller = this.target !== undefined && this.systemVersion !== undefined && this.target.requiredSystemVersion > this.systemVersion;
+    return { state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, progressMessage: this.progressMessage, systemOutdated, targetNeedsInstaller };
   }
 
   private updateSidebar(checked = false): void {
@@ -160,7 +163,7 @@ export class UpdateManager {
       throw new UpdateConflictError("No update is available to download. Check the selected channel first.");
     }
     // Updates needing a newer System are offered like any other; only choosing one reveals the installer is needed.
-    if (this.target.requiredSystemVersion > this.systemVersion!) {
+    if (this.snapshot().targetNeedsInstaller) {
       this.setState("installer_required");
       return Promise.resolve();
     }
@@ -233,7 +236,8 @@ function renderCheckForm(): string {
 
 function renderDownloadControl(snapshot: StateSnapshot): string {
   const content = {
-    initialContent: { kind: "text" as const, text: "Download update" },
+    // Updates the installer must install aren't downloaded here; choosing one explains how to get it.
+    initialContent: { kind: "text" as const, text: snapshot.targetNeedsInstaller ? "Get update" : "Download update" },
     progressContent: { kind: "text" as const, text: "Downloading…" },
     variant: "primary" as const,
     type: "submit" as const,
