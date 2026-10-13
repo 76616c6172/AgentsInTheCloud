@@ -3,8 +3,9 @@ import { appendFileSync, mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { authenticateRegistry, commandRunner, ensureBuilders, inspectImage, inspectPlatform, platforms, type Run } from "./release-support.ts";
+import { authenticateRegistry, commandRunner, ensureBuilders, inspectImage, inspectPlatform, platformLabels, platforms, type Run } from "./release-support.ts";
 import { prepareReleaseNotes, publishReleaseNotes, readReleaseNotes } from "./release-notes.ts";
+import { parseSystemVersion, requiredSystemVersionLabel, systemVersionLabel } from "../packages/shared/src/system-version.ts";
 import { acquireReleaseLock } from "./release-lock.ts";
 
 const image = "ghcr.io/lucasmeijer/agents-in-the-cloud";
@@ -84,6 +85,21 @@ export async function verifyRevision(run: Run, ref: string, commit: string): Pro
   }
   for (const dependency of dependencies) await inspectImage(run, dependency);
   return manifest.digest;
+}
+
+const systemImage = "ghcr.io/lucasmeijer/agents-in-the-cloud-system";
+
+/** Installations get System from their app's channel, so each channel's System must already support the app. */
+export async function assertChannelSystemsSupportApp(run: Run, appDigest: string, channels: readonly ("latest" | "stable")[]): Promise<void> {
+  const app = (await inspectImage(run, `${image}@${appDigest}`))!;
+  const required = Math.max(...(await platformLabels(run, image, app)).map((labels) => parseSystemVersion(labels[requiredSystemVersionLabel])));
+  for (const channel of channels) {
+    const system = await inspectImage(run, `${systemImage}:${channel}`, true);
+    const publish = `images/system/publish.sh${channel === "stable" ? " --stable" : ""}`;
+    if (!system) throw new Error(`${systemImage}:${channel} isn't published, but ${channel} installations need it. Publish System first: ${publish}`);
+    const version = Math.min(...(await platformLabels(run, systemImage, system)).map((labels) => parseSystemVersion(labels[systemVersionLabel])));
+    if (version < required) throw new Error(`This app needs System version ${required}, but ${systemImage}:${channel} is version ${version}. Publish System first: ${publish}`);
+  }
 }
 
 export async function promoteChannels(run: Run, status: ReleaseStatus, save: () => void): Promise<void> {
@@ -168,6 +184,8 @@ export async function release(options: ReturnType<typeof parseReleaseArgs>, run:
   phase("Confirm main branch has not moved");
   const head = (await run(["git", "ls-remote", "origin", "refs/heads/main"])).stdout.split(/\s+/)[0];
   if (head !== sourceRevision) throw new Error("origin/main moved during this release. Commit image is uploaded; inspect the new changes and reserved notes before retrying. Do not silently change the approved code revision.");
+  phase("Check each channel's System supports this app");
+  await assertChannelSystemsSupportApp(run, status.digest, options.stable ? ["latest", "stable"] : ["latest"]);
   await promoteChannels(run, status, save);
   if (notes) {
     phase("Publish stable release notes on GitHub");

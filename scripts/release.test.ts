@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { parseReleaseArgs, promoteChannels, release, verifyRevision, type ReleaseStatus } from "./release.ts";
+import { assertChannelSystemsSupportApp, parseReleaseArgs, promoteChannels, release, verifyRevision, type ReleaseStatus } from "./release.ts";
 
 const commit = "a".repeat(40);
 const digest = `sha256:${"b".repeat(64)}`;
@@ -39,6 +39,27 @@ test("verification requires both architectures and matching revision labels", as
   };
   expect(await verifyRevision(run, "ref", commit)).toBe(digest);
   await expect(verifyRevision(run, "ref", "wrong-sha")).rejects.toThrow("does not match revision");
+});
+
+test("an app channel only moves when that channel's System supports the app", async () => {
+  const channelDigest = (channel: string, index: number) => `sha256:${channel === "stable" ? "5" : "7"}${index}${"0".repeat(62)}`;
+  const registry = (versions: { app: string; latest?: string; stable?: string }): Run => async (args) => {
+    const ref = args[4]!;
+    if (args.includes("{{json .Manifest}}")) {
+      const channel = ref.endsWith(":stable") ? "stable" : ref.endsWith(":latest") ? "latest" : undefined;
+      if (!channel) return ok(JSON.stringify(manifest));
+      if (versions[channel] === undefined) return { code: 1, stdout: "", stderr: "ERROR: manifest unknown" };
+      return ok(JSON.stringify({ digest: `sha256:${"9".repeat(64)}`, manifests: architectures.map((architecture, index) => ({ digest: channelDigest(channel, index), platform: { os: "linux", architecture } })) }));
+    }
+    const channel = (["latest", "stable"] as const).find((candidate) => architectures.some((_, index) => ref.endsWith(channelDigest(candidate, index))));
+    const labels = channel ? { "org.agents-in-the-cloud.system-version": versions[channel]! } : { "org.agents-in-the-cloud.required-system-version": versions.app };
+    return ok(JSON.stringify({ os: "linux", architecture: "amd64", config: { Labels: labels } }));
+  };
+  await assertChannelSystemsSupportApp(registry({ app: "2", latest: "2" }), digest, ["latest"]);
+  await assertChannelSystemsSupportApp(registry({ app: "1", latest: "3", stable: "1" }), digest, ["latest", "stable"]);
+  await expect(assertChannelSystemsSupportApp(registry({ app: "3", latest: "2" }), digest, ["latest"])).rejects.toThrow("needs System version 3, but ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest is version 2. Publish System first: images/system/publish.sh");
+  await expect(assertChannelSystemsSupportApp(registry({ app: "2", latest: "2", stable: "1" }), digest, ["latest", "stable"])).rejects.toThrow("agents-in-the-cloud-system:stable is version 1. Publish System first: images/system/publish.sh --stable");
+  await expect(assertChannelSystemsSupportApp(registry({ app: "1", latest: "1" }), digest, ["latest", "stable"])).rejects.toThrow("agents-in-the-cloud-system:stable isn't published, but stable installations need it. Publish System first: images/system/publish.sh --stable");
 });
 
 test("promotion uses the verified digest and reports partial success", async () => {

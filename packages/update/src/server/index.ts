@@ -7,17 +7,23 @@ import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { progressButtonHtml } from "@agents-in-the-cloud/design-system/progress-button";
 import { toggleHtml } from "@agents-in-the-cloud/design-system/toggle";
 import { transientFeedbackHtml } from "@agents-in-the-cloud/design-system/transient-feedback";
+import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
+import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-banner";
+import { requiredSystemVersion } from "@agents-in-the-cloud/shared/system-version";
 import { errorMessage, escapeHtml, turboStream, turboStreamResponse, type SettingsContribution, type WorkspaceModule, type WorkspaceServerModuleContext } from "@agents-in-the-cloud/shared";
 import { isUpdateChannel, type UpdateChannel } from "./update-channel.ts";
 import { detectSelfUpdateRuntime, prepareUpdate, type PreparedUpdate, type PullProgress, type SelfUpdateRuntime } from "./docker.ts";
 import { fetchChannelImageMetadata, repository, type ImageMetadata } from "./registry.ts";
 import { readStoredUpdateChannel, writeStoredUpdateChannel } from "./settings-store.ts";
-import { requestSupervisorUpdate } from "./supervisor.ts";
+import { readSystemVersion, requestSupervisorUpdate } from "./supervisor.ts";
 
 const updateSidebarContributionId = "agents-in-the-cloud-update";
 const pollIntervalMs = 5 * 60 * 1000;
 
-type UpdateState = "idle" | "checking" | "available" | "pulling" | "ready_to_restart" | "failed" | "restarting";
+/** system_update_required: the channel's newest app needs a newer System, so only the installer can update. */
+type UpdateState = "idle" | "checking" | "available" | "system_update_required" | "pulling" | "ready_to_restart" | "failed" | "restarting";
+
+const installerCommand = "curl -fsSL https://agentsinthecloud.com/install.sh | bash";
 
 interface StateSnapshot {
   state: UpdateState;
@@ -27,6 +33,8 @@ interface StateSnapshot {
   target?: ImageMetadata;
   updateChannel: UpdateChannel;
   progressMessage?: string;
+  /** This app needs a newer System than the one running it: the installer finishes the update. */
+  systemOutdated: boolean;
 }
 
 export interface UpdateManagerDeps {
@@ -37,6 +45,7 @@ export interface UpdateManagerDeps {
   fetchMetadata?: (channel: UpdateChannel) => Promise<ImageMetadata>;
   prepareUpdate?: (reference: string, onProgress: (progress: PullProgress) => void) => Promise<PreparedUpdate>;
   requestUpdate?: (imageId: string) => Promise<void>;
+  readSystemVersion?: () => Promise<number>;
   setInterval?: (handler: () => void, interval: number) => void;
 }
 
@@ -46,6 +55,8 @@ class UpdateConflictError extends Error {}
 export class UpdateManager {
   private context: WorkspaceServerModuleContext | undefined;
   private runtime: SelfUpdateRuntime | undefined;
+  /** Read once: System only changes by reinstalling, which restarts the app. */
+  private systemVersion: number | undefined;
   private state: UpdateState = "idle";
   private percent: number | undefined;
   private error: string | undefined;
@@ -64,6 +75,7 @@ export class UpdateManager {
     this.context = context;
     this.runtime = await (this.deps.detectRuntime ?? detectSelfUpdateRuntime)();
     this.updateChannel = await this.deps.readChannel?.() ?? "latest";
+    if (this.runtime) this.systemVersion = await (this.deps.readSystemVersion ?? readSystemVersion)();
     this.updateSidebar();
     if (!this.runtime) return;
     await this.checkNow().catch((error) => console.error("Update check failed", error));
@@ -77,7 +89,8 @@ export class UpdateManager {
   }
 
   snapshot(): StateSnapshot {
-    return { state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, progressMessage: this.progressMessage };
+    const systemOutdated = this.systemVersion !== undefined && requiredSystemVersion > this.systemVersion;
+    return { state: this.state, percent: this.percent, error: this.error, selfUpdatable: Boolean(this.runtime), target: this.target, updateChannel: this.updateChannel, progressMessage: this.progressMessage, systemOutdated };
   }
 
   private updateSidebar(checked = false): void {
@@ -115,6 +128,7 @@ export class UpdateManager {
     const remote = target.revision ?? target.digest;
     const available = Boolean(remote && current && remote !== current);
     if (!available) this.setState("idle", {}, options.announceCurrent ?? false);
+    else if (target.requiredSystemVersion > this.systemVersion!) this.setState("system_update_required");
     else this.setState("available");
   }
 
@@ -252,9 +266,24 @@ function renderCheckFeedback(state: "initial" | "in-progress", feedback = false)
   });
 }
 
+function renderInstallerCopy(): string {
+  return copyButtonHtml({ label: "Copy installer command", caption: "Copy installer command", copyText: installerCommand });
+}
+
+/** Shown while this app runs on a System older than it needs, whatever else the updater is doing. */
+function renderSystemOutdated(snapshot: StateSnapshot): string {
+  if (!snapshot.systemOutdated) return "";
+  return warningBannerHtml({
+    title: "Run the installer to finish updating",
+    message: "This version of AgentsInTheCloud needs a newer System, so some features won’t work yet. Run the installer again on the machine where AgentsInTheCloud is installed. It updates everything in one go.",
+    actionsHtml: renderInstallerCopy(),
+  });
+}
+
 function renderUpdateControl(snapshot: StateSnapshot, surface: UpdateControlSurface): string {
   if (snapshot.state === "checking") return renderCheckFeedback("in-progress");
   if (!snapshot.selfUpdatable) return "";
+  if (snapshot.state === "system_update_required") return renderInstallerCopy();
   if ((snapshot.state === "failed" && !snapshot.target) || snapshot.state === "idle") return renderCheckFeedback("initial");
   if (snapshot.state === "available" || snapshot.state === "failed" || snapshot.state === "pulling") return renderDownloadControl(snapshot);
   if (snapshot.state === "ready_to_restart") return renderRestartFeedback(surface);
@@ -272,6 +301,7 @@ function updateDescription(snapshot: StateSnapshot): string {
     case "idle": return "Check for new updates.";
     case "checking": return "Checking for updates…";
     case "available": return "An update is available.";
+    case "system_update_required": return "An update is available, but it needs a newer System. Run the installer again on the machine where AgentsInTheCloud is installed. It updates everything in one go.";
     case "pulling": return "Downloading the update…";
     case "ready_to_restart": return "";
     case "restarting": return "";
@@ -283,7 +313,7 @@ function renderUpdateSettings(updateManager: UpdateManager, checked = false): st
   const snapshot = updateManager.snapshot();
   const control = checked && snapshot.state === "idle" ? renderCheckFeedback("initial", true) : renderUpdateControl(snapshot, "settings");
   const description = updateDescription(snapshot);
-  return `<section class="settings-sec update-settings-control" id="settings-sec-update"><div class="update-settings-summary"><h2>Updates</h2>${description ? `<p class="settings-sub">${description}</p>` : ""}</div><div class="update-actions">${control}${renderNotesButton(snapshot, "settings")}</div>${renderError(snapshot)}<turbo-frame id="update_notes_settings"></turbo-frame></section>`;
+  return `<section class="settings-sec update-settings-control" id="settings-sec-update">${renderSystemOutdated(snapshot)}<div class="update-settings-summary"><h2>Updates</h2>${description ? `<p class="settings-sub">${description}</p>` : ""}</div><div class="update-actions">${control}${renderNotesButton(snapshot, "settings")}</div>${renderError(snapshot)}<turbo-frame id="update_notes_settings"></turbo-frame></section>`;
 }
 
 function renderUpdateChannelSettings(updateManager: UpdateManager): string {
@@ -322,6 +352,7 @@ const updateChannelSettingsContribution: SettingsContribution = {
 };
 
 function renderSidebarRow(snapshot: StateSnapshot): string {
+  if (snapshot.systemOutdated) return `<section class="update-sidebar-section"><div id="update_sidebar_row" class="update-sidebar-row">${renderSystemOutdated(snapshot)}</div></section>`;
   if (!snapshot.selfUpdatable || snapshot.state === "idle" || snapshot.state === "checking") return "";
   const description = updateDescription(snapshot);
   return `<section class="update-sidebar-section"><div id="update_sidebar_row" class="update-sidebar-row">${description ? `<p>${description}</p>` : ""}<div class="update-actions">${renderUpdateControl(snapshot, "sidebar")}${renderNotesButton(snapshot, "sidebar")}</div>${renderError(snapshot)}<turbo-frame id="update_notes_sidebar"></turbo-frame></div></section>`;
