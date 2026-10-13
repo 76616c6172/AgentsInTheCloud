@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-system_image=ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest
+system_repository=ghcr.io/lucasmeijer/agents-in-the-cloud-system
+system_image=""
 app_image=ghcr.io/lucasmeijer/agents-in-the-cloud:latest
 action=""
 uninstall_requested=0
@@ -120,7 +121,8 @@ Installs AgentsInTheCloud System, or offers actions for an existing installation
 System replacements preserve the agents-in-the-cloud-system volume and interrupt workspaces.
 Update also installs the newest AgentsInTheCloud app on the installation's selected channel.
 
-  --system-image REF   System image (default: ghcr.io/lucasmeijer/agents-in-the-cloud-system:latest)
+  --system-image REF   System image (default: ghcr.io/lucasmeijer/agents-in-the-cloud-system on the
+                      installation's Update channel, latest for new installations)
   --app-image REF      First-install app image (default: ghcr.io/lucasmeijer/agents-in-the-cloud:latest)
   --access-mode MODE  localhost or tailscale (default selected for this machine)
   --action ACTION     install, update, connect, or open
@@ -331,6 +333,19 @@ check_system_running() {
     docker logs --tail 40 "$system_name" 2>&1 | tee -a "$log_file" >&2
     fail "AgentsInTheCloud services are $state. Container logs are shown above."
   fi
+}
+# The app saves its Update channel in System's volume. Read it with the
+# installed System image, which is already local and includes Bun.
+read_installation_channel() {
+  installation_channel=latest
+  [ "$installed" -eq 1 ] || return 0
+  installation_channel="$(docker run --rm --mount source=agents-in-the-cloud-system,target=/data,readonly --entrypoint bun \
+    "$(docker inspect --format '{{.Image}}' "$system_name")" -e '
+      const file = Bun.file("/data/app/update.json");
+      const settings = await file.exists() ? await file.json() : {};
+      console.log(settings.releaseChannel ?? "latest");
+    ' 2>>"$log_file")" || fail "Could not read the installation's Update channel. See the bootstrap log for details."
+  case "$installation_channel" in latest|stable) ;; *) fail "Unknown Update channel: $installation_channel" ;; esac
 }
 update_app_channel() {
   local start=$SECONDS code reply last_action="" current_action description
@@ -580,6 +595,8 @@ case "$action" in
       case "${answer:-1}" in 1) ;; 2) access_mode="$alternate_mode" ;; *) fail "choose 1 or 2" ;; esac
     fi
     pull_log_start="$(($(wc -l <"$log_file") + 1))"
+    # System follows the app's Update channel, so stable apps only meet a System released alongside them.
+    if [ -z "$system_image" ]; then read_installation_channel; system_image="$system_repository:$installation_channel"; fi
     if ! run_quiet_status "Downloading AgentsInTheCloud services" docker pull "$system_image"; then
       # GHCR rejects a stale saved login even for public images, instead of falling back to anonymous access.
       if [[ "$system_image" == ghcr.io/* ]] && [[ "$(tail -n "+$pull_log_start" "$log_file")" == *denied* ]]; then

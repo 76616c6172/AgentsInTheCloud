@@ -10,6 +10,8 @@ import { prepareChannelUpdate } from "./channel-update.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { installWorkspaceFirewall, resolverAddresses, setPrivateNetworkAccess } from "./firewall.ts";
+import { assertAppCompatible } from "./app-compatibility.ts";
+import { systemVersion } from "../../../packages/shared/src/system-version.ts";
 import { filesystemFailure } from "./filesystems.ts";
 import { initializeResources } from "./resources.ts";
 import { spawn, type ChildProcess } from "node:child_process";
@@ -207,6 +209,7 @@ async function prepareImage(reference: string, options: { pullApp: boolean; pull
   if (options.pullApp && !(await docker("image", "ls", "-q", reference)))
     await pullImage(reference, "Downloading AgentsInTheCloud");
   const image = JSON.parse(await docker("image", "inspect", reference))[0];
+  assertAppCompatible(image.Config.Labels);
   const preload: unknown = JSON.parse(
     image.Config.Labels?.["eagerly-preload"] ?? "[]",
   );
@@ -422,6 +425,7 @@ const server = Bun.serve({
         candidate,
         currentImage: persisted.currentImage,
         uninstall: persisted.uninstall,
+        systemVersion,
         tailnetHost,
         logs,
       });
