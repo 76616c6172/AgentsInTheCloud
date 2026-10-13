@@ -1,5 +1,5 @@
 import { clearGitHubToken as clearStoredGitHubToken, discoverGitHubToken, hasGitHubToken as hasStoredGitHubToken, setGitHubToken as setStoredGitHubToken } from "@agents-in-the-cloud/core";
-import { workspaceTemplateIdOfInit, revealEffectiveSecrets, effectivePrivateNetworkAccess, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath, type PrivateNetworkDestination } from "@agents-in-the-cloud/workspace-templates";
+import { workspaceTemplateIdOfInit, revealEffectiveSecrets, effectivePrivateNetworkAccess, onWorkspaceTemplateStoreChanged, workspaceTemplateSecretPlaceholder, workspaceTemplateSecretHosts, workspaceTemplateSecretAllowsPath, requestedPrivateNetworkDestination, type PrivateNetworkDestination } from "@agents-in-the-cloud/workspace-templates";
 import { getWorkspaceInit, type WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
 import { matchHostname } from "./patterns.ts";
 import { isPrivateNetworkAddress, isWorkspaceEgressAddress } from "@agents-in-the-cloud/shared/egress-policy";
@@ -103,8 +103,8 @@ export function forgetWorkspaceSecretContext(workspaceId: string): void {
 /** Public addresses, plus private network addresses of a listed exact host and port. */
 export function privateNetworkAccessAllows(destinations: readonly PrivateNetworkDestination[], { hostname, ip, port }: { hostname: string; ip: string; port: number }): boolean {
   if (isWorkspaceEgressAddress(ip)) return true;
-  const host = hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1");
-  return isPrivateNetworkAddress(ip) && destinations.some((destination) => destination.host === host && destination.port === port);
+  const requested = requestedPrivateNetworkDestination(hostname, port);
+  return isPrivateNetworkAddress(ip) && destinations.some((destination) => destination.host === requested.host && destination.port === requested.port);
 }
 
 function buildContext(workspaceId: string, secrets: Record<string, SecretDefinition>, privateNetworkAccess: PrivateNetworkDestination[]): WorkspaceSecretContext {

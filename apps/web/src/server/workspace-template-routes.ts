@@ -8,7 +8,7 @@ import {
   createWorkspaceTemplateSecret,
   createWorkspaceTemplateSshKey,
   deleteWorkspaceTemplate, deleteWorkspaceTemplateEnvironmentVariable, deleteWorkspaceTemplateSecret, deleteWorkspaceTemplateSshKey, deriveWorkspaceTemplateSshPublicKey,
-  getConfiguration, getWorkspaceTemplateConfiguration, getPrivateNetworkAccess, getWorkspaceTemplateSshKnownHosts, globalWorkspaceConfiguration, isGlobalScope,
+  getConfiguration, getWorkspaceTemplateConfiguration, getWorkspaceTemplateSshKnownHosts, globalWorkspaceConfiguration, isGlobalScope,
   listWorkspaceTemplates, parseWorkspaceTemplateSpec, renameWorkspaceTemplateSshKey,
   workspaceTemplateSecretPathPermissionSchema,
   setWorkspaceTemplateDockerfile, setWorkspaceTemplatePreloadImages, setWorkspaceTemplatePrivileged, setWorkspaceTemplateSeedConfigEnabled,
@@ -348,7 +348,7 @@ export function createWorkspaceTemplateRoutes(deps: {
         return undefined;
       case "private-network-access":
         if (record) return undefined;
-        if (request.method === "GET" && requestAcceptsJson(request)) return jsonResponse({ privateNetworkAccess: await getPrivateNetworkAccess(scope) });
+        if (request.method === "GET" && requestAcceptsJson(request)) return jsonResponse({ privateNetworkAccess: (await getConfiguration(scope)).privateNetworkAccess });
         if (post) return await updatePrivateNetworkAccessEndpoint(scope, request);
     }
     return undefined;

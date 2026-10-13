@@ -16,7 +16,7 @@ import { workspaceRequestTransformMatchesHost, createWorkspaceSecretContext, for
 import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
 import { isHopByHopHeader, stripHopByHopHeaders } from "@agents-in-the-cloud/shared";
 import { isPrivateNetworkAddress } from "@agents-in-the-cloud/shared/egress-policy";
-import { formatPrivateNetworkDestination } from "@agents-in-the-cloud/workspace-templates";
+import { formatPrivateNetworkDestination, requestedPrivateNetworkDestination } from "@agents-in-the-cloud/workspace-templates";
 import { workspaceLocalProxyInitScript, workspaceLocalProxyUrl } from "./local-proxy.ts";
 import { defaultNoProxyEntries, uniqueNoProxyEntries } from "./no-proxy.ts";
 import { ensureLeafCertificate, ensureMitmCa, type MitmCa } from "./mitm-ca.ts";
@@ -392,7 +392,7 @@ async function resolveAllowedDestination(context: ProxyContext, hostname: string
     const family = address.family === 6 ? 6 : 4;
     if (await hooks.isIpAllowed?.({ hostname, ip: address.address, family, port, protocol })) continue;
     // Tell the agent (and through it, the user) how to open a private destination on purpose.
-    if (isPrivateNetworkAddress(address.address)) throw new HttpRequestBlockedError(`destination not allowed: ${hostname} is on a private network. To allow it, add ${formatPrivateNetworkDestination({ host: hostname.replace(/^\[(.*)\]$/, "$1"), port })} under Private network access in AgentsInTheCloud workspace settings.`);
+    if (isPrivateNetworkAddress(address.address)) throw new HttpRequestBlockedError(`destination not allowed: ${hostname} is on a private network. To allow it, add ${formatPrivateNetworkDestination(requestedPrivateNetworkDestination(hostname, port))} under Private network access in AgentsInTheCloud workspace settings.`);
     throw new HttpRequestBlockedError(`destination not allowed: ${hostname}`);
   }
   const first = addresses[0]!;

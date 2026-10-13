@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import { allowedEgressIpv6Range, blockedEgressIpv6Ranges, isPrivateNetworkAddress, workspaceEgressNftIpv4Elements } from "../../../packages/shared/src/egress-policy.ts";
+import type { PrivateNetworkFirewallEntry } from "../../../packages/host/src/protocol.ts";
 
 /** Every bridge-attached workload shares the destination policy. Host-side build
  * clients also use it when NFT_SOCKET is available. Management sockets are
@@ -70,13 +71,10 @@ ${dnsRules.filter(rule => rule.startsWith(`    ${family} `)).join("\n")}
 `).join("")}`;
 }
 
-/** A Private network access destination opened for one workspace bridge. */
-export interface PrivateNetworkDestination { bridge: string; address: string; port: number }
-
 /** Atomically replaces every workspace's private network destinations. Only
  * the forward chain consults them, so the System host itself stays unreachable
  * through the family tables' local-address drop. */
-export function privateNetworkAccessRules(destinations: readonly PrivateNetworkDestination[]): string {
+export function privateNetworkAccessRules(destinations: readonly PrivateNetworkFirewallEntry[]): string {
   for (const { bridge, address, port } of destinations) {
     if (!/^atw-[a-f0-9]{11}$/.test(bridge)) throw new Error(`Invalid workspace bridge: ${bridge}`);
     if (isIP(address) !== 4 || !isPrivateNetworkAddress(address)) throw new Error(`Not a private network address: ${address}`);
@@ -132,7 +130,7 @@ export async function installWorkspaceFirewall(buildClientsCgroup: string, names
     throw new Error(`Could not install workspace firewall: ${result.diagnostic}`);
 }
 
-export async function setPrivateNetworkAccess(destinations: readonly PrivateNetworkDestination[]) {
+export async function setPrivateNetworkAccess(destinations: readonly PrivateNetworkFirewallEntry[]) {
   const result = await nft(privateNetworkAccessRules(destinations));
   if (result.code !== 0)
     throw new Error(`Could not update private network access: ${result.diagnostic}`);

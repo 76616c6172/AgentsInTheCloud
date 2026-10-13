@@ -4,9 +4,7 @@ import { chmod, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
 import { attachHostObservableTerminal, buildObservableSessionCommand, type ObservableTerminalConnection } from "@agents-in-the-cloud/observable-terminal/server";
 import { parseObservableTerminalMessage } from "@agents-in-the-cloud/observable-terminal/shared";
-import { hostSocketPath, parseHostRequest, parseHostInput, terminalSize, validTerminalId, type HostReply, type HostResult, type HostCommand, type HostRequest, type HostSample, type HostTerminal } from "../protocol.ts";
-
-export type PrivateNetworkDestinations = Extract<HostRequest, { operation: "private-network-access" }>["destinations"];
+import { hostSocketPath, parseHostRequest, parseHostInput, terminalSize, validTerminalId, type HostReply, type HostResult, type HostCommand, type HostSample, type HostTerminal, type PrivateNetworkFirewallEntry } from "../protocol.ts";
 import { command } from "./command.ts";
 import { sampleHost } from "./sampler.ts";
 
@@ -15,7 +13,7 @@ const tmux = (socketName: string, ...args: string[]) => command(["tmux", "-L", s
 export class HostService {
   private lastSample?: HostSample;
   private sampling?: Promise<HostSample>;
-  constructor(private readonly sample: () => Promise<HostSample>, private readonly privateNetworkAccess: (destinations: PrivateNetworkDestinations) => Promise<void>, private readonly socketName = "agents-in-the-cloud-host") {}
+  constructor(private readonly sample: () => Promise<HostSample>, private readonly privateNetworkAccess: (destinations: PrivateNetworkFirewallEntry[]) => Promise<void>, private readonly socketName = "agents-in-the-cloud-host") {}
 
   private async list(): Promise<HostTerminal[]> {
     // The dedicated host tmux server is started once and kept alive with no sessions.
@@ -59,7 +57,7 @@ export class HostService {
 }
 
 /** Only the app receives this socket mount. No privileged API on the public supervisor listener. */
-export async function startHostService(options: { root: string; effectiveMemory: number; privateNetworkAccess: (destinations: PrivateNetworkDestinations) => Promise<void>; socketPath?: string; tmuxSocketName?: string }) {
+export async function startHostService(options: { root: string; effectiveMemory: number; privateNetworkAccess: (destinations: PrivateNetworkFirewallEntry[]) => Promise<void>; socketPath?: string; tmuxSocketName?: string }) {
   const socketPath = options.socketPath ?? hostSocketPath;
   const socketName = options.tmuxSocketName ?? "agents-in-the-cloud-host";
   await mkdir(dirname(socketPath), { recursive: true });

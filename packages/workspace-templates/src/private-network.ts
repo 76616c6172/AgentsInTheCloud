@@ -21,12 +21,13 @@ export function parsePrivateNetworkDestination(entry: string): PrivateNetworkDes
   return { host, port };
 }
 
-export function formatPrivateNetworkDestination({ host, port }: PrivateNetworkDestination): string {
-  return isIP(host) === 6 ? `[${host}]:${port}` : `${host}:${port}`;
+/** The destination a request asks for: URL hostnames bracket IPv6 addresses, listed destinations don't. */
+export function requestedPrivateNetworkDestination(hostname: string, port: number): PrivateNetworkDestination {
+  return { host: hostname.toLowerCase().replace(/^\[(.*)\]$/, "$1"), port };
 }
 
-export async function getPrivateNetworkAccess(scope: ConfigurationScope, file = workspaceTemplatesFile()): Promise<string[]> {
-  return findConfigurationRecord(await readWorkspaceTemplateStore(file), scope).privateNetworkAccess ?? [];
+export function formatPrivateNetworkDestination({ host, port }: PrivateNetworkDestination): string {
+  return isIP(host) === 6 ? `[${host}]:${port}` : `${host}:${port}`;
 }
 
 /** Replaces the scope's destinations with one `host:port` per line. Changes reach existing workspaces. */

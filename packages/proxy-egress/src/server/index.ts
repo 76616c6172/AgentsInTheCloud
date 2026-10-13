@@ -7,8 +7,9 @@ export const proxyEgressServerModule: WorkspaceModule = {
   id: "proxy-egress",
   async initialize(context) {
     registerWorkspaceProxyEvents(context.events);
-    for (const workspace of (await listWorkspaces({ inspectImages: false })).workspaces) await ensureWorkspaceEgressProxy(workspace.id);
-    await startPrivateNetworkFirewallSync(context.events);
+    const { workspaces } = await listWorkspaces({ inspectImages: false });
+    for (const workspace of workspaces) await ensureWorkspaceEgressProxy(workspace.id);
+    startPrivateNetworkFirewallSync(context.events, workspaces);
   },
 };
 

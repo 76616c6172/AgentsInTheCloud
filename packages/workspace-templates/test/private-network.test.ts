@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { addWorkspaceTemplate, getConfiguration, globalWorkspaceConfiguration } from "../src/workspace-template.ts";
-import { effectivePrivateNetworkAccess, getPrivateNetworkAccess, setPrivateNetworkAccess } from "../src/private-network.ts";
+import { effectivePrivateNetworkAccess, setPrivateNetworkAccess } from "../src/private-network.ts";
 
 async function withStore(run: (file: string) => Promise<void>) {
   const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-private-network-"));
@@ -18,7 +18,7 @@ test("destinations are saved one host:port per line and combine global and templ
   expect(await effectivePrivateNetworkAccess(workspaceTemplate.id, file)).toEqual([{ host: "db.internal", port: 5432 }, { host: "192.168.1.20", port: 22 }, { host: "fd00::5", port: 443 }]);
   expect(await effectivePrivateNetworkAccess(undefined, file)).toEqual([{ host: "db.internal", port: 5432 }, { host: "192.168.1.20", port: 22 }]);
   expect(await setPrivateNetworkAccess(globalWorkspaceConfiguration, "\n", file)).toEqual([]);
-  expect(await getPrivateNetworkAccess(globalWorkspaceConfiguration, file)).toEqual([]);
+  expect((await getConfiguration(globalWorkspaceConfiguration, file)).privateNetworkAccess).toEqual([]);
 }));
 
 test("only exact private destinations are accepted", () => withStore(async (file) => {
@@ -34,5 +34,5 @@ test("only exact private destinations are accepted", () => withStore(async (file
     ["8.8.8.8:53", "isn’t on a private network"],
     ["[db.internal]:80", "isn’t an IPv6 address"],
   ] as const) await expect(setPrivateNetworkAccess(globalWorkspaceConfiguration, `ok.internal:1\n${input}`, file), input).rejects.toThrow(message);
-  expect(await getPrivateNetworkAccess(globalWorkspaceConfiguration, file)).toEqual([]);
+  expect((await getConfiguration(globalWorkspaceConfiguration, file)).privateNetworkAccess).toEqual([]);
 }));
