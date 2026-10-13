@@ -1,3 +1,6 @@
+import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
+import { renderMarkdown } from "@agents-in-the-cloud/markdown";
+import { fetchReleaseHistory } from "./release-history.ts";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
 import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
@@ -27,6 +30,7 @@ interface StateSnapshot {
 }
 
 export interface UpdateManagerDeps {
+  fetchReleaseHistory?: typeof fetchReleaseHistory;
   readChannel?: () => Promise<UpdateChannel | undefined>;
   writeChannel?: (channel: UpdateChannel) => Promise<void>;
   detectRuntime?: () => Promise<SelfUpdateRuntime | undefined>;
@@ -175,6 +179,11 @@ export class UpdateManager {
     }
   }
 
+  async releaseHistory() {
+    if (!this.runtime?.currentRevision || !this.target?.revision) throw new Error("This installation or update does not identify its code revision, so we can’t show the changes between them.");
+    return await (this.deps.fetchReleaseHistory ?? fetchReleaseHistory)(this.runtime.currentRevision, this.target.revision);
+  }
+
   clearError(): void {
     this.error = undefined;
     this.updateSidebar();
@@ -274,7 +283,7 @@ function renderUpdateSettings(updateManager: UpdateManager, checked = false): st
   const snapshot = updateManager.snapshot();
   const control = checked && snapshot.state === "idle" ? renderCheckFeedback("initial", true) : renderUpdateControl(snapshot, "settings");
   const description = updateDescription(snapshot);
-  return `<section class="settings-sec update-settings-control" id="settings-sec-update"><div class="update-settings-summary"><h2>Updates</h2>${description ? `<p class="settings-sub">${description}</p>` : ""}</div><div class="update-actions">${control}</div>${renderError(snapshot)}</section>`;
+  return `<section class="settings-sec update-settings-control" id="settings-sec-update"><div class="update-settings-summary"><h2>Updates</h2>${description ? `<p class="settings-sub">${description}</p>` : ""}</div><div class="update-actions">${control}${renderNotesButton(snapshot, "settings")}</div>${renderError(snapshot)}<turbo-frame id="update_notes_settings"></turbo-frame></section>`;
 }
 
 function renderUpdateChannelSettings(updateManager: UpdateManager): string {
@@ -315,7 +324,19 @@ const updateChannelSettingsContribution: SettingsContribution = {
 function renderSidebarRow(snapshot: StateSnapshot): string {
   if (!snapshot.selfUpdatable || snapshot.state === "idle" || snapshot.state === "checking") return "";
   const description = updateDescription(snapshot);
-  return `<section class="update-sidebar-section"><div id="update_sidebar_row" class="update-sidebar-row">${description ? `<p>${description}</p>` : ""}<div class="update-actions">${renderUpdateControl(snapshot, "sidebar")}</div>${renderError(snapshot)}</div></section>`;
+  return `<section class="update-sidebar-section"><div id="update_sidebar_row" class="update-sidebar-row">${description ? `<p>${description}</p>` : ""}<div class="update-actions">${renderUpdateControl(snapshot, "sidebar")}${renderNotesButton(snapshot, "sidebar")}</div>${renderError(snapshot)}<turbo-frame id="update_notes_sidebar"></turbo-frame></div></section>`;
+}
+
+function renderNotesButton(snapshot: StateSnapshot, surface: UpdateControlSurface): string {
+  if (!snapshot.target || snapshot.state === "idle" || snapshot.state === "checking") return "";
+  return `<form method="get" action="/update/notes" data-turbo="true" data-turbo-frame="update_notes_${surface}"><input type="hidden" name="surface" value="${surface}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "What’s new" } })}</form>`;
+}
+
+async function renderReleaseNotes(updateManager: UpdateManager): Promise<string> {
+  const history = await updateManager.releaseHistory();
+  const notes = history.releases.map(release => `<article><p class="settings-sub">${escapeHtml(release.id)} · ${escapeHtml(release.publishedAt.slice(0, 10))}</p><div class="markdown">${renderMarkdown("", release.notes)}</div></article>`).join("");
+  const unfinished = !history.targetHasNotes ? "<p>This build also includes changes that haven’t been included in stable release notes yet.</p>" : "";
+  return `${notes || "<p>No published stable release notes between these versions.</p>"}${unfinished}<p><a href="${escapeHtml(history.compareUrl)}" target="_blank" rel="noopener noreferrer">View changes on GitHub</a></p>`;
 }
 
 function renderError(snapshot: StateSnapshot): string {
@@ -326,6 +347,19 @@ function renderError(snapshot: StateSnapshot): string {
 
 export function createUpdateRouteHandler(updateManager: UpdateManager): (request: Request, url: URL) => Promise<Response | undefined> {
   return async (request, url) => {
+    if (url.pathname === "/update/notes" && request.method === "GET") {
+      const surface = url.searchParams.get("surface");
+      if (surface !== "settings" && surface !== "sidebar") return new Response("Missing update control surface", { status: 400 });
+      let bodyHtml: string;
+      try {
+        bodyHtml = await renderReleaseNotes(updateManager);
+      } catch (error) {
+        console.error("Release notes failed", error);
+        bodyHtml = `<p role="alert">${escapeHtml(errorMessage(error))}</p><p>You can still download the update. Try opening What’s new again in a moment.</p>`;
+      }
+      const dialog = dialogHtml({ element: { attributesHtml: 'data-dialog-auto-show' }, iconHtml: "", titleCaption: "What’s new", bodyHtml });
+      return new Response(`<turbo-frame id="update_notes_${surface}">${dialog}</turbo-frame>`, { headers: { "content-type": "text/html; charset=utf-8" } });
+    }
     if (request.method === "POST" && (url.pathname.startsWith("/update/") || url.pathname === "/settings/update-channel") && !updateManager.snapshot().selfUpdatable) return new Response("Updates require AgentsInTheCloud System", { status: 409 });
     if (url.pathname === "/update/dismiss-error" && request.method === "POST") {
       updateManager.clearError();
