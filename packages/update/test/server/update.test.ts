@@ -57,6 +57,12 @@ function manager(extra: UpdateManagerDeps = {}) {
     setInterval: noInterval, ...extra,
   });
 }
+test("System-managed apps record their repositories for installer updates; others don't", async () => {
+  let recorded = 0;
+  await manager({ writeRepositories: async () => { recorded += 1; } }).initialize(context().ctx);
+  await manager({ detectRuntime: async () => undefined, writeRepositories: async () => { recorded += 1; } }).initialize(context().ctx);
+  expect(recorded).toBe(1);
+});
 test("non-System installations neither discover updates nor accept update operations", async () => {
   const instance = manager({ detectRuntime: async () => undefined, fetchMetadata: async () => { throw new Error("must not check"); } });
   await instance.initialize(context().ctx);

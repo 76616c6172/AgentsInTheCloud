@@ -8,6 +8,7 @@ import { Value } from "typebox/value";
 import { arch } from "node:os";
 import { imageHasPlatforms } from "../packages/workspace-image/src/local-images.ts";
 import { registryImageHasPlatforms } from "./image-platforms.ts";
+import { appRepository } from "../packages/shared/src/publishing.ts";
 import { prepareDefaultWorkspaceImage, ensureGeneratedDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 
 const usage = `Build the AgentsInTheCloud Docker image.
@@ -16,7 +17,7 @@ Usage:
   bun run scripts/build-agents-in-the-cloud-image.ts [options]
 
 Options:
-  --image <name>        Image repository/name (default: ghcr.io/lucasmeijer/agents-in-the-cloud)
+  --image <name>        Image repository/name (default: ${appRepository})
   --tag <tag>           Tag to apply. May be passed more than once (default: git describe/short sha)
   --latest             Tag the image as <image>:latest (default)
   --no-latest          Do not update latest (release staging)
@@ -68,7 +69,7 @@ function takeValue(args: string[], index: number, flag: string): string {
 
 function parseArgs(args: string[]): Options {
   const options: Options = {
-    image: "ghcr.io/lucasmeijer/agents-in-the-cloud",
+    image: appRepository,
     tags: [],
     latest: true,
     stable: false,
@@ -164,7 +165,7 @@ function authenticateGhcr(options: Options): void {
   if (!token) throw new Error("GH_PACKAGE_TOKEN is required to publish images to ghcr.io");
 
   const result = Bun.spawnSync(
-    ["docker", "login", "ghcr.io", "--username", "lucasmeijer", "--password-stdin"],
+    ["docker", "login", "ghcr.io", "--username", options.image.split("/")[1]!, "--password-stdin"],
     { stdin: new TextEncoder().encode(token), stdout: "inherit", stderr: "inherit" },
   );
   if (result.exitCode !== 0) throw new Error(`docker login ghcr.io failed with exit code ${result.exitCode}`);
@@ -204,11 +205,6 @@ function gitCommitId(): string {
   const commit = maybeRun(["git", "rev-parse", "HEAD"]);
   const dirty = maybeRun(["git", "status", "--porcelain"]) ? "-dirty" : "";
   return commit ? `${commit}${dirty}` : "unknown";
-}
-
-function workspaceImageRepository(appImage: string): string {
-  if (appImage === "ghcr.io/lucasmeijer/agents-in-the-cloud") return "ghcr.io/lucasmeijer/agents-in-the-cloud-workspace";
-  return `${appImage}-workspace`;
 }
 
 function workspaceHashTag(metadataTag: string): string {
@@ -272,7 +268,7 @@ const imageRefs = uniqueTags.map((tag) => `${options.image}:${tag}`);
 
 const workspaceMetadata = workspaceContext.metadata;
 const workspaceTag = workspaceHashTag(workspaceMetadata.tag);
-const workspaceRepo = workspaceImageRepository(options.image);
+const workspaceRepo = `${options.image}-workspace`;
 const defaultWorkspaceImageRef = `${workspaceRepo}:${workspaceTag}`;
 
 let shouldBuildWorkspace = false;
