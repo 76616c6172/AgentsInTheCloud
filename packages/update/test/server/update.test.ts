@@ -68,17 +68,30 @@ test("non-System installations neither discover updates nor accept update operat
     expect((await route(new Request(url, { method: "POST" }), url))!.status).toBe(409);
   }
 });
-test("an update needing a newer System points to the installer instead of downloading", async () => {
-  const { ctx, broadcasts } = context();
+test("an update needing a newer System is offered normally; choosing it points to the installer instead of downloading", async () => {
+  const { ctx, sidebar, broadcasts } = context();
   const instance = manager({ readSystemVersion: async () => 2, fetchMetadata: async () => ({ digest: newDigest, requiredSystemVersion: 3 }), prepareUpdate: async () => { throw new Error("must not download"); } });
   await instance.initialize(ctx);
-  expect(instance.snapshot()).toMatchObject({ state: "system_update_required", systemOutdated: false });
-  expect(() => instance.startPull()).toThrow("No update is available to download");
-  const settings = broadcasts.at(-1)!;
-  expect(settings).toContain("To get it, run the installer again");
-  expect(settings).toContain("Copy installer command");
-  expect(settings).toContain("curl -fsSL https://agentsinthecloud.com/install.sh | bash");
-  expect(settings).not.toContain("Download update");
+  expect(instance.snapshot()).toMatchObject({ state: "available", systemOutdated: false });
+  expect(broadcasts.at(-1)!).toContain("Download update");
+  expect(broadcasts.at(-1)!).not.toContain("installer");
+
+  await instance.startPull();
+  expect(instance.snapshot().state).toBe("installer_required");
+  for (const html of [sidebar.at(-1)!, broadcasts.at(-1)!]) {
+    expect(html).toContain("To get this version, run the installer again");
+    expect(html).toContain("curl -fsSL https://agentsinthecloud.com/install.sh | bash");
+    expect(html).not.toContain("Download update");
+  }
+  // Background checks keep the installer guidance for the same update.
+  await instance.checkNow();
+  expect(instance.snapshot().state).toBe("installer_required");
+
+  const route = createUpdateRouteHandler(instance);
+  const url = new URL("http://localhost/update/dismiss-installer");
+  expect((await route(new Request(url, { method: "POST" }), url))!.status).toBe(200);
+  expect(instance.snapshot().state).toBe("available");
+  expect(broadcasts.at(-1)!).toContain("Download update");
 });
 test("an app running on an older System keeps asking for the installer, whatever the updater is doing", async () => {
   const { ctx, sidebar, broadcasts } = context();
