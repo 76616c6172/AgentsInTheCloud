@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare and publish AgentsInTheCloud releases. For stable, propose user-focused release notes since the last stable revision, build while the user reviews them, and publish only after explicit sign-off.
+description: Prepare and publish AgentsInTheCloud releases, including System image releases. For stable, propose user-focused release notes since the last stable revision, build while the user reviews them, and publish only after explicit sign-off. Also use when asked to publish or release System (the system image).
 ---
 
 # Release AgentsInTheCloud
@@ -32,6 +32,8 @@ git log --oneline "$PREVIOUS_STABLE_SHA..$CODE_SHA"
 git diff --stat "$PREVIOUS_STABLE_SHA" "$CODE_SHA"
 git diff "$PREVIOUS_STABLE_SHA" "$CODE_SHA"
 ```
+
+Also check whether System changed since stable System, as described in [Does this release need System too?](#does-this-release-need-system-too). If it did, ask the user about it alongside the candidate notes.
 
 Inspect the actual changes, not just commit messages. Draft notes following the writing rules below. Present the **candidate notes directly to the user as bullet-point lists**, grouped under **Features / enhancements** and **Bugfixes**. Keep the previous stable and candidate revisions and the proposed filename separate from the notes. Invite edits and redactions. Make clear that these are candidates, not approved notes.
 
@@ -84,7 +86,7 @@ Write for the person using AgentsInTheCloud, not for the developer who implement
 
 - Split notes into **Features / enhancements** and **Bugfixes**.
 - Every release-note entry must be a Markdown bullet (`- `) with a one-line summary. Use this same bullet-point format in the candidate notes shown in chat, the committed file, and the published release. No prose summaries, numbered lists, nested lists, or implementation paragraphs.
-- Put the biggest features first. Within each section, put smaller changes and changes affecting fewer people lower down.
+- Within each section, sort by how big a deal the change is for users. Changes that feel big and affect everyone come first. Changes likely to matter to only a handful of people (a specific platform, setup, or rarely used feature) go last, even if they were a lot of work.
 - Explain the effect on the user. Prefer “Moving tabs keeps your terminal sessions running” over “Replaced layout reconciliation with keyed DOM operations.”
 - Omit changes that do not affect users: internal refactors, developer tooling, tests, publishing machinery, and dependency updates without user-visible consequences.
 - Be friendly, direct, specific, and brief. Avoid hype, commit hashes in the notes, internal module names, and unexplained jargon.
@@ -106,7 +108,64 @@ These are format examples, not claims to copy without verification.
 
 ## Latest releases
 
-No handwritten notes or notes approval loop is required. Commit/push the intended code, then run `bun run release` in tmux. It builds/verifies and promotes latest only. If the user wants build preparation separately, use `--prepare --revision <full-sha>` and then `bun run release --revision <same-sha>`; main must still contain the same code.
+No handwritten notes or notes approval loop is required. Commit/push the intended code, check whether `latest` System needs updating too ([Does this release need System too?](#does-this-release-need-system-too)), then run `bun run release` in tmux. It builds/verifies and promotes latest only. If the user wants build preparation separately, use `--prepare --revision <full-sha>` and then `bun run release --revision <same-sha>`; main must still contain the same code.
+
+## System releases
+
+System is the image (`ghcr.io/lucasmeijer/agents-in-the-cloud-system`) that the installer runs on the computer AgentsInTheCloud is installed on. It's released separately from the app, with its own `latest` and `stable` tags. Installations follow System on their app's Update channel, but only get a new System when someone re-runs the installer. Replacing System interrupts running workspaces. Never call it "System" in user-facing copy. People know it as the installer and the computer AgentsInTheCloud is installed on.
+
+`packages/shared/src/system-version.ts` is the contract. `systemVersion` says what this System offers, and `requiredSystemVersion` says what the app needs. `bun run release` refuses to move a channel whose System is older than the app requires, and tells you which publish command to run.
+
+### Does this release need System too?
+
+Do this check for every app release, against the System on the same channel (`stable` for stable releases, `latest` for latest). Read the channel's System revision and version from its image labels:
+
+```sh
+docker buildx imagetools inspect ghcr.io/lucasmeijer/agents-in-the-cloud-system:stable --format '{{json .Image}}' \
+  | jq -c 'to_entries[] | {platform: .key, revision: .value.config.Labels["org.opencontainers.image.revision"], version: .value.config.Labels["org.agents-in-the-cloud.system-version"]}'
+```
+
+Call the revision `SYSTEM_SHA`. System is bundled from `images/system/src` plus whatever it imports from other packages, so list the bundle's real inputs at `CODE_SHA` and diff only those:
+
+```sh
+bun -e '
+const inputs = new Set(["images/system/Dockerfile", "images/system/build.ts", "images/system/package.json", "images/system/bun.lock"]);
+for (const [entry, target] of [["supervisor", "bun"], ["test-app", "bun"], ["client", "browser"]]) {
+  const result = await Bun.build({ entrypoints: [`images/system/src/${entry}.ts`], target, metafile: true });
+  if (!result.success) throw new AggregateError(result.logs);
+  for (const path of Object.keys(result.metafile.inputs)) if (!path.includes("node_modules")) inputs.add(path);
+}
+console.log([...inputs].join("\n"));
+' > /tmp/system-inputs.txt
+git diff --stat "$SYSTEM_SHA" "$CODE_SHA" -- $(cat /tmp/system-inputs.txt) ':(glob)packages/design-system/src/**/*.css'
+```
+
+Run it with `CODE_SHA` checked out, so the input list matches the code being released.
+
+- **App needs a newer System** (`requiredSystemVersion` at `CODE_SHA` is higher than the channel's System version): System must be published first. Tell the user and ask to publish.
+- **Inputs changed:** read the diff and decide whether it changes what System does. Shared files sometimes change in ways System doesn't use (for example, an unrelated export in a package index). If behavior changed, summarize it from the user's point of view and ask whether to publish System to the channel too. Say it only reaches people who re-run the installer.
+- **Nothing changed:** don't ask. Report that System is up to date for the channel.
+
+Also flag it if System gained something the app may rely on (a new host socket operation, mount, or `/status` field) but `systemVersion` wasn't bumped. Ask before bumping. Fixes internal to System don't need a bump.
+
+### Publish System
+
+Asking for a System release, or saying yes to the question above, authorizes publishing System to the requested channel. It doesn't authorize an app release.
+
+1. Fetch and check that `HEAD` equals `origin/main` and the working tree is clean. The script builds from `HEAD` and only checks cleanliness.
+2. Run `bun test images/system` and `images/system/publish.sh --check` (validates both native builders).
+3. Publish in tmux and present the session:
+
+   ```sh
+   tmux new-session -d -s system-publish "images/system/publish.sh --stable; result=\$?; printf '\nPublish exited %s\n' \"\$result\"; exec bash"
+   ```
+
+   Omit `--stable` to move only `latest`. With `--stable`, both `latest` and `stable` move. Each run rebuilds from `HEAD`, so a later stable publish produces a new digest, not the one tested on latest.
+4. Confirm the output ends with `Published …` and one `Promoted …:<channel>` line per channel, all with the same digest. Report the commit, digest, channels moved, and `systemVersion`.
+
+System releases have no release notes. Anything people notice belongs in the app's notes.
+
+When both are being released, publish System first, then the app. Retrying a failed System publish is safe: it rebuilds and re-tags.
 
 ## Prerequisites, checks, and recovery
 
