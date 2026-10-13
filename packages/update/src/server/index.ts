@@ -274,8 +274,8 @@ function renderInstallerCopy(): string {
 function renderSystemOutdated(snapshot: StateSnapshot): string {
   if (!snapshot.systemOutdated) return "";
   return warningBannerHtml({
-    title: "Run the installer to finish updating",
-    message: "This version of AgentsInTheCloud needs a newer System, so some features won’t work yet. Run the installer again on the machine where AgentsInTheCloud is installed. It updates everything in one go.",
+    title: "Finish updating",
+    message: "Some features won’t work until you run the installer again on the computer AgentsInTheCloud is installed on. Existing workspaces will survive but be interrupted.",
     actionsHtml: renderInstallerCopy(),
   });
 }
@@ -301,7 +301,7 @@ function updateDescription(snapshot: StateSnapshot): string {
     case "idle": return "Check for new updates.";
     case "checking": return "Checking for updates…";
     case "available": return "An update is available.";
-    case "system_update_required": return "An update is available, but it needs a newer System. Run the installer again on the machine where AgentsInTheCloud is installed. It updates everything in one go.";
+    case "system_update_required": return "A new version is ready. To get it, run the installer again on the computer AgentsInTheCloud is installed on. Existing workspaces will survive but be interrupted.";
     case "pulling": return "Downloading the update…";
     case "ready_to_restart": return "";
     case "restarting": return "";

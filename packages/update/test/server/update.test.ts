@@ -75,7 +75,7 @@ test("an update needing a newer System points to the installer instead of downlo
   expect(instance.snapshot()).toMatchObject({ state: "system_update_required", systemOutdated: false });
   expect(() => instance.startPull()).toThrow("No update is available to download");
   const settings = broadcasts.at(-1)!;
-  expect(settings).toContain("it needs a newer System");
+  expect(settings).toContain("To get it, run the installer again");
   expect(settings).toContain("Copy installer command");
   expect(settings).toContain("curl -fsSL https://agentsinthecloud.com/install.sh | bash");
   expect(settings).not.toContain("Download update");
@@ -86,7 +86,8 @@ test("an app running on an older System keeps asking for the installer, whatever
   await instance.initialize(ctx);
   expect(instance.snapshot()).toMatchObject({ state: "idle", systemOutdated: true });
   for (const html of [sidebar.at(-1)!, broadcasts.at(-1)!]) {
-    expect(html).toContain("Run the installer to finish updating");
+    expect(html).toContain("Finish updating");
+    expect(html).toContain("Existing workspaces will survive but be interrupted.");
     expect(html).toContain("curl -fsSL https://agentsinthecloud.com/install.sh | bash");
   }
 });

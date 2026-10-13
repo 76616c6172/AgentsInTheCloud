@@ -11,6 +11,6 @@ test("apps needing at most this System's version start", () => {
 });
 
 test("apps needing a newer System are refused with installer guidance", () => {
-  expect(() => assertAppCompatible({ "org.agents-in-the-cloud.required-system-version": "3" }, 2)).toThrow("needs a newer System (version 3; this one is 2). Run the installer again");
+  expect(() => assertAppCompatible({ "org.agents-in-the-cloud.required-system-version": "3" }, 2)).toThrow("To get this version, run the installer again on the computer AgentsInTheCloud is installed on. Existing workspaces will survive but be interrupted. (It needs System version 3; this one is 2.)");
   expect(() => assertAppCompatible({ "org.agents-in-the-cloud.required-system-version": "next" }, 2)).toThrow("Invalid System version");
 });
