@@ -79,8 +79,10 @@ function normalizeCwd(cwd?: string): string {
 
 function sessionCommand(command?: string): string {
   const trimmed = command?.trim();
-  if (!trimmed) return "/bin/bash";
-  const script = `${trimmed}\nstatus=$?\nprintf '\\n[process exited with code %s]\\n' "$status"\nexec /bin/bash`;
+  // Resolve inside the workspace, not from the app's user or tmux's inherited SHELL.
+  const interactiveShell = 'exec "$(getent passwd "$(id -u)" | cut -d: -f7)"';
+  if (!trimmed) return `/bin/sh -c ${shellQuote(interactiveShell)}`;
+  const script = `${trimmed}\nstatus=$?\nprintf '\\n[process exited with code %s]\\n' "$status"\n${interactiveShell}`;
   return `/bin/bash -lc ${shellQuote(script)}`;
 }
 

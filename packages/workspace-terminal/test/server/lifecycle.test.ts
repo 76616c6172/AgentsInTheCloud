@@ -11,8 +11,10 @@ async function scenario(script: string): Promise<void> {
       const workspace = await import("@agents-in-the-cloud/workspace");
       const observable = await import("@agents-in-the-cloud/observable-terminal/server");
       const sessions = new Map();
+      const commands = [];
       let failCreation = false, callbacks;
       mock.module("@agents-in-the-cloud/workspace", () => ({ ...workspace, execWorkspaceShell: async (id, command) => {
+        commands.push(command);
         await Bun.sleep(5);
         if (!sessions.has(id)) sessions.set(id, new Set());
         const names = sessions.get(id);
@@ -87,6 +89,20 @@ test("existing terminal metadata keeps its flat format, IDs and session ownershi
   expect(await Bun.file(path).json()).toEqual([existing, created]);
   await remove("legacy", existing.id);
   expect(await Bun.file(path).json()).toEqual([created]);
+`));
+
+test("interactive terminals use the workspace login shell while supplied commands retain Bash semantics", () => scenario(`
+  await create("one");
+  await create("one", { command: "printf '%s' from-bash" });
+  const starts = commands.filter(command => command.includes("new-session"));
+  expect(starts).toHaveLength(2);
+  expect(starts[0]).toContain("/bin/sh -c");
+  expect(starts[1]).toContain("/bin/bash -lc");
+  for (const command of starts) {
+    expect(command).toContain("getent passwd");
+    expect(command).toContain("id -u");
+    expect(command).not.toContain("exec /bin/bash");
+  }
 `));
 
 test("invalid terminal cwd is rejected before workspace operations", () => scenario(`

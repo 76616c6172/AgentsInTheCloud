@@ -1,0 +1,38 @@
+{
+  "aptPackages": [
+    "bat",
+    "btop",
+    "chafa",
+    "du-dust",
+    "eza",
+    "fzf",
+    "golang-go",
+    "lazygit",
+    "libicu78",
+    "zoxide",
+    "zsh"
+  ],
+  "files": [
+    {
+      "from": "install-editor.sh",
+      "to": "/opt/agents-in-the-cloud/install-nox-editor.sh"
+    },
+    {
+      "from": "home-defaults/.pi/agent/settings.json",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.pi/agent/settings.json",
+      "afterRun": true
+    },
+    {
+      "from": "home-defaults/.pi/agent/themes/nox-oscura.json",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.pi/agent/themes/nox-oscura.json",
+      "afterRun": true
+    }
+  ],
+  "run": [
+    "bash /opt/agents-in-the-cloud/install-nox-editor.sh",
+    "ln -s /usr/bin/batcat /usr/local/bin/bat",
+    "usermod --shell /usr/bin/zsh agents-in-the-cloud",
+    "install -D -m 0644 /dev/null /opt/agents-in-the-cloud/home-defaults/.zshrc",
+    "nvim --version; fzf --version; zsh --version"
+  ]
+}

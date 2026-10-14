@@ -308,6 +308,10 @@
         "@types/markdown-it": "14.1.2",
       },
     },
+    "packages/nox-workspace": {
+      "name": "@agents-in-the-cloud/nox-workspace",
+      "version": "0.1.0",
+    },
     "packages/observable-terminal": {
       "name": "@agents-in-the-cloud/observable-terminal",
       "dependencies": {
@@ -524,6 +528,8 @@
     "@agents-in-the-cloud/llm": ["@agents-in-the-cloud/llm@workspace:packages/llm"],
 
     "@agents-in-the-cloud/markdown": ["@agents-in-the-cloud/markdown@workspace:packages/markdown"],
+
+    "@agents-in-the-cloud/nox-workspace": ["@agents-in-the-cloud/nox-workspace@workspace:packages/nox-workspace"],
 
     "@agents-in-the-cloud/observable-terminal": ["@agents-in-the-cloud/observable-terminal@workspace:packages/observable-terminal"],
 
