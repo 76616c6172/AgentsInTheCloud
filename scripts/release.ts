@@ -178,10 +178,11 @@ export async function release(options: ReturnType<typeof parseReleaseArgs>, run:
     phase(`Prepared ${status.commit} — ${status.digest}. No channels or release notes published.`);
     return;
   }
-  // Avoid promoting a build that was overtaken by new main branch commits while building.
-  phase("Confirm main branch has not moved");
-  const head = (await run(["git", "ls-remote", "origin", "refs/heads/main"])).stdout.split(/\s+/)[0];
-  if (head !== sourceRevision) throw new Error("origin/main moved during this release. Commit image is uploaded; inspect the new changes and reserved notes before retrying. Do not silently change the approved code revision.");
+  // New commits on main are fine; the next release picks them up. Rewritten history is not.
+  phase("Confirm main still contains this commit");
+  await run(["git", "fetch", "origin", "refs/heads/main"]);
+  if ((await run(["git", "merge-base", "--is-ancestor", status.commit, "FETCH_HEAD"], { allowFailure: true })).code !== 0)
+    throw new Error(`origin/main no longer contains ${status.commit}; its history was rewritten during this release. Commit image is uploaded; inspect main before retrying.`);
   phase("Check each channel's System supports this app");
   await assertChannelSystemsSupportApp(run, status.digest, options.stable ? ["latest", "stable"] : ["latest"]);
   await promoteChannels(run, status, save);

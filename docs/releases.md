@@ -82,17 +82,18 @@ Channel tags are not passed to the build. An existing commit image is reused, no
 overwritten, and its two architectures and revision labels must pass verification.
 Rerunning after a completed upload therefore skips the application rebuild.
 
-Before promotion, the command verifies the rename branch has not moved. If it has, the command
-fails without updating channels; rerun to release the new branch head. Otherwise it
-promotes the verified digest to latest (and stable with `--stable`) and checks its registry digest.
+Before promotion, the command fetches main again and verifies it still contains the
+release commit. New commits landing on main during a release are fine; the next release
+picks them up. If main's history was rewritten so it no longer contains the commit, the
+command fails without updating channels. Otherwise it promotes the verified digest to latest (and stable with `--stable`) and checks its registry digest.
 Channel updates are **not atomic**. Status records each channel separately. A
 failed promotion may have reached the registry even if its response was lost;
 there is no automatic rollback. Inspect the tag/digest or rerun the same release.
 
 An OS lock prevents overlapping releases from the same Git common directory,
 including linked worktrees. **It is not a distributed lock:** do not run releases
-from two independent workspaces simultaneously. The branch-head check reduces stale
-promotions but cannot eliminate a race with another workspace's publisher.
+from two independent workspaces simultaneously. Two such publishers could promote
+out of order, leaving latest on the older commit.
 
 Build caches remain with each Docker daemon. SSH contexts and probe images are
 retained for reuse. The script does not provision Docker or modify the helper's

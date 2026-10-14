@@ -93,7 +93,7 @@ test("promotion fails if registry readback differs", async () => {
   expect(current.channels.latest).toBe("failed");
 });
 
-async function scenario(options: { check?: boolean; exists?: boolean; moved?: boolean; buildFailure?: boolean; sameArch?: boolean; localArm?: boolean; badDriver?: boolean; missingHelper?: boolean; stable?: boolean; failStable?: boolean; failNotesPublication?: boolean; prepare?: boolean; sourceRevision?: string; revision?: string; changedPaths?: string }) {
+async function scenario(options: { check?: boolean; exists?: boolean; rewritten?: boolean; buildFailure?: boolean; sameArch?: boolean; localArm?: boolean; badDriver?: boolean; missingHelper?: boolean; stable?: boolean; failStable?: boolean; failNotesPublication?: boolean; prepare?: boolean; sourceRevision?: string; revision?: string; changedPaths?: string }) {
   const directory = mkdtempSync(join(tmpdir(), "agents-in-the-cloud-release-test-"));
   const calls: { args: string[]; cwd?: string }[] = [];
   let uploaded = options.exists ?? false;
@@ -124,7 +124,7 @@ async function scenario(options: { check?: boolean; exists?: boolean; moved?: bo
       if (options.failStable && args.includes("create") && args.some(arg => arg.endsWith(":stable"))) throw new Error("stable promotion failed");
       if (args[0] === "git" && args[1] === "rev-parse") return ok(options.sourceRevision ?? commit);
       if (args[0] === "git" && args[1] === "diff") return ok(options.changedPaths ?? "");
-      if (args[0] === "git" && args[1] === "ls-remote") return ok(`${options.moved ? "new-commit" : options.sourceRevision ?? commit}\trefs/heads/main`);
+      if (args[0] === "git" && args[1] === "merge-base" && args[3] === commit && args[4] === "FETCH_HEAD") return { code: options.rewritten ? 1 : 0, stdout: "", stderr: "" };
       if (args.includes("context") && args.includes("show")) return ok("default");
       if (args.includes("{{json .}}")) {
         const local = args[args.indexOf("--context") + 1] === "default";
@@ -188,7 +188,7 @@ test("new commit is built in an isolated checkout with no latest tag before veri
   const { calls, current, error } = await scenario({});
   expect(error).toBeUndefined();
   expect(current.state).toBe("published");
-  expect(calls.find(({ args }) => args.includes("ls-remote"))!.args).toEqual(["git", "ls-remote", "origin", "refs/heads/main"]);
+  expect(calls.some(({ args }) => args.join(" ") === `git merge-base --is-ancestor ${commit} FETCH_HEAD`)).toBe(true);
   expect(calls.flatMap(({ args }) => args).some(arg => /^ghcr\.io\/lucasmeijer\/atelier(?=[:@])/.test(arg) || arg === "ghcr.io/lucasmeijer/agents-in-the-cloud:stable")).toBe(false);
   const build = calls.find(({ args }) => args[0] === "bun")!;
   expect(build.cwd).toEndWith("/source");
@@ -205,9 +205,9 @@ test("retry reuses uploaded commit instead of rebuilding", async () => {
   expect(calls.some(({ args }) => args[0] === "bun" || args.includes("worktree"))).toBe(false);
 });
 
-test("main branch moving prevents all channel updates", async () => {
-  const { calls, error } = await scenario({ exists: true, moved: true });
-  expect(String(error)).toContain("origin/main moved");
+test("rewritten main history prevents all channel updates", async () => {
+  const { calls, error } = await scenario({ exists: true, rewritten: true });
+  expect(String(error)).toContain("no longer contains");
   expect(calls.some(({ args }) => args.includes("imagetools") && args.includes("create"))).toBe(false);
 });
 
