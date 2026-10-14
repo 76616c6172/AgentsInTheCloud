@@ -446,7 +446,7 @@ export const launchComposerCommand = {
   id: "agent.open-launch-composer",
   label: "New workspace",
   description: "Open the launch composer, using the selected workspace’s template when available.",
-  binding: "Control+Quote",
+  binding: "Control+KeyN",
 } as const;
 
 export interface WorkspaceClientCommand {
