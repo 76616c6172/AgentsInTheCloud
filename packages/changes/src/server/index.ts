@@ -238,8 +238,8 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
   async attachToWorkspace({ workspaceId }) {
     const { snapshot } = await current(workspaceId);
     return {
-      workViews: [{ reference, sourceKey: "changes:workspace", label: renderChangesTitle(snapshot), kind: "contextual", iconHtml: Icons.Changes, availability: { phase: "live" }, initiallyOpen: false }],
-      commands: [{ id: "changes.open", label: "Changes", description: "Compare local commits and uncommitted changes.", scope: "workspace", surfaces: { ui: { placement: "work-launcher", iconHtml: Icons.Changes, label: "Changes" }, shortcut: { defaultBinding: "Meta+Alt+KeyC" } } }],
+      workViews: [{ reference, sourceKey: "changes:workspace", label: renderChangesTitle(snapshot), kind: "contextual", iconHtml: Icons.Changes, availability: { phase: "live" }, initiallyOpen: true }],
+      commands: [{ id: "changes.open", label: "Changes", description: "Compare local commits and uncommitted changes.", scope: "workspace", surfaces: { ui: { placement: "work-launcher", iconHtml: Icons.Changes, label: "Changes" }, shortcut: { defaultBinding: "Control+KeyX" } } }],
     };
   },
 };

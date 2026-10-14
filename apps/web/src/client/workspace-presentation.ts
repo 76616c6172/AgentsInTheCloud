@@ -74,7 +74,7 @@ export function markActiveWorkspaceRow(root: ParentNode, workspaceId?: string): 
   root.querySelectorAll<HTMLElement>("[data-workspace-entry-id][aria-current=\"page\"]").forEach((row) => {
     row.removeAttribute("aria-current");
   });
-  if (workspaceId) root.querySelector<HTMLElement>(`[data-workspace-entry-id="${CSS.escape(workspaceId)}"]`)?.setAttribute("aria-current", "page");
+  if (workspaceId) root.querySelectorAll<HTMLElement>(`[data-workspace-entry-id="${CSS.escape(workspaceId)}"]`).forEach((row) => row.setAttribute("aria-current", "page"));
 }
 
 export function createWorkspacePresentationController(
@@ -91,6 +91,7 @@ export function createWorkspacePresentationController(
     private media?: MediaQueryList;
     private sizeObserver?: ResizeObserver;
     private preferredAgentWidth?: number;
+    private workPaneFocused = false;
     private resize?: { startX: number; startAgentWidth: number };
     private moreOpen = false;
     private mobileNavigationLayoutFrame?: number;
@@ -135,12 +136,14 @@ export function createWorkspacePresentationController(
       const id = (event.currentTarget as HTMLElement).dataset.agentId;
       if (!id) return;
       this.state.activeAgentId = id;
+      this.workPaneFocused = false;
       this.state.phoneDestination = "agents";
       this.persistAndApply();
     }
 
     selectAgentById(agentId: string): void {
       this.state.activeAgentId = agentId;
+      this.workPaneFocused = false;
       this.state.phoneDestination = "agents";
       this.persistAndApply();
     }
@@ -249,8 +252,9 @@ export function createWorkspacePresentationController(
     }
 
     toggleWorkPane(): void {
-      this.state.workPaneVisible = !this.state.workPaneVisible;
-      this.persistAndApply({ focus: this.state.workPaneVisible });
+      this.workPaneFocused = !this.workPaneFocused;
+      this.state.workPaneVisible = true;
+      this.persistAndApply({ focus: true });
     }
 
     toggleDrawer(event: Event): void {
@@ -332,7 +336,7 @@ export function createWorkspacePresentationController(
       return {
         activeAgentId: stored?.activeAgentId,
         activeWorkViewKey: stored?.activeWorkViewKey,
-        workPaneVisible: stored?.workPaneVisible ?? !this.isPhone,
+        workPaneVisible: !this.isPhone || stored?.workPaneVisible === true,
         phoneDestination: stored?.phoneDestination ?? "agents",
         drawers: stored?.drawers ?? [],
       };
@@ -409,6 +413,14 @@ export function createWorkspacePresentationController(
     private applyState(options: { emit: boolean; focus?: boolean }): void {
       const before = [...this.element.querySelectorAll<PresentationPane>("[data-workspace-pane-role]")].filter((pane) => visiblePresentationPanes.has(pane));
       this.element.classList.toggle("is-work-pane-open", this.state.workPaneVisible);
+      const workFocused = this.workPaneFocused && !this.isPhone;
+      this.element.classList.toggle("is-work-pane-focused", workFocused);
+      this.restorePreferences();
+      const focusToggle = this.element.querySelector<HTMLButtonElement>("[data-collapse-work-pane]")!;
+      const focusLabel = workFocused ? "Restore split view" : "Focus Work pane";
+      focusToggle.setAttribute("aria-label", focusLabel);
+      focusToggle.setAttribute("title", focusLabel);
+      focusToggle.setAttribute("aria-pressed", String(workFocused));
       this.element.dataset.phoneDestination = this.state.phoneDestination;
       this.element.dataset.navigationReady = "true";
       selectLiveSurface(this.element.closest<HTMLElement>(".workspace-detail-resident")!, this.state.activeAgentId ?? "", this.state.workPaneVisible ? this.state.activeWorkViewKey ?? "" : "");
@@ -497,7 +509,8 @@ export function createWorkspacePresentationController(
       if (!this.element.closest(".workspace-detail-resident.visible")) return [];
       const selector = this.isPhone
         ? this.state.phoneDestination === "agents" ? `[data-workspace-pane-role='agent'].is-active` : `[data-workspace-pane-role='work'].is-active`
-        : `[data-workspace-pane-role='agent'].is-active${this.state.workPaneVisible ? ", [data-workspace-pane-role='work'].is-active" : ""}`;
+        : this.workPaneFocused ? `[data-workspace-pane-role='work'].is-active`
+          : `[data-workspace-pane-role='agent'].is-active${this.state.workPaneVisible ? ", [data-workspace-pane-role='work'].is-active" : ""}`;
       return [...this.element.querySelectorAll<PresentationPane>(selector)];
     }
 
@@ -559,12 +572,13 @@ export function createWorkspacePresentationController(
     }
 
     private restorePreferences(): void {
+      if (this.workPaneFocused) return;
       if (this.preferredAgentWidth === undefined) {
         const stored = Number(localStorage.getItem(agentPaneWidthStorageKey));
-        const defaultWidth = Number.parseFloat(getComputedStyle(this.element).getPropertyValue("--fixed-agent-width"));
-        this.preferredAgentWidth = Number.isFinite(stored) && stored > 0 ? stored : defaultWidth;
+        if (Number.isFinite(stored) && stored > 0) this.preferredAgentWidth = stored;
       }
-      this.setAgentWidth(this.preferredAgentWidth);
+      // Keep the default proportional; only an explicit resize pins a pixel width.
+      this.setAgentWidth(this.preferredAgentWidth ?? this.element.clientWidth * 0.618);
     }
 
     private setAgentWidth(width: number, persist = false): void {

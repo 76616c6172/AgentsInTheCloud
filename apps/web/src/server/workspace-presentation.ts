@@ -189,6 +189,22 @@ function renderWorkspaceTemplatePicker(presentation: WorkspacePanePresentation, 
   </form>${tip}`;
 }
 
+const workspaceRailEntriesDomId = "nox_workspace_rail_entries";
+
+function renderWorkspaceRailEntries(presentation: WorkspacePanePresentation): string {
+  return presentation.workspaces.map((workspace) => {
+    const status = workspace.issues?.length ? workspace.issues.map(issue => issue.message).join("; ") : workspace.requestingAttention ? "Needs attention" : workspace.busy ? "Working" : workspace.parked ? "Parked" : "Idle";
+    const icon = workspace.issues?.length ? '<i class="status-dot danger" aria-hidden="true"></i>' : renderWorkspaceRowStatus(workspace) || '<i class="status-dot" aria-hidden="true"></i>';
+    const button = buttonHtml({
+      type: workspace.parked ? "submit" : "button",
+      variant: "secondary",
+      content: { kind: "icon-only", iconHtml: icon, label: `${workspace.title} · ${status}` },
+      attributesHtml: `data-workspace-entry-id="${escapeHtml(workspace.id)}"${workspace.active ? ' aria-current="page"' : ""}${workspace.parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,
+    });
+    return workspace.parked ? `<form method="post" action="/workspaces/${encodeURIComponent(workspace.id)}/unpark" data-turbo="true" data-action="submit->workspace-navigation#unparkWorkspace">${button}</form>` : button;
+  }).join("");
+}
+
 const workspacePaneScrollDomId = "fixed_shell_workspace_scroll";
 const workspacePaneNewWorkspaceDomId = "fixed_shell_new_workspace";
 const workspaceTemplateOptionsDomId = "workspace_template_options";
@@ -203,6 +219,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
   const back = buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Back, label: "Back to workspaces" }, attributesHtml: 'data-action="workspace-pane#back"' });
   return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane"><div class="fixed-shell-workspace-main">${panelHtml({
     element: { tag: "aside",  attributesHtml: 'aria-label="Workspaces"' },
+    chrome: "integrated",
     headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader"><span class="panel__title">${Icons.Cloud}Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}${settings}${barButton("Collapse Workspace pane", "click->workspace-navigation#toggleWorkspacePaneCollapsed", Icons.Panel, "data-collapse-workspace-pane")}` })}</div>
       <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New workspace</span></div>`,
     bodyHtml: `<div class="workspace-pane-viewport" data-workspace-pane-target="body"><div class="workspace-pane-slides">
@@ -215,7 +232,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
       </section>
       <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New workspace" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
     </div></div>`,
-  })}</div></div>`;
+  })}</div></div><nav class="nox-workspace-rail" aria-label="Workspace status">${barButton("Show Workspace pane", "click->workspace-navigation#toggleWorkspacePaneCollapsed", Icons.Panel, "data-show-workspace-pane")}<div id="${workspaceRailEntriesDomId}" class="nox-workspace-rail-entries">${renderWorkspaceRailEntries(presentation)}</div>${barButton("New workspace", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"')}${settings}</nav>`;
 }
 
 const agentsInTheCloudNextAttentionDomId = "fixed_shell_agents-in-the-cloud_next_attention";
@@ -341,7 +358,8 @@ function renderWorkPane(presentation: WorkspacePresentation): string {
   }) : "";
   return `<div class="fixed-shell-work-pane">${panelHtml({
     element: { tag: "section",  attributesHtml: 'data-workspace-role-region="work" data-workspace-presentation-target="workPane" aria-label="Work"' },
-    headerHtml: `${presentation.workViews.length ? "" : '<span class="panel__title">Work views</span>'}${tabStripHtml({ id: workViewDomId(presentation.workspace.id, "selectors"), label: "Work views", tabsHtml: selectors })}<span id="${workViewDomId(presentation.workspace.id, "launchers")}">${addMenu}</span>${barButton("Collapse Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Panel, "data-collapse-work-pane")}`,
+    chrome: "integrated",
+    headerHtml: `${presentation.workViews.length ? "" : '<span class="panel__title">Work views</span>'}${tabStripHtml({ id: workViewDomId(presentation.workspace.id, "selectors"), label: "Work views", tabsHtml: selectors })}<span id="${workViewDomId(presentation.workspace.id, "launchers")}">${addMenu}</span>${barButton("Focus Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Maximize, "data-collapse-work-pane")}`,
     bodyHtml: `<div id="${workViewDomId(presentation.workspace.id, "bodies")}" class="fixed-shell-work-bodies">${panes || renderEmptyWorkPane(presentation.workspace.id, presentation.commands ?? [])}</div><div class="fixed-shell-work-resizer" role="separator" aria-label="Resize Work pane" aria-orientation="vertical" tabindex="0" data-action="pointerdown->workspace-presentation#beginWorkResize keydown->workspace-presentation#resizeWorkWithKeyboard"></div>`,
   })}</div>`;
 }
@@ -458,6 +476,7 @@ export function presentWorkViewTurboStream(workspaceId: string, key: string): st
 export function workspacePaneCollectionsRegions(presentation: WorkspacePanePresentation): import("@agents-in-the-cloud/shared").LiveRegion[] {
   return [
     { target: workspacePaneScrollDomId, html: renderWorkspaceRows(presentation) },
+    { target: workspaceRailEntriesDomId, html: renderWorkspaceRailEntries(presentation) },
     { target: workspacePaneNewWorkspaceDomId, html: renderNewWorkspaceRow(presentation) },
     { target: workspaceTemplateOptionsDomId, html: renderWorkspaceTemplateOptions(presentation), action: "replace" },
   ];

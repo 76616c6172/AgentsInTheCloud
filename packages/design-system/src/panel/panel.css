@@ -17,6 +17,15 @@
     var(--panel-outline) border-box;
 }
 
+.panel--integrated {
+  border: 0;
+  border-radius: 0;
+}
+
+.panel--integrated > .panel__header {
+  border-bottom-color: color-mix(in srgb, var(--line) 45%, transparent);
+}
+
 .panel__header {
   min-width: 0;
   flex: 0 0 auto;

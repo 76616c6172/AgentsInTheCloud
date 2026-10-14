@@ -67,6 +67,7 @@ ${options.devReload ? `
 <link rel="stylesheet" href="${assetPath("/style.css")}">
 <link rel="stylesheet" href="${assetPath("/provisioning.css")}">
 ${moduleStylesHtml()}
+<link rel="stylesheet" href="${assetPath("/nox-layout.css")}">
 <script type="module" src="${assetPath("/workspace.js")}"></script>
 </head>
 <body id="body"${pageBodyStimulusHtml(["navigation-origin", "cable-shell", options.devReload ? "dev-reload" : undefined])}${options.devReload ? ` data-dev-reload-url-value="/__agents-in-the-cloud_dev_reload"` : ""}><div id="live-connection-status" role="status" class="live-connection-status"><span class="status-spinner" aria-hidden="true"></span> Reconnecting… Updates are paused.</div><div id="${themeRegionId}" hidden>${themeRegionHtml(theme)}</div>${body}

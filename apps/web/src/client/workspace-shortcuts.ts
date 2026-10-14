@@ -74,7 +74,9 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     }
 
     this.hideShortcutOverlay();
-    const command = this.currentCommands().find((candidate) => candidate.binding && this.matchesBinding(event, candidate.binding));
+    const command = this.currentCommands().find((candidate) =>
+      (candidate.binding && this.matchesBinding(event, candidate.binding))
+      || (candidate.id === "agents-in-the-cloud.open-palette" && this.matchesBinding(event, "Control+KeyO")));
     if (!command) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -131,6 +133,12 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       scope: "global",
       binding: "Control+KeyK",
       run: () => this.openPalette(),
+    });
+    clientHooks.registerCommand({
+      id: "work-pane.toggle-focus",
+      label: "Toggle Work pane focus",
+      scope: "workspace",
+      run: () => this.visibleWorkspacePresentation()?.querySelector<HTMLButtonElement>("[data-collapse-work-pane]")?.click(),
     });
     clientHooks.registerCommand({
       id: "agents-in-the-cloud.open-settings",
@@ -499,7 +507,8 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   }
 
   private workspaceRows(): HTMLElement[] {
-    return [...document.querySelectorAll<HTMLElement>("[data-workspace-entry-id]")];
+    // The status rail mirrors these entries; navigate the canonical list only.
+    return [...document.querySelectorAll<HTMLElement>(".fixed-shell-workspace-scroll [data-workspace-entry-id]")];
   }
 
   private async openWorkspaceRow(row: HTMLElement): Promise<void> {

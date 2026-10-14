@@ -32,6 +32,7 @@ export const fingerprintedStaticFiles: StaticFileRegistry = {
   "/manifest.webmanifest": { url: new URL("../../public/manifest.webmanifest", import.meta.url), contentType: "application/manifest+json; charset=utf-8" },
   "/service-worker.js": { url: new URL("../client/service-worker.js", import.meta.url), contentType: "text/javascript; charset=utf-8" },
   "/style.css": { url: new URL("../../public/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },
+  "/nox-layout.css": { url: new URL("../../public/nox-layout.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   ...designSystemStaticFiles,
   ...workspaceProvisioningStaticFiles,
   ...workspaceModuleStaticFiles(),

@@ -186,7 +186,7 @@ turbo-frame { display: contents; }
 .fixed-shell-live-body { min-width: 0; min-height: 100%; }
 
 .fixed-shell-work-pane { position: relative; min-width: 360px; flex: 1; }
-@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+@media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
   .fixed-shell-app > .fixed-shell-workspace-pane {
     position: absolute;
     inset: var(--fixed-shell-gap) auto var(--fixed-shell-gap) var(--fixed-shell-gap);
@@ -230,7 +230,7 @@ turbo-frame { display: contents; }
 /* Below the preferred pane minimums (380 + 360 + 8), shrink both panes
  * side by side until the mobile layout takes over. Query the space beside
  * the sidebar so neither pane overflows the available desktop width. */
-@media (min-width: 701px) and (hover: hover) and (pointer: fine) {
+@media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
   @container workspace-content (width < 748px) {
     .fixed-shell-agent-pane { min-width: 0; flex: 0 1 calc((100% - var(--fixed-shell-gap)) * 380 / 740); }
     .fixed-shell-work-pane { min-width: 0; width: calc((100% - var(--fixed-shell-gap)) * 360 / 740); }

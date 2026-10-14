@@ -1069,7 +1069,7 @@ export const entries: CatalogueEntry[] = [
     title: "Panel",
     when: "A bounded surface with a continuous outline, soft upper-left rim reflection and faint localized background light, fixed chrome and flexible body. Dialog composes this; workspace panes use it directly.",
     contract:
-      "Supply semantic element tag, trusted header/body and optional footer. Use an outer layout container for dimensions. bodyLayout: padded/full-bleed and bodyOverflow: scroll/contained are the supported body behaviors. No root or body classes. panel__title uses normal body text and accepts a leading icon; strong.panel__title adds emphasis for the AgentsInTheCloud identity.",
+      "Supply semantic element tag, trusted header/body and optional footer. Use an outer layout container for dimensions. chrome: integrated removes the outer rim for flush split layouts. bodyLayout: padded/full-bleed and bodyOverflow: scroll/contained are the supported body behaviors. No root or body classes. panel__title uses normal body text and accepts a leading icon; strong.panel__title adds emphasis for the AgentsInTheCloud identity.",
     imports: { panel: "panelHtml", icons: "Icons" },
     examples: [
       {
@@ -1082,6 +1082,16 @@ export const entries: CatalogueEntry[] = [
             bodyLayout: "padded",
             footerHtml: "Optional footer",
           }),
+      },
+      {
+        title: "Integrated split pane",
+        render: () => panelHtml({
+          element: { tag: "section" },
+          chrome: "integrated",
+          headerHtml: '<h3 class="panel__title">Work</h3>',
+          bodyHtml: "<p>A flush pane with a quiet header divider.</p>",
+          bodyLayout: "padded",
+        }),
       },
     ],
   },

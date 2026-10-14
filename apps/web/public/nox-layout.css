@@ -1,0 +1,70 @@
+/* Nox shell geometry. Keep the upstream theme and mobile keyboard layout intact. */
+.nox-workspace-rail { display: none; }
+
+@media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
+  .fixed-shell-app {
+    --fixed-workspace-width: 240px;
+    --fixed-agent-width: 61.8%;
+    --fixed-shell-gap: 0px;
+    --nox-rail-width: 40px;
+    --nox-pane-divider: color-mix(in srgb, var(--line) 45%, transparent);
+  }
+
+  .fixed-shell-workspace-pane,
+  .fixed-shell-agent-pane,
+  .fixed-shell-work-pane { transition: none; }
+
+  .fixed-shell-workspace-pane { border-right: 1px solid var(--nox-pane-divider); }
+  .fixed-shell-work-pane { border-left: 1px solid var(--nox-pane-divider); }
+  .fixed-shell-workspace-scroll { padding: 1px 4px 4px; }
+  .fixed-shell-agent-pane [data-show-workspace-pane] { display: none; }
+
+  .fixed-shell-app.is-workspace-pane-collapsed > .fixed-shell-app-main {
+    margin-left: var(--nox-rail-width);
+  }
+
+  .fixed-shell-app.is-workspace-pane-collapsed > .nox-workspace-rail {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: var(--nox-rail-width);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 4px;
+    border-right: 1px solid var(--nox-pane-divider);
+    background: var(--panel);
+  }
+
+  .nox-workspace-rail-entries {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    overflow: hidden auto;
+    scrollbar-width: thin;
+  }
+  .nox-workspace-rail-entries > * { flex-shrink: 0; }
+  .nox-workspace-rail-entries form { margin: 0; }
+  .nox-workspace-rail-entries [aria-current="page"] {
+    box-shadow: inset 2px 0 var(--accent);
+  }
+
+  /* Focus changes visibility, never the saved split width or sidebar preference. */
+  .fixed-shell-app:has(.workspace-detail-resident.visible .is-work-pane-focused) > :is(.fixed-shell-workspace-pane, .nox-workspace-rail),
+  .fixed-workspace-presentation.is-work-pane-focused :is(.fixed-shell-agent-pane, .fixed-shell-work-resizer) {
+    display: none;
+  }
+  .fixed-shell-app:has(.workspace-detail-resident.visible .is-work-pane-focused) > .fixed-shell-app-main {
+    margin-left: 0;
+  }
+  .fixed-workspace-presentation.is-work-pane-focused .fixed-shell-work-pane {
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    border-left: 0;
+  }
+}

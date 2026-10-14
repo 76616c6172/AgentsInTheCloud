@@ -214,7 +214,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     const scroll = Number(localStorage.getItem("agents-in-the-cloud:workspace-pane-scroll"));
     if (Number.isFinite(scroll)) this.scrollTarget.scrollTop = scroll;
     this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-resident.visible"));
-    this.setWorkspacePaneCollapsed(sessionStorage.getItem("agents-in-the-cloud:workspace-pane-collapsed") === "true" && Boolean(this.visibleWorkspacePaneToggle()));
+    this.setWorkspacePaneCollapsed(sessionStorage.getItem("agents-in-the-cloud:nox-workspace-pane-expanded") !== "true");
   }
 
   disconnect(): void {
@@ -245,11 +245,11 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   private setWorkspacePaneCollapsed(collapsed: boolean): void {
     this.element.classList.toggle("is-workspace-pane-collapsed", collapsed);
-    sessionStorage.setItem("agents-in-the-cloud:workspace-pane-collapsed", String(collapsed));
+    sessionStorage.setItem("agents-in-the-cloud:nox-workspace-pane-expanded", String(!collapsed));
   }
 
   private visibleWorkspacePaneToggle(): HTMLButtonElement | null {
-    return this.element.querySelector<HTMLButtonElement>(".workspace-detail-resident.visible [data-show-workspace-pane]");
+    return this.element.querySelector<HTMLButtonElement>(".nox-workspace-rail [data-show-workspace-pane]");
   }
 
   private setWorkspacePaneOpen(open: boolean): void {
