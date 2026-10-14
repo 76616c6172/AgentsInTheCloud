@@ -111,7 +111,7 @@ export function renderWorkingSection(ctx: AgentRenderContext, section: WorkingTr
   const attributes = ctx.readOnly ? "" : ctx.inlineWorkingItems ? `data-agent-turn-turn-id-value="${escapeHtml(section.key)}"` : `data-controller="agent-turn" data-agent-turn-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-turn-agent-id-value="${escapeHtml(ctx.agentId)}" data-agent-turn-turn-id-value="${escapeHtml(section.key)}" data-agent-turn-branch-id-value="${escapeHtml(ctx.branchId ?? "")}"${revealing ? ` data-agent-turn-reveal-value="${escapeHtml(ctx.revealTarget!)}"` : ""} data-action="toggle->agent-turn#toggle"`;
   const items = ctx.readOnly || ctx.inlineWorkingItems ? renderWorkingContent(ctx, section) : "";
   return `<div class="agent-working-block" id="${ids.item(ctx, section.key)}">${disclosureHtml({
-    element: { attributesHtml: attributes }, summary, open: revealing,
+    element: { attributesHtml: attributes }, summary, open: revealing || ctx.compactTools,
     bodyAttributesHtml: `id="${ids.workingItems(ctx, section.key)}"${ctx.readOnly || ctx.inlineWorkingItems ? "" : ' data-agent-turn-target="items" data-turbo-permanent'}`,
     bodyHtml: items,
   })}<div class="disclosure-content agent-working-commentary" id="${ids.workingItems(commentary, section.key)}">${commentaryHtml}</div></div>`;

@@ -74,7 +74,7 @@ export const handleDurableHistoryRequest: AgentRouteHandler = async (request, ur
   if (operation === "session-images") return controller.image(item, Number(index));
   const branch = url.searchParams.get("branch") ?? String(record.durableId);
   if (!(record.branches ?? [record.durableId]).some(id => String(id) === branch)) return response("Not found", { status: 404 });
-  const ctx = { workspaceId: source, agentId, readOnly: true, transcriptQuery: `branch=${encodeURIComponent(branch)}`, transcriptBasePath: `${base}/${encodeURIComponent(source)}/${encodeURIComponent(agentId)}` };
+  const ctx = { workspaceId: source, agentId, compactTools: true, readOnly: true, transcriptQuery: `branch=${encodeURIComponent(branch)}`, transcriptBasePath: `${base}/${encodeURIComponent(source)}/${encodeURIComponent(agentId)}` };
   const view = await controller.historyView(branch);
   const items = projectDurableTranscript(view);
   if (operation === "transcript-items") {

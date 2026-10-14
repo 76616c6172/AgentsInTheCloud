@@ -7,6 +7,8 @@ export interface AgentRenderContext {
   workspaceId: string;
   agentId: string;
   model?: ModelRef;
+  /** Show every activity row, with compact tool summaries and opt-in output. */
+  compactTools?: boolean;
   revealTarget?: string;
   branchId?: string;
   /** Distinct DOM identities for the collapsed commentary projection. */

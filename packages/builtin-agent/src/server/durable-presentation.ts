@@ -30,7 +30,7 @@ export class DurableAgentPresentation {
   private constructor(private readonly watch: WatchHandle<ConversationView>, ctx: AgentRenderContext, private readonly onCommit?: (view: ConversationView) => void | Promise<void>) {
     this.frame = watch.value;
     this.items = projectDurableTranscript(this.frame);
-    this.ctx = { ...ctx, streamingText: (key, source) => {
+    this.ctx = { ...ctx, compactTools: true, streamingText: (key, source) => {
       let cached = this.markdown.get(key);
       if (!cached || !source.startsWith(cached.source)) {
         cached = { source: "", renderer: new StreamingMarkdownRenderer(ctx.workspaceId), stableHtml: "", tailHtml: "" };

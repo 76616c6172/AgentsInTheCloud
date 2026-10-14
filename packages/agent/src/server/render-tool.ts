@@ -22,6 +22,7 @@ type ToolArgumentKey = "command" | "path" | "file_path" | "content" | "offset" |
 
 const toolStringArgumentSchema = Type.String();
 const toolNumberArgumentSchema = Type.Number();
+const toolSummaryArgumentSchema = Type.Union([Type.String(), Type.Number(), Type.Boolean()]);
 const diffOperationSchema = Type.Object({
   oldText: Type.String(),
   newText: Type.String(),
@@ -67,6 +68,42 @@ function toolSummaryText(tool: ToolView): string {
   return [tool.name || "tool", toolSummaryHtml(tool)].filter(Boolean).join(" · ");
 }
 
+/** Clip to the actual row width in CSS, not an arbitrary character budget. */
+function compactToolSummary(tool: ToolView): string {
+  const args = toolArgs(tool);
+  let summary: string;
+  if (isBashTool(tool.name)) summary = stringArg(args, "command") ?? "";
+  else if (tool.name === "write") {
+    const content = stringArg(args, "content");
+    const lines = content === undefined || content === "" ? 0 : content.split("\n").length - Number(content.endsWith("\n"));
+    const bytes = content === undefined ? 0 : Buffer.byteLength(content, "utf8");
+    summary = summaryHtml([pathSummary(tool), content === undefined ? "" : `${lines} ${lines === 1 ? "line" : "lines"} · ${bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`}`]);
+  } else if (tool.name === "read" || tool.name === "edit") summary = toolSummaryHtml(tool);
+  else {
+    // Module-owned presentations retain their vocabulary. Otherwise show scalar
+    // arguments rather than a JSON blob or just the first path argument.
+    const custom = agentToolPresentations?.get(tool.name)?.summary(tool);
+    summary = custom ?? Object.entries(args ?? {}).flatMap(([key, value]) =>
+      Value.Check(toolSummaryArgumentSchema, value)
+        ? [`${key}=${value}`] : []
+    ).join(" · ");
+  }
+  const outcome = tool.details?.timedOut === true ? "timed out"
+    : tool.details?.aborted === true ? "aborted"
+    : tool.details?.exitCode !== undefined && tool.details.exitCode !== 0 ? `exit ${tool.details.exitCode}`
+    : tool.status === "error" ? "failed" : "";
+  const label = isBashTool(tool.name) ? `$ ${summaryHtml([outcome, summary])}`
+    : summaryHtml([tool.name || "tool", outcome, summary]);
+  return label.replace(/\r\n?|\n/g, " ↵ ").replace(/\t/g, " ");
+}
+
+function compactToolTiming(tool: ToolView, live: boolean): string {
+  const elapsed = live ? Date.now() - tool.issuedAt! : tool.durationMs;
+  if (elapsed === undefined || (!live && elapsed < 1000)) return "";
+  const attributes = live ? ` data-controller="agent-elapsed" data-agent-elapsed-since-value="${tool.issuedAt}" data-agent-elapsed-format-value="duration"` : "";
+  return `<span class="agent-working-timing"${attributes}><span${live ? ' data-agent-elapsed-target="time"' : ""}>${formatDuration(elapsed)}</span></span>`;
+}
+
 interface ToolPresentation {
   showsDetail: boolean;
   autoOpenOnReveal: boolean;
@@ -89,23 +126,28 @@ function lazyTranscriptItemFrame(ctx: AgentRenderContext, key: string): string {
 export function renderToolCard(ctx: AgentRenderContext, key: string, tool: ToolView, options: { open?: boolean; live?: boolean } = {}): string {
   const liveDuration = isBashTool(tool.name) && tool.status === "running" && tool.issuedAt !== undefined && !ctx.readOnly;
   const timeout = numberArg(toolArgs(tool), "timeout") ?? 600;
+  const compact = ctx.compactTools === true;
   const label = {
     kind: "text" as const,
-    text: toolSummaryText(tool),
-    attributesHtml: liveDuration ? `data-controller="agent-elapsed" data-agent-elapsed-since-value="${tool.issuedAt}" data-agent-elapsed-prefix-value="${escapeHtml(tool.name)} · " data-agent-elapsed-suffix-value=" / ${formatDuration(timeout * 1000)}" data-agent-elapsed-format-value="duration"` : undefined,
-    textAttributesHtml: liveDuration ? 'data-agent-elapsed-target="time"' : undefined,
+    text: compact ? compactToolSummary(tool) : toolSummaryText(tool),
+    attributesHtml: !compact && liveDuration ? `data-controller="agent-elapsed" data-agent-elapsed-since-value="${tool.issuedAt}" data-agent-elapsed-prefix-value="${escapeHtml(tool.name)} · " data-agent-elapsed-suffix-value=" / ${formatDuration(timeout * 1000)}" data-agent-elapsed-format-value="duration"` : undefined,
+    textAttributesHtml: !compact && liveDuration ? 'data-agent-elapsed-target="time"' : undefined,
   };
   const labelOptions = {
     leadingHtml: `<span id="${ids.itemSummaryStatus(ctx, key)}" class="agent-tool-status">${statusHtml(tool.status, ctx.readOnly)}</span>`,
     labelId: ids.itemSummaryContent(ctx, key),
-    trailingHtml: tool.canAbort && !ctx.readOnly ? toolAbortHtml(ctx, key, tool) : undefined,
+    trailingHtml: `${compact ? compactToolTiming(tool, liveDuration) : ""}${tool.canAbort && !ctx.readOnly ? toolAbortHtml(ctx, key, tool) : ""}`,
   };
   const active = tool.status === "streaming" || tool.status === "running";
   const content = transcriptRowContent(label, labelOptions);
+  if (compact) {
+    content.width = "fill";
+    content.tone = tool.status === "error" ? "danger" : "default";
+  }
   if (!toolPresentation(tool).showsDetail) {
     return `<div class="agent-tool agent-tool-summary-only ${toolClass(tool.name)} active">${contentRowHtml({ ...content, element: { tag: "div" }, primary: false })}</div>`;
   }
-  const open = Boolean(options.open || active);
+  const open = Boolean(options.open || (!compact && active));
   const lazy = !options.live && !active && !options.open;
   return `<div class="agent-tool ${toolClass(tool.name)}${active ? " active" : ""}${tool.status === "error" ? " error" : ""}">${disclosureHtml({
     element: lazy ? { attributesHtml: 'data-controller="agent-lazy-detail" data-action="toggle->agent-lazy-detail#load"' } : undefined,
@@ -385,8 +427,8 @@ function toolResultImagesHtml(ctx: AgentRenderContext, tool: ToolView): string {
 
 // Keep completed Bash output aligned with the same theme palette as its live terminal.
 const ansi16 = [
-  "var(--panel)", "var(--danger)", "var(--success)", "var(--warning)", "var(--accent)", "var(--decorative)", "var(--accent)", "var(--text-bright)",
-  "var(--line-strong)", "var(--danger)", "var(--success)", "var(--warning)", "var(--accent)", "var(--decorative)", "var(--accent)", "var(--text-bright)",
+  "var(--terminal-black)", "var(--terminal-red)", "var(--terminal-green)", "var(--terminal-yellow)", "var(--terminal-blue)", "var(--terminal-magenta)", "var(--terminal-cyan)", "var(--terminal-white)",
+  "var(--terminal-bright-black)", "var(--terminal-bright-red)", "var(--terminal-bright-green)", "var(--terminal-bright-yellow)", "var(--terminal-bright-blue)", "var(--terminal-bright-magenta)", "var(--terminal-bright-cyan)", "var(--terminal-bright-white)",
 ];
 
 function ansi256(index: number): string | undefined {

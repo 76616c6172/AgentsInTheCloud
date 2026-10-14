@@ -1,7 +1,7 @@
 import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 
 // Disclosure choice belongs to this pane instance, not another tab or browser.
-const expandedTurns = new WeakMap<Element, Set<string>>();
+const turnDisclosureChoices = new WeakMap<Element, Map<string, boolean>>();
 
 export function createAgentTurnController(Controller: WorkspaceClientControllerConstructor) {
   return class AgentTurnController extends Controller {
@@ -46,9 +46,9 @@ export function createAgentTurnController(Controller: WorkspaceClientControllerC
         this.visibilityObserver.observe(this.element);
         document.addEventListener("toggle", this.reconcile, true);
       }
-      if (!expandedTurns.has(this.pane)) expandedTurns.set(this.pane, new Set());
-      if (expandedTurns.get(this.pane)!.has(this.key)) this.element.open = true;
-      if (this.element.open) expandedTurns.get(this.pane)!.add(this.key);
+      if (!turnDisclosureChoices.has(this.pane)) turnDisclosureChoices.set(this.pane, new Map());
+      const choice = turnDisclosureChoices.get(this.pane)!.get(this.key);
+      if (choice !== undefined && !this.revealValue) this.element.open = choice;
       this.pane.addEventListener("agent:connection", this.reconcile);
       document.addEventListener("visibilitychange", this.reconcile);
       this.reconcile();
@@ -63,8 +63,7 @@ export function createAgentTurnController(Controller: WorkspaceClientControllerC
     toggle(event: Event): void {
       // Nested tool disclosures emit their own toggle events.
       if (event.target !== this.element) return;
-      if (this.element.open) expandedTurns.get(this.pane)!.add(this.key);
-      else expandedTurns.get(this.pane)!.delete(this.key);
+      turnDisclosureChoices.get(this.pane)!.set(this.key, this.element.open);
       this.reconcile();
     }
 
