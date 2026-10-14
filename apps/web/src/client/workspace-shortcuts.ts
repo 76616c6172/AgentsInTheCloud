@@ -122,7 +122,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       id: "work-view.open-next",
       label: "Open next Work view",
       scope: "workspace",
-      binding: "Control+BracketRight",
+      binding: "Control+Tab",
       run: () => this.openAdjacentWorkView(1),
     });
     clientHooks.registerCommand({
@@ -236,7 +236,6 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     if (!presentation) return;
     if (!presentation.classList.contains("is-work-pane-open")) {
       presentation.querySelector<HTMLButtonElement>("[data-show-work-pane]")?.click();
-      return;
     }
 
     const selectors = [...presentation.querySelectorAll<HTMLButtonElement>("[data-work-view-key]")];
