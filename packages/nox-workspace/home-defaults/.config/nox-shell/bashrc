@@ -1,0 +1,73 @@
+# Interactive Bash comforts adapted from dotvulpix. No secrets or desktop startup.
+[[ $- == *i* ]] || return
+
+HISTSIZE=20000
+HISTFILESIZE=20000
+HISTCONTROL=ignoreboth
+shopt -s histappend checkwinsize
+export EDITOR=nvim
+export PATH="$HOME/.local/bin:$HOME/go/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
+
+# This shared palette contains only Bash-compatible assignments.
+source "$HOME/.config/nox-shell-colors.zsh"
+source /usr/share/bash-completion/bash_completion
+source /usr/lib/git-core/git-sh-prompt
+set -o vi
+bind 'set completion-ignore-case on'
+bind 'set show-all-if-ambiguous on'
+FZF_ALT_C_COMMAND='"$HOME/.zoxide_fzf_dir" --list'
+FZF_ALT_C_OPTS="--layout=reverse --border=rounded --no-sort --tiebreak=index --preview='eza --tree --level=2 --group-directories-first --icons=auto --color=always {}' --preview-window=right:60%"
+source <(fzf --bash)
+eval "$(zoxide init bash --no-cmd)"
+
+z() { __zoxide_z "$@"; }
+zd() {
+  if (( $# == 0 )); then
+    builtin cd ~ || return
+  elif [[ -d $1 ]]; then
+    builtin cd -- "$1" || return
+  else
+    z "$@"
+  fi
+}
+zi() {
+  local directory
+  directory=$("$HOME/.zoxide_fzf_dir") || return
+  [[ -n $directory ]] || return
+  builtin cd -- "$directory" || return
+}
+# Ctrl+T/P belong to the web app. Alt+F opens fzf files; Alt+P opens the
+# same local-directory + zoxide-history picker as the home shell.
+for _nox_keymap in emacs-standard vi-insert; do
+  bind -m "$_nox_keymap" '"\ef": "\C-t"'
+  bind -m "$_nox_keymap" '"\ep": "\ec"'
+done
+unset _nox_keymap
+
+tm() {
+  if (( $# == 0 )); then tmux new-session -s "${PWD##*/}"; else tmux "$@"; fi
+}
+alias t=tm c=zd cl=claude icat=chafa
+alias cat='bat --paging=never --style=plain --theme="base16"'
+alias du=dust f=fd find=fd g=git grep=rg gs='git status -sb'
+alias l='eza -lh --group-directories-first --icons=auto'
+alias ll='eza -lha --group-directories-first --icons=auto'
+alias ls='eza -lh --group-directories-first --icons=auto'
+alias tr='eza --tree -L2'
+alias lg=lazygit top=btop vi=nvim
+alias pm='pi --thinking minimal'
+cpy() { bat --paging=never --style=plain --theme=base16 "$1" | pbcopy; }
+
+# Lean Powerlevel10k-style prompt: yellow directory, gray Git branch, and a
+# gray/red success/failure arrow. Git's prompt helper safely handles branch names.
+GIT_PS1_SHOWDIRTYSTATE=1
+_nox_prompt() {
+  local status=$?
+  local arrow='\[\e[38;2;134;143;151m\]❯\[\e[0m\] '
+  if (( status != 0 )); then arrow='\[\e[38;2;255;92;92m\]❯\[\e[0m\] '; fi
+  PS1='\[\e[38;2;230;231;163m\]\w\[\e[38;2;134;143;151m\]$(__git_ps1 " %s")${VIRTUAL_ENV:+ (${VIRTUAL_ENV##*/})}\[\e[0m\] '"$arrow"
+  return "$status"
+}
+if [[ " ${PROMPT_COMMAND[*]} " != *" _nox_prompt "* ]]; then
+  PROMPT_COMMAND=(_nox_prompt "${PROMPT_COMMAND[@]}")
+fi

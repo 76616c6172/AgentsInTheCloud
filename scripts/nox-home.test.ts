@@ -51,6 +51,7 @@ test("home snapshot preserves full Neovim config and materializes its external t
   const entries = tar(output, "-tz");
   expect(entries).toContain("./.config/nvim/lazy-lock.json");
   expect(entries).toContain("./.config/fzf-tab/fzf-tab.plugin.zsh");
+  expect(entries).toContain("./.config/nox-shell/bashrc");
   expect(tar(output, "-xzO", "./.tmux.conf")).toBe("set -g focus-events on");
   expect(entries).not.toContain(".secrets");
   expect(entries).not.toContain("99-state");
@@ -68,6 +69,7 @@ test("installation backs up managed settings, survives a different home mount, a
   await writeFile(join(home, ".config/nvim/init.lua"), "original Neovim");
   await writeFile(join(home, ".zshrc"), "original shell");
   await writeFile(join(home, ".bashrc"), "keep Bash unchanged");
+  await writeFile(join(home, ".profile"), "keep login settings unchanged");
   expect((await snapshot(root, output)).code).toBe(0);
   const install = (target: string) => {
     const result = Bun.spawnSync(["bash", join(import.meta.dir, "nox-home-install.sh"), target, output], { stdout: "pipe", stderr: "pipe" });
@@ -88,7 +90,9 @@ test("installation backs up managed settings, survives a different home mount, a
   expect((await snapshot(root, output)).code).toBe(0);
   install(mounted);
   expect(await Bun.file(join(mounted, ".zshrc")).text()).toBe("# updated cloud profile");
-  expect(await Bun.file(join(mounted, ".bashrc")).text()).toBe("keep Bash unchanged");
+  expect(await Bun.file(join(mounted, ".bashrc")).text()).toBe('keep Bash unchanged\nsource "$HOME/.config/nox-shell/bashrc"\n');
+  expect(await Bun.file(join(mounted, ".nox-home/backups", backup!, ".bashrc")).text()).toBe("keep Bash unchanged");
+  expect(await Bun.file(join(mounted, ".profile")).text()).toBe("keep login settings unchanged");
   expect(await Bun.file(join(mounted, ".nox-home", firstRelease, ".zshrc")).text()).toBe("# cloud profile");
   expect(await Bun.file(join(mounted, ".nox-home/backups", backup!, ".zshrc")).text()).toBe("original shell");
 });

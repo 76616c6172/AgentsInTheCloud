@@ -17,8 +17,8 @@ release="$state/releases/$stamp"
 backup="$state/backups/$stamp"
 mkdir "$release" "$backup"
 tar -xzf "$archive" -C "$release"
-paths=(.config/nvim .config/powerlevel10k .config/fzf-tab .config/nox-shell-colors.zsh .p10k.zsh .zoxide_fzf_dir .zshrc .tmux.conf)
-for path in "${paths[@]}"; do test -e "$release/$path"; done
+paths=(.config/nvim .config/nox-shell .config/powerlevel10k .config/fzf-tab .config/nox-shell-colors.zsh .p10k.zsh .zoxide_fzf_dir .zshrc .tmux.conf)
+for path in "${paths[@]}" .bashrc; do test -e "$release/$path"; done
 if [[ -L "$state/current" ]]; then readlink "$state/current" > "$backup/previous-release"; fi
 # Leave existing managed links in place; one atomic pointer switches updates.
 for path in "${paths[@]}"; do
@@ -34,4 +34,13 @@ chown "$owner" "$home/.config"
 chown -R "$owner" "$state"
 ln -s "releases/$stamp" "$state/next"
 mv -Tf "$state/next" "$state/current"
-printf 'Shared configuration installed. Backup: %s\nStart a new zsh or Neovim session to use it.\n' "$backup"
+# Keep user startup customizations, and enable the shared Bash profile once.
+bash_hook='source "$HOME/.config/nox-shell/bashrc"'
+if [[ ! -e "$home/.bashrc" && ! -L "$home/.bashrc" ]]; then
+  install -m 0644 "$release/.bashrc" "$home/.bashrc"
+elif ! grep -Fxq "$bash_hook" "$home/.bashrc"; then
+  cp -pL "$home/.bashrc" "$backup/.bashrc"
+  printf '\n%s\n' "$bash_hook" >> "$home/.bashrc"
+fi
+chown "$owner" "$home/.bashrc"
+printf 'Shared configuration installed. Backup: %s\nStart a new Bash or Neovim session to use it.\n' "$backup"

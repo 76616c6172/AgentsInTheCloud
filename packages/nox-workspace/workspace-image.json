@@ -1,5 +1,6 @@
 {
   "aptPackages": [
+    "bash-completion",
     "bat",
     "btop",
     "chafa",
@@ -18,6 +19,26 @@
       "to": "/opt/agents-in-the-cloud/install-nox-editor.sh"
     },
     {
+      "from": "home-defaults/.bashrc",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.bashrc",
+      "afterRun": true
+    },
+    {
+      "from": "home-defaults/.config/nox-shell/bashrc",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.config/nox-shell/bashrc",
+      "afterRun": true
+    },
+    {
+      "from": "home-defaults/.config/nox-shell-colors.zsh",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.config/nox-shell-colors.zsh",
+      "afterRun": true
+    },
+    {
+      "from": "home-defaults/.zoxide_fzf_dir",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.zoxide_fzf_dir",
+      "afterRun": true
+    },
+    {
       "from": "home-defaults/.pi/agent/settings.json",
       "to": "/opt/agents-in-the-cloud/home-defaults/.pi/agent/settings.json",
       "afterRun": true
@@ -31,8 +52,7 @@
   "run": [
     "bash /opt/agents-in-the-cloud/install-nox-editor.sh",
     "ln -s /usr/bin/batcat /usr/local/bin/bat",
-    "usermod --shell /usr/bin/zsh agents-in-the-cloud",
-    "install -D -m 0644 /dev/null /opt/agents-in-the-cloud/home-defaults/.zshrc",
-    "nvim --version; fzf --version; zsh --version"
+    "usermod --shell /bin/bash agents-in-the-cloud",
+    "nvim --version; fzf --version; bash --version"
   ]
 }

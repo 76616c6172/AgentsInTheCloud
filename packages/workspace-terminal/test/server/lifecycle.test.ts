@@ -32,7 +32,7 @@ async function scenario(script: string): Promise<void> {
         callbacks = events;
         return { write() {}, resize() {}, close() {} };
       } }));
-      const { createWorkspaceTerminal: create, attachWorkspaceTerminal: attach, deleteWorkspaceTerminal: remove, listWorkspaceTerminals: list } = await import(${JSON.stringify(join(import.meta.dir, "../../src/server/workspace-terminals.ts"))});
+      const { createWorkspaceTerminal: create, openWorkspaceTerminal: open, attachWorkspaceTerminal: attach, deleteWorkspaceTerminal: remove, listWorkspaceTerminals: list } = await import(${JSON.stringify(join(import.meta.dir, "../../src/server/workspace-terminals.ts"))});
       ${script}
     `], { cwd: join(import.meta.dir, "../.."), env: { ...process.env, ATELIER_DATA_DIR: directory }, stdout: "pipe", stderr: "pipe" });
     const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
@@ -103,6 +103,16 @@ test("interactive terminals use the workspace login shell while supplied command
     expect(command).toContain("id -u");
     expect(command).not.toContain("exec /bin/bash");
   }
+`));
+
+test("opening terminals reuses the first one and serializes concurrent initial opens", () => scenario(`
+  const opened = await Promise.all(Array.from({ length: 8 }, () => open("one")));
+  expect(new Set(opened.map(terminal => terminal.id)).size).toBe(1);
+  expect(sessions.get("one").size).toBe(1);
+  const second = await create("one");
+  expect(await open("one")).toEqual(opened[0]);
+  await remove("one", opened[0].id);
+  expect(await open("one")).toEqual(second);
 `));
 
 test("invalid terminal cwd is rejected before workspace operations", () => scenario(`

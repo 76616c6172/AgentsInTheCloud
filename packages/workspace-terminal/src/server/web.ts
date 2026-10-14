@@ -10,7 +10,7 @@ import { createTmuxPresenter } from "./agent-tool.ts";
 import { renderTerminalView } from "./render.ts";
 import { createTerminalSocketHandler } from "./sockets.ts";
 import { observableTerminalStaticFiles } from "@agents-in-the-cloud/observable-terminal/server";
-import { attachWorkspaceTerminal, createWorkspaceTerminal, deleteWorkspaceTerminal, listTmuxSessions, listWorkspaceTerminals, type WorkspaceTerminal } from "./workspace-terminals.ts";
+import { attachWorkspaceTerminal, createWorkspaceTerminal, openWorkspaceTerminal, deleteWorkspaceTerminal, listTmuxSessions, listWorkspaceTerminals, type WorkspaceTerminal } from "./workspace-terminals.ts";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -38,10 +38,17 @@ function parseTerminalReference(value: JsonValue): TerminalWorkViewReference {
 
 const terminalWorkspaceCommands: WorkspaceCommandContribution[] = [
   {
+    id: "terminal.open",
+    label: "Open Terminal",
+    description: "Open the first existing Terminal view, or create one if none exists.",
+    scope: "workspace",
+    surfaces: { shortcut: { defaultBinding: "Control+KeyT" } },
+  },
+  {
     id: "terminal.create",
     label: "New Terminal",
     scope: "workspace",
-    surfaces: { ui: { placement: "work-launcher", iconHtml: Icons.Terminal, label: "New Terminal" }, shortcut: { defaultBinding: "Control+KeyT" } },
+    surfaces: { ui: { placement: "work-launcher", shortcutCommandId: "terminal.open", iconHtml: Icons.Terminal, label: "New Terminal" } },
   },
   {
     id: "terminal.attach",
@@ -132,6 +139,13 @@ export const terminalWorkspaceModule: WorkspaceModule = {
     }));
   },
   commands: [
+    {
+      id: "terminal.open",
+      async execute({ workspaceId }) {
+        const terminal = await openWorkspaceTerminal(workspaceId);
+        return { createdWorkView: { type: "terminal", terminalId: terminal.id } };
+      },
+    },
     {
       id: "terminal.create",
       inputSchema: Type.Object({

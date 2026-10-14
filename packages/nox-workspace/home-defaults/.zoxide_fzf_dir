@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Bail if dependencies missing
+command -v zoxide >/dev/null 2>&1 || {
+  printf 'zoxide not found\n' >&2
+  exit 1
+}
+command -v fzf >/dev/null 2>&1 || {
+  printf 'fzf not found\n' >&2
+  exit 1
+}
+command -v fd >/dev/null 2>&1 || {
+  printf 'fd not found\n' >&2
+  exit 1
+}
+
+# Get current directory and home
+current_dir="$(pwd)"
+home_dir="$HOME"
+
+# Preview command (eza with fallback to ls)
+# The path from fzf needs ~ expansion before passing to the command
+if command -v eza >/dev/null 2>&1; then
+  preview_cmd='dir={}; dir="${dir/#\~/$HOME}"; eza --tree --level=2 --group-directories-first --icons=auto --color=always "$dir" 2>/dev/null'
+else
+  preview_cmd='dir={}; dir="${dir/#\~/$HOME}"; ls -la "$dir" 2>/dev/null'
+fi
+
+# Oscura Dusk color scheme
+color_opts='fg:#E6E6E6,bg:#131419,fg+:#E6E6E6,bg+:#232323,hl:#54C0A3,hl+:#5AD6AD,info:#868F97,border:#32333B,prompt:#E6E7A3,pointer:#4EBE96,marker:#4EBE96,spinner:#54C0A3,header:#46474F,gutter:#131419,scrollbar:#5C6974'
+
+# Build directory list
+if [[ "$current_dir" == "$home_dir" ]]; then
+  # In home: just use zoxide
+  dir_list=$(zoxide query -l)
+else
+  # Not in home: try to get subdirectories from current location
+  # fd is faster than find and respects .gitignore by default
+  local_dirs=$(fd --type d --max-depth 5 --exclude .git --exclude node_modules --exclude .cache --exclude target --exclude dist --exclude build . "$current_dir" 2>/dev/null | grep -v "^$current_dir$" || true)
+
+  # If no subdirs found, just use zoxide like we're in home
+  # Check if local_dirs has actual content (not just whitespace)
+  if [[ -z "${local_dirs// /}" ]]; then
+    dir_list=$(zoxide query -l)
+  else
+    # Combine local dirs with zoxide (local dirs first for context)
+    zoxide_dirs=$(zoxide query -l)
+    dir_list=$(printf "%s\n%s" "$local_dirs" "$zoxide_dirs" | awk '!seen[$0]++')
+  fi
+fi
+
+# Exit early if no directories found
+[[ -z "$dir_list" ]] && exit 0
+
+# Let Bash's native fzf directory widget reuse the candidates and redraw its prompt.
+if [[ "${1:-}" == --list ]]; then
+  printf '%s\n' "$dir_list"
+  exit 0
+fi
+
+# Replace /home/nox/ with ~/ for display
+# We need to keep a mapping for the preview to work with full paths
+display_list=$(echo "$dir_list" | sed "s|^$home_dir/|~/|; s|^$home_dir$|~|")
+
+# Use fzf with preview that expands ~
+selected=$(echo "$display_list" |
+  fzf --height=40% \
+    --layout=reverse \
+    --border=rounded \
+    --ansi \
+    --prompt='> ' \
+    --info=inline \
+    --no-sort \
+    --tiebreak=index \
+    --bind 'tab:down,btab:up' \
+    --preview="$preview_cmd" \
+    --preview-window='right:60%' \
+    --color="$color_opts")
+
+# Convert selection back from ~ to full path
+if [[ -n "$selected" ]]; then
+  echo "$selected" | sed "s|^~|$home_dir|"
+fi

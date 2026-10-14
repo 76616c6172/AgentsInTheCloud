@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Personal configuration stays in the installation's shared home, not release images.
+# Import portable dotfiles into the installation's persistent shared home.
 set -Eeuo pipefail
 usage() {
-  printf 'Usage:\n  bash scripts/nox-home.sh snapshot DOTVULPIX OUTPUT.tar.gz\n  bash scripts/nox-home.sh deploy SSH_HOST DOTVULPIX --yes\n\nCopies Neovim, its resolved theme, Powerlevel10k, fzf-tab, tmux and the cloud zsh profile.\nExcludes secrets, histories, plugin installs, caches and laptop startup commands.\nDeployment backs up only the managed configuration paths; running shells are unchanged.\nThe Nox workspace image supplies the programs. Existing containers need those packages too.\n'
+  printf 'Usage:\n  bash scripts/nox-home.sh snapshot DOTVULPIX OUTPUT.tar.gz\n  bash scripts/nox-home.sh deploy SSH_HOST DOTVULPIX --yes\n\nCopies Neovim, its resolved theme, the Bash comforts, tmux, and optional zsh settings.\nExcludes secrets, histories, plugin installs, caches and laptop startup commands.\nDeployment backs up only the managed configuration paths; running shells are unchanged.\nThe Nox workspace image supplies the programs. Existing containers need those packages too.\n'
 }
 operation=${1:-help}
 case "$operation" in
@@ -20,6 +20,9 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 home="$stage/home"
 mkdir -p "$home/.config"
+defaults="$(dirname "${BASH_SOURCE[0]}")/../packages/nox-workspace/home-defaults"
+cp -R "$defaults/.config/nox-shell" "$home/.config/nox-shell"
+cp "$defaults/.bashrc" "$home/.bashrc"
 # Dereference the Omarchy theme link and other selected config links. Never copy
 # the laptop's plugin/data directories or compiled zsh files across machines.
 rsync -aL --exclude=.git --exclude=.ruff_cache --exclude=tmp --exclude='*.swp' --exclude='*.swo' --exclude='*~' \

@@ -92,27 +92,34 @@ function newTerminal(terminals: WorkspaceTerminal[], title: string, tmuxSession:
   return terminal;
 }
 
-export async function createWorkspaceTerminal(workspaceId: string, options: WorkspaceTerminalCreateOptions = {}): Promise<WorkspaceTerminal> {
+async function createTerminal(workspaceId: string, options: WorkspaceTerminalCreateOptions): Promise<WorkspaceTerminal> {
   const cwd = normalizeCwd(options.cwd);
-  return mutateTerminals(workspaceId, async () => {
-    const terminals = [...await listWorkspaceTerminals(workspaceId)];
-    const sessions = await listTmuxSessions(workspaceId);
-    const tmuxSession = availableTitle(sessions.map((session) => session.name), options.title);
-    const result = await execWorkspaceShell(workspaceId, buildObservableSessionCommand({
-      requireExistingServer: true,
-      session: tmuxSession,
-      cwd,
-      command: sessionCommand(options.command),
-      passthrough: true,
-      status: false,
-      historyLimit: workspaceTerminalHistoryLimit,
-    }));
-    if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("terminal_create_failed", result.stderr.trim() || `could not create terminal: ${tmuxSession}`);
+  const terminals = [...await listWorkspaceTerminals(workspaceId)];
+  const sessions = await listTmuxSessions(workspaceId);
+  const tmuxSession = availableTitle(sessions.map((session) => session.name), options.title);
+  const result = await execWorkspaceShell(workspaceId, buildObservableSessionCommand({
+    requireExistingServer: true,
+    session: tmuxSession,
+    cwd,
+    command: sessionCommand(options.command),
+    passthrough: true,
+    status: false,
+    historyLimit: workspaceTerminalHistoryLimit,
+  }));
+  if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("terminal_create_failed", result.stderr.trim() || `could not create terminal: ${tmuxSession}`);
 
-    const terminal = newTerminal(terminals, options.title?.trim() || "Terminal", tmuxSession, "owned");
-    terminalsState.write(workspaceId, terminals);
-    return terminal;
-  });
+  const terminal = newTerminal(terminals, options.title?.trim() || "Terminal", tmuxSession, "owned");
+  terminalsState.write(workspaceId, terminals);
+  return terminal;
+}
+
+export function createWorkspaceTerminal(workspaceId: string, options: WorkspaceTerminalCreateOptions = {}): Promise<WorkspaceTerminal> {
+  return mutateTerminals(workspaceId, () => createTerminal(workspaceId, options));
+}
+
+export function openWorkspaceTerminal(workspaceId: string): Promise<WorkspaceTerminal> {
+  return mutateTerminals(workspaceId, async () =>
+    (await listWorkspaceTerminals(workspaceId))[0] ?? await createTerminal(workspaceId, {}));
 }
 
 export async function attachWorkspaceTerminal(workspaceId: string, tmuxSession: string): Promise<WorkspaceTerminal> {
