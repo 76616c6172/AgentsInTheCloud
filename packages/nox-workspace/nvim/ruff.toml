@@ -1,0 +1,3 @@
+# Ruff configuration for 2-space indentation
+[format]
+indent-width = 2

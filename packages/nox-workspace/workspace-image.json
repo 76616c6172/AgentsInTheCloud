@@ -4,6 +4,7 @@
     "bat",
     "btop",
     "chafa",
+    "clang-tidy",
     "du-dust",
     "eza",
     "fzf",
@@ -17,6 +18,32 @@
     {
       "from": "install-editor.sh",
       "to": "/opt/agents-in-the-cloud/install-nox-editor.sh"
+    },
+    {
+      "from": "nvim",
+      "to": "/opt/agents-in-the-cloud/nox-editor/config"
+    },
+    {
+      "from": "nvim-plugins.json",
+      "to": "/opt/agents-in-the-cloud/nox-editor/plugins.json"
+    },
+    {
+      "from": "build-editor.sh",
+      "to": "/opt/agents-in-the-cloud/nox-editor/build.sh"
+    },
+    {
+      "from": "build-editor.lua",
+      "to": "/opt/agents-in-the-cloud/nox-editor/build.lua"
+    },
+    {
+      "from": "nvim-launch.sh",
+      "to": "/opt/agents-in-the-cloud/nox-editor/nvim",
+      "mode": "0755"
+    },
+    {
+      "from": "nvim",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.config/nvim",
+      "afterRun": true
     },
     {
       "from": "home-defaults/.bashrc",
@@ -51,6 +78,8 @@
   ],
   "run": [
     "bash /opt/agents-in-the-cloud/install-nox-editor.sh",
+    "bash /opt/agents-in-the-cloud/nox-editor/build.sh",
+    "ln -sf /opt/agents-in-the-cloud/nox-editor/nvim /usr/local/bin/nvim",
     "ln -s /usr/bin/batcat /usr/local/bin/bat",
     "usermod --shell /bin/bash agents-in-the-cloud",
     "nvim --version; fzf --version; bash --version"

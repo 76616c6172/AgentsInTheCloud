@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 const directories: string[] = [];
+const imageNvim = join(import.meta.dir, "../packages/nox-workspace/nvim");
 afterEach(async () => { await Promise.all(directories.splice(0).map(path => rm(path, { recursive: true, force: true }))); });
 
 async function fixture() {
@@ -45,7 +46,7 @@ function tar(output: string, ...args: string[]): string {
   return child.stdout.toString();
 }
 
-test("home snapshot preserves full Neovim config and materializes its external theme without private state", async () => {
+test("home snapshot uses image-matched Neovim config rather than laptop plugins or private state", async () => {
   const { root, output } = await fixture();
   expect(await snapshot(root, output)).toMatchObject({ code: 0 });
   const entries = tar(output, "-tz");
@@ -57,7 +58,8 @@ test("home snapshot preserves full Neovim config and materializes its external t
   expect(entries).not.toContain("99-state");
   expect(entries).not.toContain(".ruff_cache");
   expect(entries).not.toContain(".zwc");
-  expect(tar(output, "-xzO", "./.config/nvim/lua/plugins/theme.lua")).toBe('return { "webhooked/oscura.nvim" }');
+  expect(tar(output, "-xzO", "./.config/nvim/lua/plugins/theme.lua")).toBe(await Bun.file(join(imageNvim, "lua/plugins/theme.lua")).text());
+  expect(tar(output, "-xzO", "./.config/nvim/lazy-lock.json")).toBe(await Bun.file(join(imageNvim, "lazy-lock.json")).text());
   expect(tar(output, "-xzO", "./.config/nox-shell-colors.zsh")).not.toContain("source");
   expect(tar(output, "-xzO", "./.zshrc")).toBe("# cloud profile");
 });
@@ -84,7 +86,7 @@ test("installation backs up managed settings, survives a different home mount, a
 
   const mounted = join(root, "workspace-home");
   await rename(home, mounted);
-  expect(await Bun.file(join(mounted, ".config/nvim/lua/plugins/theme.lua")).text()).toBe('return { "webhooked/oscura.nvim" }');
+  expect(await Bun.file(join(mounted, ".config/nvim/lua/plugins/theme.lua")).text()).toBe(await Bun.file(join(imageNvim, "lua/plugins/theme.lua")).text());
   expect(await Bun.file(join(mounted, ".zshrc")).text()).toBe("# cloud profile");
   await writeFile(join(root, "dotfiles/zsh/cloud.zsh"), "# updated cloud profile");
   expect((await snapshot(root, output)).code).toBe(0);

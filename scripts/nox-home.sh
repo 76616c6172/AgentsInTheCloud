@@ -2,7 +2,7 @@
 # Import portable dotfiles into the installation's persistent shared home.
 set -Eeuo pipefail
 usage() {
-  printf 'Usage:\n  bash scripts/nox-home.sh snapshot DOTVULPIX OUTPUT.tar.gz\n  bash scripts/nox-home.sh deploy SSH_HOST DOTVULPIX --yes\n\nCopies Neovim, its resolved theme, the Bash comforts, tmux, and optional zsh settings.\nExcludes secrets, histories, plugin installs, caches and laptop startup commands.\nDeployment backs up only the managed configuration paths; running shells are unchanged.\nThe Nox workspace image supplies the programs. Existing containers need those packages too.\n'
+  printf 'Usage:\n  bash scripts/nox-home.sh snapshot DOTVULPIX OUTPUT.tar.gz\n  bash scripts/nox-home.sh deploy SSH_HOST DOTVULPIX --yes\n\nCopies image-matched Neovim settings, Bash comforts, tmux, and optional zsh settings.\nExcludes secrets, histories, plugin installs, caches and laptop startup commands.\nDeployment backs up only the managed configuration paths; running shells are unchanged.\nThe Nox workspace image supplies the programs. Existing containers need those packages too.\n'
 }
 operation=${1:-help}
 case "$operation" in
@@ -20,13 +20,14 @@ stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
 home="$stage/home"
 mkdir -p "$home/.config"
-defaults="$(dirname "${BASH_SOURCE[0]}")/../packages/nox-workspace/home-defaults"
+workspace_module="$(dirname "${BASH_SOURCE[0]}")/../packages/nox-workspace"
+defaults="$workspace_module/home-defaults"
 cp -R "$defaults/.config/nox-shell" "$home/.config/nox-shell"
 cp "$defaults/.bashrc" "$home/.bashrc"
-# Dereference the Omarchy theme link and other selected config links. Never copy
-# the laptop's plugin/data directories or compiled zsh files across machines.
-rsync -aL --exclude=.git --exclude=.ruff_cache --exclude=tmp --exclude='*.swp' --exclude='*.swo' --exclude='*~' \
-  "$source_root/dotfiles/nvim/" "$home/.config/nvim/"
+# The shared config must match the plugins baked into this release. Refresh the
+# checked-in nvim snapshot, lockfile and nvim-plugins.json together when updating.
+cp -R "$workspace_module/nvim" "$home/.config/nvim"
+# Dereference selected shell links, but never copy compiled laptop artifacts.
 rsync -aL --exclude=.git --exclude='*.zwc' \
   "$source_root/dotfiles/zsh/powerlevel10k/" "$home/.config/powerlevel10k/"
 rsync -aL --exclude=.git --exclude='*.zwc' --exclude='*.so' --exclude='*.o' \
