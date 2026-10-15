@@ -297,7 +297,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const initialPrompt = registry.list().length === 0
       ? "Hi, I think I'm about to make my first workspace in AgentsInTheCloud. Yay!\n\nIs it true that you have access to your own documentation and I can just ask you if I have a question about it?"
       : "";
-    const content = await launchComposerContent({ context: launchComposerFooterContext(), draftId, agentType: agentTypes[0]!, agentTypes, workspaceTemplateId: workspaceTemplate?.id, initialPrompt });
+    const content = await launchComposerContent({ context: launchComposerFooterContext(), draftId, agentType: agentTypes[0]!, agentTypes, initialPrompt });
     return `<turbo-frame id="${launchComposerFrameId}">${dialogHtml({
       element: {
         controllers: "launch-composer-dialog submit-shortcut composer-focus",

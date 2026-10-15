@@ -405,41 +405,6 @@ await scenario("mobile-terminal-tab", "D19: focusing a Terminal view and switchi
 
 await page.navigate(builtinUrl, sel.transcript);
 
-await scenario("mobile-D24-long-press", "D24: holding open-composer for about 500ms opens the composer and starts dictation while the finger is still down; releasing does nothing else. The workspace's Chrome has no microphone, so the page gets a synthetic one.", async (recorder) => {
-  await page.fakeMicrophone();
-  await page.navigate(builtinUrl, sel.transcript);
-  await closeComposer();
-  await page.startTrace();
-  await Bun.sleep(80); // Capture the pre-action arrangement before an immediate CDP edit.
-  const t = await page.mark("hold open-composer");
-  const release = await page.press(sel.opener);
-  await Bun.sleep(800);
-  const holding = await page.evaluate<{ open: boolean; state: string; label: string }>(`(() => {
-    const pane = [...document.querySelectorAll(".agent-composer-pane")].find((e) => e.checkVisibility());
-    const button = pane.querySelector('[data-dictation-composer-target="button"]');
-    return { open: pane.classList.contains("agent-composer-open"), state: button.dataset.state, label: button.title };
-  })()`);
-  await release();
-  await Bun.sleep(600);
-  const trace = await page.takeTrace();
-  await recorder.trace(trace, "hold open-composer");
-  const opened = trace.frames.find((frame) => frame.composer !== null);
-  const last = trace.frames.at(-1)!;
-  recorder.add(
-    check("D24: composer opened while holding", holding.open && opened !== undefined, `open while held: ${holding.open}, first open frame at +${opened ? Math.round(opened.t - t) : "—"}ms after the press`),
-    check("D24: about 500ms", opened !== undefined && opened.t - t >= 450 && opened.t - t <= 800, `${opened ? Math.round(opened.t - t) : "—"}ms`),
-    check("D24: dictation started while holding", ["loading", "recording", "finishing"].includes(holding.state), `transcribe button while held: ${holding.state} (${holding.label})`),
-    check("D24: releasing changed nothing else", last.composer !== null && !last.focus.includes("composer-input"), `composer ${JSON.stringify(last.composer)}, focus ${last.focus || "body"}`),
-  );
-  recorder.add(...oneStepChecks(analyseTransition(trace, t, Number.POSITIVE_INFINITY, { endAtContentChange: false })).map((result) => ({ ...result, name: `hold open-composer — ${result.name}` })));
-  await recorder.file("holding.png", await page.screenshot());
-  // Stop dictation without sending.
-  await page.tap('.agent-composer-pane [data-dictation-composer-target="button"]');
-  await Bun.sleep(1500);
-  await resetComposerText();
-  await closeComposer();
-});
-
 await scenario("mobile-D21-D22-floating", "D21/D22: floating buttons stack bottom right; follow latest only away from the bottom; open-composer hides while the composer is open.", async (recorder) => {
   await closeComposer();
   await scrollPartway();
@@ -471,7 +436,7 @@ await scenario("desktop-D1-selection", "D1: on desktop the composer is open and 
   recorder.add(
     check("D1: composer open", after.composer !== null, JSON.stringify(after.composer)),
     check("D1: text field focused", after.focus.includes("composer-input"), `focus: ${after.focus || "body"}`),
-    check("D4: four buttons in one vertical column (close, attach, dictation, send)", buttonColumn.length === 4 && buttonColumn.every((box, index) => close(box[0] + box[2] / 2, buttonColumn[0]![0] + buttonColumn[0]![2] / 2) && (index === 0 || box[1] >= bottom(buttonColumn[index - 1]!))), JSON.stringify(buttonColumn)),
+    check("D4: three buttons in one vertical column (close, attach, send)", buttonColumn.length === 3 && buttonColumn.every((box, index) => close(box[0] + box[2] / 2, buttonColumn[0]![0] + buttonColumn[0]![2] / 2) && (index === 0 || box[1] >= bottom(buttonColumn[index - 1]!))), JSON.stringify(buttonColumn)),
   );
 });
 
@@ -532,7 +497,6 @@ for (const layout of ["mobile", "desktop"] as const) {
   await scenario(`${layout}-launch-editor`, "Launch opens without a mobile keyboard, grows with text, and keeps launch controls in reach.", async (recorder) => {
     const focused = await page.evaluate<boolean>('document.activeElement.matches(".launch-composer .composer-input")');
     recorder.add(check("Intentional initial focus", focused === (layout === "desktop"), `textarea focused: ${focused}`));
-    recorder.add(check("Dictation available before typing", await page.visible(".launch-composer .composer-dictation button"), "dictation control visible"));
     await page.tap(".launch-composer .composer-input");
     // Launch drafts survive navigation, including the preceding mobile scenario.
     // Start empty so this action actually exercises growth on both layouts.

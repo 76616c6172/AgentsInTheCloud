@@ -72,7 +72,7 @@ class LaunchComposerDialogController extends Controller<HTMLDialogElement> {
     this.input.addEventListener("keydown", this.inputKeydown);
     this.input.addEventListener("input", this.inputChanged);
     // Exclude the editor from native dialog autofocus on touch devices: opening
-    // should offer dictation and attachments without briefly raising a keyboard.
+    // should offer attachments without briefly raising a keyboard.
     const touch = focusLikelyOpensSoftwareKeyboard();
     this.input.inert = touch;
     this.element.showModal();
@@ -106,7 +106,6 @@ class LaunchComposerDialogController extends Controller<HTMLDialogElement> {
     const frame = event.target as HTMLElement;
     const selection = frame.querySelector<HTMLInputElement>("[data-launch-template-action]")!;
     this.composer.querySelector<HTMLFormElement>("form")!.action = selection.dataset.launchTemplateAction!;
-    this.composer.setAttribute("data-dictation-composer-workspace-template-id-value", selection.value);
   }
 
   focusText(event: MouseEvent): void {

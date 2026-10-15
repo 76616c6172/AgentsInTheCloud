@@ -62,10 +62,6 @@ export {
   setCommitIdentity,
 } from "./commit-identity.ts";
 
-export {
-  cachedWorkspaceTemplateSourcePath,
-} from "./workspace-source.ts";
-
 export { getWorkspaceTemplateSshKnownHosts, setWorkspaceTemplateSshKnownHosts } from "./ssh-host-trust.ts";
 export { sshHostTrustFailure, scanSshHost, trustScannedSshHost } from "./ssh-trust-recovery.ts";
 export { onWorkspaceSshTrustChanged, workspaceSshTrustRequests, requestWorkspaceSshTrust, decideWorkspaceSshTrust, cancelWorkspaceSshTrust } from "./ssh-trust-broker.ts";

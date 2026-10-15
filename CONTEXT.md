@@ -159,10 +159,6 @@ _Avoid_: Launch form, launch prompt, new-workspace composer
 **Inline content**:
 HTML-based explanatory content shown as part of an Agent’s answer using AgentsInTheCloud’s supplied styling and controls. Inline content is distinct from independently styled, standalone outputs.
 
-**Dictation**:
-The feature for turning microphone speech into editable text in an AgentPaneComposer or LaunchComposer. Dictation inserts text into the draft without sending it; it is not a voice conversation with an Agent.
-_Avoid_: Transcription (as the app feature name), voice chat
-
 **Slash command**:
 An invocation beginning with `/` in an Agent’s composer. Slash commands may perform a built-in action, expand a Prompt template, or explicitly invoke a Skill; not every Slash command is a Prompt template.
 

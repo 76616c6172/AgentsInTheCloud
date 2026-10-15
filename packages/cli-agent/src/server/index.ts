@@ -1,7 +1,6 @@
 import { registerAgentTurnSettler } from "@agents-in-the-cloud/agent/server";
 import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
 import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes } from "@agents-in-the-cloud/prompt/server";
-import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
 import { observableTerminalStaticFiles, renderTerminalKeyBar, renderTerminalConnectionStatus } from "@agents-in-the-cloud/observable-terminal/server";
 import { domId, escapeHtml, type WorkspaceModule } from "@agents-in-the-cloud/shared";
 import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
@@ -67,9 +66,9 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
           const rowId = domId("cli_attach", workspaceId, agentId);
           const composerUrl = `${url}/composer`;
           const transcriptControls = renderCliTranscriptControls(adapter);
-          const composer = terminal.exists && !terminal.ended ? `<div class="composer cli-agent-composer" data-controller="agent-completions ${dictationComposerController}" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions" data-dictation-composer-workspace-id-value="${escapeHtml(workspaceId)}">
+          const composer = terminal.exists && !terminal.ended ? `<div class="composer cli-agent-composer" data-controller="agent-completions" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions">
             <div class="composer-surface">
-              <form id="${domId("cli_composer_form", workspaceId, agentId)}" method="post" action="${escapeHtml(composerUrl)}" data-turbo="false" data-cli-terminal-target="form" data-action="submit->dictation-composer#submit keydown->agent-completions#keydown submit->cli-terminal#submit">
+              <form id="${domId("cli_composer_form", workspaceId, agentId)}" method="post" action="${escapeHtml(composerUrl)}" data-turbo="false" data-cli-terminal-target="form" data-action="keydown->agent-completions#keydown submit->cli-terminal#submit">
                 ${renderComposerBody({
                   draft: { id: draftId, rowId, attachments: await listStagedAttachments(draftId) },
                   collapsible: true,

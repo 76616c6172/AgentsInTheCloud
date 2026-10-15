@@ -315,7 +315,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     }
 
     /**
-     * Turbo accepted the submission (guards and dictation have had their say) and
+     * Turbo accepted the submission (submission guards have had their say) and
      * holds its form data: the composer empties, or closes on mobile, right away.
      */
     submitStarted(): void {

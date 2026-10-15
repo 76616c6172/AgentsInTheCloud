@@ -18,7 +18,6 @@
     "@agents-in-the-cloud/observable-terminal": "workspace:*",
     "@agents-in-the-cloud/workspace-templates": "workspace:*",
     "@agents-in-the-cloud/shared": "workspace:*",
-    "@agents-in-the-cloud/dictation": "workspace:*",
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
     "typebox": "^1.0.57",
