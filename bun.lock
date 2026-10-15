@@ -32,6 +32,7 @@
         "@agents-in-the-cloud/desktop": "workspace:*",
         "@agents-in-the-cloud/dictation": "workspace:*",
         "@agents-in-the-cloud/files": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/host": "workspace:*",
         "@agents-in-the-cloud/inline-content": "workspace:*",
         "@agents-in-the-cloud/llm": "workspace:*",
@@ -280,6 +281,20 @@
         "typebox": "^1.0.57",
       },
     },
+    "packages/git-hosting": {
+      "name": "@agents-in-the-cloud/git-hosting",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/github": "workspace:*",
+      },
+    },
+    "packages/github": {
+      "name": "@agents-in-the-cloud/github",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
     "packages/host": {
       "name": "@agents-in-the-cloud/host",
       "dependencies": {
@@ -392,6 +407,7 @@
       "name": "@agents-in-the-cloud/proxy-egress",
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/host": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
@@ -476,6 +492,7 @@
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
         "@agents-in-the-cloud/design-system": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/observable-terminal": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace-image": "workspace:*",
@@ -495,6 +512,7 @@
       "name": "@agents-in-the-cloud/workspace-templates",
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/observable-terminal": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
@@ -555,6 +573,10 @@
     "@agents-in-the-cloud/dictation": ["@agents-in-the-cloud/dictation@workspace:packages/dictation"],
 
     "@agents-in-the-cloud/files": ["@agents-in-the-cloud/files@workspace:packages/files"],
+
+    "@agents-in-the-cloud/git-hosting": ["@agents-in-the-cloud/git-hosting@workspace:packages/git-hosting"],
+
+    "@agents-in-the-cloud/github": ["@agents-in-the-cloud/github@workspace:packages/github"],
 
     "@agents-in-the-cloud/host": ["@agents-in-the-cloud/host@workspace:packages/host"],
 

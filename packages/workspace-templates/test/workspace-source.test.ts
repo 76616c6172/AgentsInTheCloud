@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { clearGitHubToken, createAgentsInTheCloudEventBus, setGitHubToken } from "@agents-in-the-cloud/core";
+import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { clearGitHostingCredential, gitHostingProvider, gitHostingProviders, saveGitHostingCredential } from "@agents-in-the-cloud/git-hosting";
 import { addWorkspaceTemplate, cachedWorkspaceTemplateSourcePath, createWorkspaceTemplateSshKey, deleteWorkspaceTemplateSshKey, setWorkspaceTemplateSeedConfigEnabled, setWorkspaceTemplatePrivileged, type GitWorkspaceTemplateInitInstruction } from "@agents-in-the-cloud/workspace-templates";
 import { prepareWorkspaceSource, registerWorkspaceTemplateWorkspaceInitEvents } from "../src/workspace-source.ts";
 import type { WorkspaceDockerPlan } from "@agents-in-the-cloud/workspace";
@@ -68,7 +69,7 @@ describe("workspace source preparation", () => {
 
   afterEach(async () => {
     await stopWorkspaceTemplateSshAgents();
-    clearGitHubToken();
+    for (const provider of gitHostingProviders) clearGitHostingCredential(provider);
     if (previousDataDir === undefined) delete process.env.ATELIER_DATA_DIR;
     else process.env.ATELIER_DATA_DIR = previousDataDir;
     if (previousGitHubToken === undefined) delete process.env.GH_TOKEN;
@@ -200,7 +201,7 @@ describe("workspace source preparation", () => {
     await chmod(fakeGit, 0o755);
     const previousPath = process.env.PATH;
     process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
-    setGitHubToken("stored-token");
+    saveGitHostingCredential(gitHostingProvider("github"), { token: "github-token" });
     try {
       await prepareWorkspaceSource({ workspaceId: "ws-token", gitUrl: fixture.remote, branch: "main" });
     } finally {
@@ -210,7 +211,7 @@ describe("workspace source preparation", () => {
 
     const tokens = (await Bun.file(tokenLog).text()).trim().split("\n");
     expect(tokens.length).toBeGreaterThan(0);
-    expect(tokens.every((token) => token === "stored-token")).toBe(true);
+    expect(tokens.every((token) => token === "github-token")).toBe(true);
   });
 
   test("initializes nested submodules recursively in the reusable template and workspace", async () => {
