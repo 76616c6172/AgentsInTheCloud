@@ -294,10 +294,18 @@
         "@agents-in-the-cloud/bitbucket": "workspace:*",
         "@agents-in-the-cloud/core": "workspace:*",
         "@agents-in-the-cloud/github": "workspace:*",
+        "@agents-in-the-cloud/gitlab": "workspace:*",
       },
     },
     "packages/github": {
       "name": "@agents-in-the-cloud/github",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/gitlab": {
+      "name": "@agents-in-the-cloud/gitlab",
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
         "typebox": "^1.0.57",
@@ -587,6 +595,8 @@
     "@agents-in-the-cloud/git-hosting": ["@agents-in-the-cloud/git-hosting@workspace:packages/git-hosting"],
 
     "@agents-in-the-cloud/github": ["@agents-in-the-cloud/github@workspace:packages/github"],
+
+    "@agents-in-the-cloud/gitlab": ["@agents-in-the-cloud/gitlab@workspace:packages/gitlab"],
 
     "@agents-in-the-cloud/host": ["@agents-in-the-cloud/host@workspace:packages/host"],
 

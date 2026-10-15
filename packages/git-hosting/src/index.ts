@@ -1,8 +1,9 @@
 import { gitCredentialHelperShellBody as credentialHelperShellBody, invalidArguments, type GitHostingCredential, type GitHostingProvider } from "@agents-in-the-cloud/core";
 import { bitbucketProvider } from "@agents-in-the-cloud/bitbucket";
 import { gitHubProvider } from "@agents-in-the-cloud/github";
+import { gitLabProvider } from "@agents-in-the-cloud/gitlab";
 
-export const gitHostingProviders: readonly GitHostingProvider[] = [gitHubProvider, bitbucketProvider];
+export const gitHostingProviders: readonly GitHostingProvider[] = [gitHubProvider, gitLabProvider, bitbucketProvider];
 
 export function gitHostingProvider(id: string): GitHostingProvider {
   const provider = gitHostingProviders.find((candidate) => candidate.id === id);
