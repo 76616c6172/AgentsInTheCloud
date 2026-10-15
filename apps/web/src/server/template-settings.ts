@@ -37,7 +37,7 @@ function sectionFor(value?: string): TemplateSettingsSection | undefined {
     default: throw invalidArguments("Unknown template settings section");
   }
 }
-const sections = ["general", "global-secrets", "global-ssh", "global-environment", "secrets", "ssh", "environment", "container", "developer"] as const;
+const sections = ["general", "global-secrets", "global-ssh", "global-environment", "global-network", "secrets", "ssh", "environment", "network", "container", "developer"] as const;
 const recordSections: readonly TemplateSettingsSection[] = sections.filter(section => section !== "general" && section !== "developer");
 const captionButton = (caption: string, attributesHtml: string, variant: "secondary" | "primary" = "secondary") => buttonHtml({ type: "button", variant, content: { kind: "caption", caption }, attributesHtml });
 const paragraph = (text: string) => `<p class="template-settings-note">${escapeHtml(text)}</p>`;
@@ -61,7 +61,7 @@ const editorKey = (section: TemplateSettingsSection, editor?: string) => `${sect
 /** Renders the editors for one scope's records: where their forms post and which editor is open or just saved. */
 interface Editors {
   /** Global sections are prefixed so their editors stay distinct within a template's settings. */
-  section(name: "secrets" | "ssh" | "environment"): TemplateSettingsSection;
+  section(name: "secrets" | "ssh" | "environment" | "network"): TemplateSettingsSection;
   form(path: string, contents: string, options: EditorFormOptions): string;
   disclosure(section: TemplateSettingsSection, editor: string | undefined, label: string, contents: string, description?: string, attributesHtml?: string): string;
   removeForm(path: string, section: TemplateSettingsSection, label: string, consequence: string): string;
@@ -110,20 +110,22 @@ function secretEditor(e: Editors, secret?: WorkspaceTemplateSecretSummary): stri
   const isNew = !secret;
   const record = secret?.id ?? "new";
   const permission = String(secret ? workspaceTemplateSecretAllowsPath(secret) : false);
-  const hostAttributes = isNew ? 'data-workspace-template-secret-path-target="host" data-action="input->workspace-template-secret-path#useDefault"' : "";
-  const content = `${field("Environment variable", "envName", secret?.envName ?? "", 'required autocomplete="off"')}
-    ${field("Allowed host", "hostPattern", secret?.hostPattern ?? "", `required autocomplete="off" placeholder="api.example.com" ${hostAttributes}`)}
+  const nameAttributes = isNew ? 'data-workspace-template-new-secret-target="name" data-action="input->workspace-template-new-secret#suggestHost"' : "";
+  const hostAttributes = isNew ? 'data-workspace-template-new-secret-target="host" data-action="input->workspace-template-new-secret#useDefault"' : "";
+  const content = `${field("Environment variable", "envName", secret?.envName ?? "", `required autocomplete="off" ${nameAttributes}`)}
+    ${field("Allowed hosts", "hostPattern", secret?.hostPattern ?? "", `required autocomplete="off" placeholder="api.anthropic.com" ${hostAttributes}`)}
+    ${paragraph("Separate hosts with commas or semicolons. Use * as a wildcard, like *.github.com, or on its own to allow any host.")}
     ${field(secret?.configured ? "Replace secret value" : "Secret value", "secretValue", "", `type="password" autocomplete="new-password" data-1p-ignore`)}
     ${paragraph(secret?.configured ? "Leave the value blank to keep the stored secret. Stored values are never shown." : "Agents only see a placeholder. Add the real value here when it’s available.")}
     ${disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: "Advanced" } }, bodyHtml: `<div class="form-stack">
       ${field("Placeholder", "placeholder", secret?.placeholder ?? "", 'autocomplete="off"')}
       ${paragraph("Leave blank to use an automatically generated placeholder.")}
       ${textarea("Needed for", "annotation", secret?.annotation ?? "", 2)}
-      <div class="form-section"><span>Allow substitution in URL paths</span><input type="hidden" name="allowInPath" value="${permission}"${isNew ? ' data-workspace-template-secret-path-target="permission"' : ""}>
-      ${toggleHtml({ variant: "button", label: "Allow substitution in URL paths", name: "allowInPath", value: permission, options: [{ value: "false", label: "Disallow" }, { value: "true", label: "Allow" }], element: { dataAction: `${isNew ? "click->workspace-template-secret-path#choose change->workspace-template-secret-path#choose " : ""}change->settings-editor#toggleChanged`, data: isNew ? { "workspace-template-secret-path-target": "toggle" } : undefined } })}</div>
+      <div class="form-section"><span>Allow substitution in URL paths</span><input type="hidden" name="allowInPath" value="${permission}"${isNew ? ' data-workspace-template-new-secret-target="permission"' : ""}>
+      ${toggleHtml({ variant: "button", label: "Allow substitution in URL paths", name: "allowInPath", value: permission, options: [{ value: "false", label: "Disallow" }, { value: "true", label: "Allow" }], element: { dataAction: `${isNew ? "click->workspace-template-new-secret#choose change->workspace-template-new-secret#choose " : ""}change->settings-editor#toggleChanged`, data: isNew ? { "workspace-template-new-secret-target": "toggle" } : undefined } })}</div>
       ${paragraph("Allow only if the service needs this secret in its URL path, rather than headers or the request body.")}
     </div>` })}`;
-  return `${secret ? paragraph(secret.configured ? "Secret stored" : "No value stored") : ""}${e.form(`/secrets${secret ? `/${encodeURIComponent(secret.id)}` : ""}`, content, { section, editor: record, caption: isNew ? "Add secret" : "Save changes", attributesHtml: isNew ? 'data-controller="workspace-template-secret-path"' : "" })}${secret ? e.removeForm(`/secrets/${encodeURIComponent(secret.id)}/delete`, section, "Delete secret", `Delete ${secret.envName} and its stored value. Requests using it will no longer receive this secret.`) : ""}`;
+  return `${secret ? paragraph(secret.configured ? "Secret stored" : "No value stored") : ""}${e.form(`/secrets${secret ? `/${encodeURIComponent(secret.id)}` : ""}`, content, { section, editor: record, caption: isNew ? "Add secret" : "Save changes", attributesHtml: isNew ? 'data-controller="workspace-template-new-secret"' : "" })}${secret ? e.removeForm(`/secrets/${encodeURIComponent(secret.id)}/delete`, section, "Delete secret", `Delete ${secret.envName} and its stored value. Requests using it will no longer receive this secret.`) : ""}`;
 }
 
 function secretsSection(e: Editors, secrets: WorkspaceTemplateSecretSummary[], counterpart?: Counterpart): string {
@@ -153,13 +155,20 @@ function sshSection(e: Editors, keys: WorkspaceTemplateSshKeySummary[], knownHos
   return e.disclosure(section, undefined, "SSH keys", `${paragraph("Your agent may use these but can’t see them. Private keys are encrypted outside workspaces. Changes also apply to existing workspaces.")}<div class="template-settings-inline-records">${keys.map(key => e.disclosure(section, key.id, key.name || "Unnamed key", keyEditor(key))).join("")}${e.disclosure(section, "new", "Add key", keyEditor())}${e.disclosure(section, "known-hosts", "Trusted SSH servers", trusted)}</div>`);
 }
 
+function privateNetworkSection(e: Editors, destinations: string[]): string {
+  const section = e.section("network");
+  const form = e.form("/private-network-access", textarea("Hosts, one host:port per line", "privateNetworkAccess", destinations.map(destination => `${destination}\n`).join(""), 5, 'spellcheck="false" autocomplete="off" placeholder="db.internal:5432"'), { section });
+  return e.disclosure(section, undefined, "Private network access", `${paragraph("Workspaces can reach the public internet, but not your private network. List the hosts they may also reach, like an internal API or database. Changes apply to running workspaces too.")}${form}`);
+}
+
 function assertRecordExists(e: Editors, records: ScopeConfiguration, { section, editor }: EditorLocation): void {
   if (!editor || editor === "new") return;
+  if (section === e.section("network")) throw invalidArguments("Settings record not found");
   if (section === e.section("secrets") && !records.secrets.some(secret => secret.id === editor) || section === e.section("environment") && !records.environment.some(variable => variable.id === editor) || section === e.section("ssh") && editor !== "known-hosts" && !records.sshKeys.some(key => key.id === editor)) throw invalidArguments("Settings record not found");
 }
 
 function configurationSections(e: Editors, records: ScopeConfiguration, counterpart?: Counterpart): string {
-  return `<div class="template-settings-inline-records">${secretsSection(e, records.secrets, counterpart)}${sshSection(e, records.sshKeys, records.sshKnownHosts)}${environmentSection(e, records.environment, counterpart)}</div>`;
+  return `<div class="template-settings-inline-records">${secretsSection(e, records.secrets, counterpart)}${sshSection(e, records.sshKeys, records.sshKnownHosts)}${environmentSection(e, records.environment, counterpart)}${privateNetworkSection(e, records.privateNetworkAccess)}</div>`;
 }
 
 export function templateSettingsErrorHtml(message: string): string {
@@ -191,7 +200,7 @@ export async function renderTemplateSettingsFrame(id: string, location: Template
   assertRecordExists(globalEditors, global, current);
   const general = ownEditors.form("", `<div class="template-settings-inline-fields">${field("Display name", "name", t.name, 'required autocomplete="off" data-1p-ignore="true"')}${field("Repository", "gitUrl", formatWorkspaceTemplateSpec(t), "required")}</div><label class="template-settings-color"><span>Swatch color</span><input type="hidden" name="swatchColor" value="${escapeHtml(t.swatchColor ?? "")}"><span class="template-settings-color-control"><span class="workspace-template-icon" style="--workspace-template-swatch: ${escapeHtml(t.swatchColor ?? workspaceTemplateSwatchColor(t.id))}" aria-hidden="true"></span><input type="color" name="swatchColorPicker" aria-label="Swatch color" data-settings-editor-target="colorPicker" data-default-color="${workspaceTemplateSwatchColor(t.id)}" data-action="input->settings-editor#colorChanged change->settings-editor#colorChanged"></span></label>`, { section: "general", autosave: true });
   const shared = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Shared with all templates" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(globalEditors, global, { records: own, describe: name => `Overridden by per-template ${name} with the same name` })}</div>`, open: section.startsWith("global-") });
-  const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` })}</div>`, open: ["secrets", "ssh", "environment"].includes(section) });
+  const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` })}</div>`, open: ["secrets", "ssh", "environment", "network"].includes(section) });
   const dockerSupport = ownEditors.form("/privileged", `${selection("Docker support", "privileged", String(t.privileged ?? false), [{ value: "false", label: "Off" }, { value: "true", label: "On" }])}${paragraph("Privileged workspaces can access host devices and data. Enable only for templates and agents you trust.")}`, { section: "container", editor: "docker", autosave: true });
   const images = ownEditors.disclosure("container", "images", "Preloaded images", ownEditors.form("/preload-images", `${t.privileged ? "" : paragraph("Turn on Docker support to edit preloaded images. Saved references are kept while Docker is off.")}${textarea("Image references, one per line", "preloadImages", (t.preloadImages ?? []).join("\n"), 6, `spellcheck="false"${t.privileged ? "" : " readonly"}`)}`, { section: "container", editor: "images", available: Boolean(t.privileged) }));
   const dockerfile = ownEditors.disclosure("container", "dockerfile", "Custom Dockerfile", ownEditors.form("/dockerfile", `${textarea("Dockerfile override", "dockerfile", t.dockerfile ?? "", 14, 'spellcheck="false" placeholder="FROM agents-in-the-cloud-workspace"')}${paragraph("Leave blank to use the repository Dockerfile or default image. An override must start with FROM agents-in-the-cloud-workspace.")}`, { section: "container", editor: "dockerfile" }));

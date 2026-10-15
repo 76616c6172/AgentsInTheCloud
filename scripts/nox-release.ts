@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { appImage, distribution, systemImage } from "../packages/shared/src/distribution.ts";
+import { systemVersion, systemVersionLabel } from "../packages/shared/src/system-version.ts";
 import { resolveImage } from "../packages/update/src/server/registry.ts";
 
 const pinned = Type.String({ pattern: "^ghcr[.]io/[a-z0-9._/-]+@sha256:[a-f0-9]{64}$" });
@@ -59,6 +60,7 @@ async function main(operation: string) {
       await run(["bun", "images/system/build.ts"], true);
       await run(["docker", "buildx", "build", "--push", "--provenance=false", "--platform", "linux/amd64",
         "--tag", `${systemImage}:sha-${revision}`, "--label", `org.opencontainers.image.revision=${revision}`,
+        "--label", `${systemVersionLabel}=${systemVersion}`,
         "--label", `org.opencontainers.image.source=${distribution.source}`, "--file", "images/system/Dockerfile", "images/system"], true);
       const app = await pin(appImage, revision);
       const image = JSON.parse(await run(["docker", "buildx", "imagetools", "inspect", app, "--format", "{{json .Image}}"]));
@@ -81,7 +83,8 @@ async function main(operation: string) {
       for (const reference of [release.app, release.system, release.workspace]) {
         await resolveImage(reference, fetch, { os: "linux", architecture: "amd64" });
       }
-      for (const [image, reference] of [[appImage, release.app], [systemImage, release.system]]) {
+      // Publish the compatible System before exposing an app that requires it.
+      for (const [image, reference] of [[systemImage, release.system], [appImage, release.app]]) {
         await run(["docker", "buildx", "imagetools", "create", "--prefer-index=false", "--tag", `${image}:latest`, "--tag", `${image}:stable`, reference!], true);
       }
       await run(["gh", "release", "edit", tag, "--repo", githubRepo, "--prerelease=false", "--latest",

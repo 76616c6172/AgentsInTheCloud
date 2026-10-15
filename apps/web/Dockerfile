@@ -1,4 +1,4 @@
-ARG ATELIER_RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:144a54ae19731c822e750b1020bdfc5e2098348b4092e76e42b7f0cc576ca232
+ARG ATELIER_RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:149efe3189255442091157921511b6c122b0254bb07e24d08d24408b4b79deda
 FROM oven/bun:1.4.0 AS bun-dist
 
 FROM ubuntu:26.04 AS deps
@@ -13,8 +13,10 @@ WORKDIR /app
 
 COPY . .
 
+# Claude Code runs in workspaces; the Agent SDK's bundled platform binaries are never used here.
 RUN --mount=type=cache,target=/root/.bun/install/cache \
-    bun install --frozen-lockfile
+    bun install --frozen-lockfile \
+    && rm -rf node_modules/.bun/@anthropic-ai+claude-agent-sdk-*
 
 FROM deps AS build
 RUN bun run --cwd apps/web build:client

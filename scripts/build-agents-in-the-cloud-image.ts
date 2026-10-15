@@ -2,9 +2,13 @@
 
 import { workloadCgroupArgs } from "@agents-in-the-cloud/core";
 import { rmSync } from "node:fs";
+import { join } from "node:path";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { arch } from "node:os";
 import { imageHasPlatforms } from "../packages/workspace-image/src/local-images.ts";
 import { registryImageHasPlatforms } from "./image-platforms.ts";
+import { appRepository } from "../packages/shared/src/publishing.ts";
 import { prepareDefaultWorkspaceImage, ensureGeneratedDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 
 const usage = `Build the AgentsInTheCloud Docker image.
@@ -13,7 +17,7 @@ Usage:
   bun run scripts/build-agents-in-the-cloud-image.ts [options]
 
 Options:
-  --image <name>        Image repository/name (default: ghcr.io/lucasmeijer/agents-in-the-cloud)
+  --image <name>        Image repository/name (default: ${appRepository})
   --tag <tag>           Tag to apply. May be passed more than once (default: git describe/short sha)
   --latest             Tag the image as <image>:latest (default)
   --no-latest          Do not update latest (release staging)
@@ -65,7 +69,7 @@ function takeValue(args: string[], index: number, flag: string): string {
 
 function parseArgs(args: string[]): Options {
   const options: Options = {
-    image: "ghcr.io/lucasmeijer/agents-in-the-cloud",
+    image: appRepository,
     tags: [],
     latest: true,
     stable: false,
@@ -203,11 +207,6 @@ function gitCommitId(): string {
   return commit ? `${commit}${dirty}` : "unknown";
 }
 
-function workspaceImageRepository(appImage: string): string {
-  if (appImage === "ghcr.io/lucasmeijer/agents-in-the-cloud") return "ghcr.io/lucasmeijer/agents-in-the-cloud-workspace";
-  return `${appImage}-workspace`;
-}
-
 function workspaceHashTag(metadataTag: string): string {
   const marker = "agents-in-the-cloud-workspace:";
   if (!metadataTag.startsWith(marker)) throw new Error(`unexpected workspace image metadata tag: ${metadataTag}`);
@@ -269,7 +268,7 @@ const imageRefs = uniqueTags.map((tag) => `${options.image}:${tag}`);
 
 const workspaceMetadata = workspaceContext.metadata;
 const workspaceTag = workspaceHashTag(workspaceMetadata.tag);
-const workspaceRepo = workspaceImageRepository(options.image);
+const workspaceRepo = `${options.image}-workspace`;
 const defaultWorkspaceImageRef = `${workspaceRepo}:${workspaceTag}`;
 
 let shouldBuildWorkspace = false;
@@ -300,9 +299,15 @@ const defaultBuildArgs = [
   `ATELIER_EAGERLY_PRELOAD=${JSON.stringify([publishedWorkspaceRef])}`,
 ];
 const allBuildArgs = [...defaultBuildArgs, ...options.buildArgs];
+// Like the workspace image, the System requirement comes from the checkout being built, not this script's copy.
+const systemCompatibility = Value.Parse(
+  Type.Object({ requiredSystemVersion: Type.Integer({ minimum: 0 }), requiredSystemVersionLabel: Type.String() }),
+  await import(join(process.cwd(), "packages/shared/src/system-version.ts")),
+);
 
 await buildImage(imageRefs, [
   ...allBuildArgs.flatMap((buildArg) => ["--build-arg", buildArg]),
+  "--label", `${systemCompatibility.requiredSystemVersionLabel}=${systemCompatibility.requiredSystemVersion}`,
   "--file", "apps/web/Dockerfile", ".",
 ]);
 

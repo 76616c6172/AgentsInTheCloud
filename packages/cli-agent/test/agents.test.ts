@@ -25,7 +25,8 @@ async function scenario(script: string): Promise<void> {
       let inspectionResult;
       let result = { stdout: "", stderr: "", exitCode: 0, durationMs: 0 };
       const workspaceTitles = new Map();
-      mock.module("@agents-in-the-cloud/workspace", () => ({ ...workspace, getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return args[1].includes("tmux list-panes") && inspectionResult ? inspectionResult : result; } }));
+      const agentsFiles = new Map();
+      mock.module("@agents-in-the-cloud/workspace", () => ({ ...workspace, execWorkspaceCommand: async (_id, command) => ({ stdout: [...agentsFiles].find(([path]) => command[2].includes(path))?.[1] ?? "", stderr: "", exitCode: 0, durationMs: 0 }), getWorkspaceTitle: async (id) => workspaceTitles.get(id) ?? null, setWorkspaceTitle: async (id, title) => { workspaceTitles.set(id, title); return null; }, execWorkspaceShell: async (...args) => { calls.push(args); return args[1].includes("tmux list-panes") && inspectionResult ? inspectionResult : result; } }));
       const slugSuggestion = await import("@agents-in-the-cloud/agent/server/slug-suggestion");
       const slugRequests = [];
       let suggestedSlug;
@@ -382,6 +383,22 @@ test("automatic recovery restores missing processes once without replaying saved
   expect((await saved("restore")).agents[0]).toMatchObject({ id, input: settings.input });
 `));
 
+test("a renamed adapter keeps its earlier metadata file and restores agents of its earlier kind", () => scenario(`
+  const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
+  const resumed = [];
+  const agents = createCliAgents({ ...adapter, id: "renamed", legacyId: "original", resumeScript: async (...args) => { resumed.push(args[2].id); return "printf resumed"; } }, async () => {});
+  const path = process.env.ATELIER_DATA_DIR + "/workspaces/renamed/metadata/original-agents.json";
+  const agent = (id, kind) => ({ id, title: "Existing tab", tmuxSession: "original-" + id, input: { text: "", images: [], attachmentNotes: [] }, kind });
+  await Bun.write(path, JSON.stringify({ agents: [agent("earlier", "original"), agent("placeholder")] }));
+  expect(agents.list("renamed").map(agent => agent.id)).toEqual(["earlier", "placeholder"]);
+  inspectionResult = { ...result, exitCode: 1 };
+  await agents.restoreWorkspace("renamed");
+  expect(resumed).toEqual(["earlier"]);
+  expect(calls.at(-1)[1]).toContain("original-earlier");
+  const id = await agents.create("renamed");
+  expect((await Bun.file(path).json()).agents.find(agent => agent.id === id)).toMatchObject({ kind: "renamed", tmuxSession: "renamed-" + id });
+`));
+
 test("recovery leaves existing live and dead panes alone", () => scenario(`
   const { createCliAgents } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agents.ts"))});
   const agents = createCliAgents({ ...adapter, resumeScript: async () => { throw new Error("must not resume"); } }, async () => {});
@@ -549,4 +566,14 @@ test("native prompt preparation includes shared and plugin guidance once per lau
   expect(prepared).toBe(2);
   expect(prompts[1]).toContain("Plugin guidance " + id + " revision 2");
   expect(prompts[1]).not.toContain("revision 1");
+`));
+
+test("native prompts add .agents-in-the-cloud/AGENTS.md and leave the root AGENTS.md to the CLI", () => scenario(`
+  agentsFiles.set("/work/AGENTS.md", "Root guidance");
+  agentsFiles.set("/work/.agents-in-the-cloud/AGENTS.md", "Presentation guidance");
+  const prompts = [];
+  adapter.prepareSession = async (_workspaceId, _session, mcp) => { prompts.push(mcp.instructions); return {}; };
+  await agentType.create({ workspaceId: "agents-files" });
+  expect(prompts[0]).toContain("# Project instructions: /work/.agents-in-the-cloud/AGENTS.md\\n\\nPresentation guidance");
+  expect(prompts[0]).not.toContain("Root guidance");
 `));

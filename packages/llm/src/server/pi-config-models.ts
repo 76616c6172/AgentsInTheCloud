@@ -13,7 +13,7 @@ import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, isJsonObje
 import { errorMessage } from "@agents-in-the-cloud/shared";
 import type { Api, AuthInteraction, AuthPrompt, Model, ProviderHeaders } from "@earendil-works/pi-ai";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
-import { ModelRuntime } from "@earendil-works/pi-coding-agent";
+import { ModelRuntime, readStoredCredential } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
@@ -138,6 +138,19 @@ function withoutOfficialModelDuplicates(providers: JsonObject, officialRuntime: 
 
 async function materializeCustomModelProviders(providers: JsonObject): Promise<CustomModelsSaveResult> {
   const filtered = withoutOfficialModelDuplicates(providers, await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false }));
+  // Codex raised Sol's default context to 500k on 2026-10-11; Pi still ships 272k.
+  // Keep this app-owned default out of the user's custom-model source, and let
+  // explicit user overrides win. Pi reapplies modelOverrides on catalogue refresh.
+  const codex = filtered.providers["openai-codex"];
+  const codexSettings = isJsonObject(codex) ? codex : {};
+  const overrides = isJsonObject(codexSettings.modelOverrides) ? codexSettings.modelOverrides : {};
+  const sol = overrides["gpt-6.1-sol"];
+  const solSettings: JsonObject = { contextWindow: 500000 };
+  if (isJsonObject(sol)) Object.assign(solSettings, sol);
+  filtered.providers["openai-codex"] = {
+    ...codexSettings,
+    modelOverrides: { ...overrides, "gpt-6.1-sol": solSettings },
+  };
   await updateModelSettings((settings) => { settings.providers = filtered.providers; });
   return { skippedOfficialModels: filtered.skippedOfficialModels };
 }
@@ -146,7 +159,7 @@ async function preparePiModelsJson(): Promise<void> {
   const settings = await getModelSettings();
   const stored = await readStoredCustomModelProviders();
   const providers = stored ?? settings.providers ?? {};
-  if (!stored && Object.keys(providers).length) await writeJsonAtomic(piCustomModelsJsonPath(), { providers });
+  if (!stored) await writeJsonAtomic(piCustomModelsJsonPath(), { providers });
   await materializeCustomModelProviders(providers);
 }
 
@@ -216,6 +229,11 @@ export function createPiModelRuntime(): Promise<ModelRuntime> {
   })();
 }
 
+/** The stored credential as Pi last saved it; `getAuth` refreshes it first when it is due. */
+export function readStoredPiCredential(providerId: string) {
+  return readStoredCredential(providerId, piAuthJsonPath());
+}
+
 export type PiAuthPrompt = AuthPrompt;
 
 export class ProviderCatalogueRefreshError extends Error {
@@ -238,7 +256,7 @@ async function refreshConnectedProviderCatalogue(runtime: ModelRuntime, provider
 
 function forgetSubscriptionState(provider: string): void {
   if (provider === "anthropic") anthropicUsageSource.forget();
-  if (provider === "anthropic" || provider === "openai-codex") forgetSubscriptionInference(provider);
+  if (provider === "anthropic" || provider === "openai-codex" || provider === "github-copilot") forgetSubscriptionInference(provider);
 }
 
 export async function loginPiOAuthProvider(providerId: string, interaction: AuthInteraction): Promise<void> {
