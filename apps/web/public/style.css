@@ -272,7 +272,6 @@ html.software-keyboard-visible .fixed-shell-app .fixed-shell-mobile-nav { displa
    * offsets inside it a frame later. */
   .fixed-shell-app {
     position: fixed; left: 0; right: 0; top: var(--software-keyboard-top, 0px); bottom: var(--software-keyboard-inset, 0px); height: auto;
-    touch-action: pan-y pinch-zoom;
   }
   /* Resident workspaces own their bar; the overlaid workspace list uses the
    * outer grid's AgentsInTheCloud-bar row independently. */
