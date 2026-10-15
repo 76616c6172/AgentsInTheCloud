@@ -1,4 +1,4 @@
-import { recentWorkspaceTemplateStorageKey } from "@agents-in-the-cloud/shared";
+import { phoneLayoutMediaQuery, recentWorkspaceTemplateStorageKey } from "@agents-in-the-cloud/shared";
 import { slidePageChange } from "@agents-in-the-cloud/design-system/page-slide/client";
 import { Controller } from "@hotwired/stimulus";
 import { registerWorkspaceControllers, residencyController } from "./workspace-controller-registry.ts";
@@ -214,7 +214,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     const scroll = Number(localStorage.getItem("agents-in-the-cloud:workspace-pane-scroll"));
     if (Number.isFinite(scroll)) this.scrollTarget.scrollTop = scroll;
     this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-resident.visible"));
-    this.setWorkspacePaneCollapsed(sessionStorage.getItem("agents-in-the-cloud:nox-workspace-pane-expanded") !== "true");
+    this.setWorkspacePaneCollapsed(true);
   }
 
   disconnect(): void {
@@ -243,9 +243,35 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     requestAnimationFrame(() => toggle.focus());
   }
 
+  revealWorkspacePane(event: PointerEvent): void {
+    if (event.pointerType !== "mouse" || window.matchMedia(phoneLayoutMediaQuery).matches) return;
+    this.setWorkspacePaneCollapsed(false);
+  }
+
+  leaveWorkspacePane(event: PointerEvent | FocusEvent): void {
+    if (window.matchMedia(phoneLayoutMediaQuery).matches) return;
+    if (event instanceof PointerEvent && event.pointerType !== "mouse") return;
+    const regions = ".fixed-shell-workspace-pane, .nox-workspace-rail";
+    if (event.relatedTarget instanceof Element && event.relatedTarget.closest(regions)) return;
+    // Keyboard users can leave the overlay with Tab; moving between its controls
+    // or using a popup inside it must not close it.
+    if (event.type === "focusout" && [...this.element.querySelectorAll(regions)].some(region => region.matches(":hover"))) return;
+    const focusInPane = document.activeElement?.closest(".fixed-shell-workspace-pane");
+    this.setWorkspacePaneCollapsed(true);
+    if (event instanceof PointerEvent && focusInPane) this.visibleWorkspacePaneToggle()?.focus({ preventScroll: true });
+  }
+
   private setWorkspacePaneCollapsed(collapsed: boolean): void {
     this.element.classList.toggle("is-workspace-pane-collapsed", collapsed);
-    sessionStorage.setItem("agents-in-the-cloud:nox-workspace-pane-expanded", String(!collapsed));
+    const rail = this.element.querySelector<HTMLElement>(".nox-workspace-rail")!;
+    // Move focus before making the covered rail inert, so blur cannot close the overlay.
+    if (!collapsed && rail.contains(document.activeElement)) {
+      this.element.querySelector<HTMLButtonElement>("[data-collapse-workspace-pane]")!.focus({ preventScroll: true });
+    }
+    rail.inert = !collapsed;
+    for (const toggle of this.element.querySelectorAll("[data-show-workspace-pane], [data-collapse-workspace-pane]")) {
+      toggle.setAttribute("aria-expanded", String(!collapsed));
+    }
   }
 
   private visibleWorkspacePaneToggle(): HTMLButtonElement | null {

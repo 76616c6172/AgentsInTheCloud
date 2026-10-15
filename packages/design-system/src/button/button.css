@@ -103,6 +103,21 @@
 .button[aria-pressed="true"],
 .button[aria-current]:not([aria-current="false"]) { border-color: var(--accent); background: var(--accent-soft); background-image: var(--button-background-image); color: var(--text-bright); }
 
+/* Dense toolbars and navigation use a flat, symmetric, low-contrast outline. */
+.button.quiet {
+  --button-border: color-mix(in srgb, var(--line) 45%, transparent);
+  --button-hover-border: color-mix(in srgb, var(--text-muted) 45%, transparent);
+  --button-background: transparent;
+  --button-hover-background: var(--accent-soft);
+  --button-background-image: none;
+  --button-lighting-content: none;
+  --button-engaged-lighting-content: none;
+}
+.button.quiet:is([aria-pressed="true"], [aria-current]:not([aria-current="false"])) {
+  border-color: var(--button-hover-border);
+}
+.button.quiet:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* The comparison ring replaces the outline; its strokes are styled by comparison-ring.css. */
 .button.action-link--comparison { position: relative; border-color: transparent; --button-hover-border: transparent; }
 .button.action-link--comparison:not(:disabled):not([aria-disabled="true"]):focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

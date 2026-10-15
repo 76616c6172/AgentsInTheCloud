@@ -87,15 +87,18 @@ function workspaceStatusSlot(content: string): string {
   return `<span class="fixed-shell-workspace-status content-row__status">${content}</span>`;
 }
 
-function renderWorkspaceRowStatus(workspace: WorkspacePaneEntry): string {
+function workspaceStatus(workspace: WorkspacePaneEntry) {
   if (workspace.busy || workspace.requestingAttention) {
-    return workspaceStatusSlot(busyAttentionIndicator(workspace));
+    return {
+      label: [workspace.busy && "Working", workspace.requestingAttention && "Needs attention"].filter(Boolean).join(" · "),
+      html: workspaceStatusSlot(busyAttentionIndicator(workspace)),
+    };
   }
   const issues = (workspace.issues ?? []).map((issue) => issue.message);
   if (workspace.outdated) issues.push("New workspaces get a newer image, after an AgentsInTheCloud update or a Dockerfile change. Make a new workspace to use it.");
-  return issues.length
-    ? workspaceStatusSlot(`<i class="fixed-shell-workspace-warning" aria-label="${escapeHtml(issues.join("\n"))}" title="${escapeHtml(issues.join("\n"))}">⚠︎</i>`)
-    : "";
+  const label = issues.join("\n") || (workspace.parked ? "Parked" : "Idle");
+  const iconClass = issues.length ? "fixed-shell-workspace-warning" : "status-dot";
+  return { label, html: workspaceStatusSlot(`<i class="${iconClass}" role="img" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${issues.length ? "⚠︎" : ""}</i>`) };
 }
 
 function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): string {
@@ -106,18 +109,19 @@ function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): strin
   const workspaceTemplateAttribute = workspaceTemplate ? ` data-workspace-template-id="${escapeHtml(workspaceTemplate.id)}"` : "";
   const busyAgents = workspace.busyAgentKeys?.length ? ` data-workspace-busy-agents="${escapeHtml(JSON.stringify(workspace.busyAgentKeys))}"` : "";
   const label = parked ? `Unpark and open ${workspace.title}` : workspace.title;
-  const tooltip = [workspaceTemplate?.title, label].filter(Boolean).join(" · ");
+  const status = workspaceStatus(workspace);
+  const tooltip = [workspaceTemplate?.title, label, status.label].filter(Boolean).join(" · ");
   const newFromTemplate = workspaceTemplate ? `New workspace from ${workspaceTemplate.title}` : "New empty workspace";
   const row = contentRowHtml({
     width: "fill",
     kind: "compact",
     container: parked ? undefined : { attributesHtml: `data-workspace-order="${index}"` },
     label: { kind: "text", text: workspace.title },
-    trailingHtml: renderWorkspaceRowStatus(workspace),
+    trailingHtml: status.html,
     leadingActionsHtml: `<button type="button" class="workspace-template-icon-button" title="${escapeHtml(newFromTemplate)}" aria-label="${escapeHtml(newFromTemplate)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(workspaceTemplate?.id ?? "")}">${workspaceTemplateIconHtml(workspaceTemplate)}</button>`,
     primary: {
       tag: "button",
-      attributesHtml: `${parked ? 'data-workspace-parked' : `id="${id}"`} type="${parked ? "submit" : "button"}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(label)}"${workspace.active ? ' aria-current="page"' : ""} data-workspace-entry-id="${escapeHtml(workspace.id)}"${attentionAt}${lastActivityAt}${busyAgents}${workspaceTemplateAttribute}${parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,
+      attributesHtml: `${parked ? 'data-workspace-parked' : `id="${id}"`} type="${parked ? "submit" : "button"}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${label} · ${status.label}`)}"${workspace.active ? ' aria-current="page"' : ""} data-workspace-entry-id="${escapeHtml(workspace.id)}"${attentionAt}${lastActivityAt}${busyAgents}${workspaceTemplateAttribute}${parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,
     },
   });
   return parked
@@ -193,12 +197,11 @@ const workspaceRailEntriesDomId = "nox_workspace_rail_entries";
 
 function renderWorkspaceRailEntries(presentation: WorkspacePanePresentation): string {
   return presentation.workspaces.map((workspace) => {
-    const status = workspace.issues?.length ? workspace.issues.map(issue => issue.message).join("; ") : workspace.requestingAttention ? "Needs attention" : workspace.busy ? "Working" : workspace.parked ? "Parked" : "Idle";
-    const icon = workspace.issues?.length ? '<i class="status-dot danger" aria-hidden="true"></i>' : renderWorkspaceRowStatus(workspace) || '<i class="status-dot" aria-hidden="true"></i>';
+    const status = workspaceStatus(workspace);
     const button = buttonHtml({
       type: workspace.parked ? "submit" : "button",
-      variant: "secondary",
-      content: { kind: "icon-only", iconHtml: icon, label: `${workspace.title} · ${status}` },
+      variant: "quiet",
+      content: { kind: "icon-only", iconHtml: status.html, label: `${workspace.title} · ${status.label}` },
       attributesHtml: `data-workspace-entry-id="${escapeHtml(workspace.id)}"${workspace.active ? ' aria-current="page"' : ""}${workspace.parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,
     });
     return workspace.parked ? `<form method="post" action="/workspaces/${encodeURIComponent(workspace.id)}/unpark" data-turbo="true" data-action="submit->workspace-navigation#unparkWorkspace">${button}</form>` : button;
@@ -212,12 +215,13 @@ const workspaceTemplateOptionsDomId = "workspace_template_options";
 export function renderWorkspacePane(presentation: WorkspacePanePresentation, sidebarContributionsHtml = "", moduleActionsHtml = "", launchComposerBinding?: string): string {
   const settings = actionLinkHtml({
     href: "/settings",
-    variant: "secondary",
+    variant: "quiet",
     content: { kind: "icon-only", iconHtml: Icons.Settings, label: "Settings" },
     attributesHtml: 'data-controller="settings-prefetch" data-action="pointerenter->settings-prefetch#prefetch focus->settings-prefetch#prefetch click->settings-prefetch#open"',
   });
   const back = buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Back, label: "Back to workspaces" }, attributesHtml: 'data-action="workspace-pane#back"' });
-  return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane"><div class="fixed-shell-workspace-main">${panelHtml({
+  const revealActions = 'pointerenter->workspace-navigation#revealWorkspacePane pointerleave->workspace-navigation#leaveWorkspacePane focusout->workspace-navigation#leaveWorkspacePane';
+  return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane" data-action="${revealActions}"><div class="fixed-shell-workspace-main">${panelHtml({
     element: { tag: "aside",  attributesHtml: 'aria-label="Workspaces"' },
     chrome: "integrated",
     headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader"><span class="panel__title">${Icons.Cloud}Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}${settings}${barButton("Collapse Workspace pane", "click->workspace-navigation#toggleWorkspacePaneCollapsed", Icons.Panel, "data-collapse-workspace-pane")}` })}</div>
@@ -232,7 +236,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
       </section>
       <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New workspace" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
     </div></div>`,
-  })}</div></div><nav class="nox-workspace-rail" aria-label="Workspace status">${barButton("Show Workspace pane", "click->workspace-navigation#toggleWorkspacePaneCollapsed", Icons.Panel, "data-show-workspace-pane")}<div id="${workspaceRailEntriesDomId}" class="nox-workspace-rail-entries">${renderWorkspaceRailEntries(presentation)}</div>${barButton("New workspace", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"')}${settings}</nav>`;
+  })}</div></div><nav class="nox-workspace-rail" aria-label="Workspace status" data-action="${revealActions}">${barButton("Show Workspace pane", "click->workspace-navigation#toggleWorkspacePaneCollapsed", Icons.Panel, "data-show-workspace-pane", "quiet")}<div id="${workspaceRailEntriesDomId}" class="nox-workspace-rail-entries">${renderWorkspaceRailEntries(presentation)}</div>${barButton("New workspace", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"', "quiet")}${settings}</nav>`;
 }
 
 const agentsInTheCloudNextAttentionDomId = "fixed_shell_agents-in-the-cloud_next_attention";

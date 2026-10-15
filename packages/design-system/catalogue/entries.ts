@@ -373,7 +373,7 @@ export const entries: CatalogueEntry[] = [
     id: "button",
     compareButtonSizes: true,
     title: "Button",
-    when: "An action with a quiet directional rim and background light, not navigation. Primary for the main action, secondary for supporting actions, danger for destructive actions. Progress and usage rings retain their own perimeter treatment.",
+    when: "An action with a quiet directional rim and background light, not navigation. Primary for the main action, secondary for supporting actions, danger for destructive actions, quiet for dense toolbars with a flat symmetric outline. Progress and usage rings retain their own perimeter treatment.",
     contract:
       "Choose caption OR icon-only with a mandatory accessible label. On narrow screens (≤700px) or coarse pointers, regular icon-only controls are 42.5px with 17.85px icons. Add data-popular-button to a button (via attributesHtml) or containing group for 62.5px controls and 26.25px icons. Popular caption buttons also have a 62.5px minimum height; ordinary caption buttons are unchanged. Desktop popular sizes are fixed: 38.24px icon controls with 20.59px icons, and 36.93px minimum-height caption controls with 18.38px icons. Native type and disabled are explicit. Do not add classes or override component anatomy via attributesHtml.",
     imports: { button: "buttonHtml", icons: "Icons" },
@@ -388,6 +388,14 @@ export const entries: CatalogueEntry[] = [
             itemsHtml: buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "Add grouped item" } }) +
               buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "/land" } }),
           }),
+      },
+      {
+        title: "Quiet · current · disabled",
+        render: () => [
+          buttonHtml({ type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Panel, label: "Open navigation" } }),
+          buttonHtml({ type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Panel, label: "Current destination" }, attributesHtml: 'aria-current="page"' }),
+          buttonHtml({ type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Panel, label: "Unavailable navigation" }, disabled: true }),
+        ].join(""),
       },
       {
         title: "Variants · disabled · icon-only · long caption",

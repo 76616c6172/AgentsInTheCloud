@@ -1,4 +1,4 @@
-import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
+import { buttonHtml, type ButtonVariant } from "@agents-in-the-cloud/design-system/button";
 import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
@@ -7,10 +7,10 @@ export interface ViewCloseAction {
   label: string;
 }
 
-export function barButton(label: string, action: string, iconHtml: string, attributes = ""): string {
+export function barButton(label: string, action: string, iconHtml: string, attributes = "", variant: ButtonVariant = "secondary"): string {
   return buttonHtml({
     type: "button",
-    variant: "secondary",
+    variant,
     content: { kind: "icon-only", iconHtml, label },
     attributesHtml: `data-action="${action}" ${attributes}`,
   });

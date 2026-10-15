@@ -1,4 +1,21 @@
-/* Nox shell geometry. Keep the upstream theme and mobile keyboard layout intact. */
+/* Nox surface roles: one neutral background, with semantic state colors intact. */
+html[data-theme] {
+  --panel: var(--bg);
+  --elev: var(--bg);
+  --panel-inner-glow: none;
+  --panel-background-image: none;
+  --transcript-background-image: none;
+  --files-background-image: none;
+  --editor-background-image: none;
+  --composer-background-image: none;
+  --work-background-image: none;
+  --terminal-background-image: none;
+  --button-background-image: none;
+  --button-rim-reflection: none;
+  --button-inner-glow: none;
+}
+
+/* Desktop geometry stays separate from the mobile keyboard layout. */
 .nox-workspace-rail { display: none; }
 
 @media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
@@ -14,17 +31,24 @@
   .fixed-shell-agent-pane,
   .fixed-shell-work-pane { transition: none; }
 
-  .fixed-shell-workspace-pane { border-right: 1px solid var(--nox-pane-divider); }
+  /* Reveal over the content instead of resizing transcripts and terminals. */
+  .fixed-shell-app > .fixed-shell-workspace-pane {
+    z-index: 10;
+    transition: none;
+    border-right: 1px solid var(--nox-pane-divider);
+  }
   .fixed-shell-work-pane { border-left: 1px solid var(--nox-pane-divider); }
   .fixed-shell-workspace-scroll { padding: 1px 4px 4px; }
   .fixed-shell-agent-pane [data-show-workspace-pane] { display: none; }
 
+  .fixed-shell-app > .fixed-shell-app-main,
   .fixed-shell-app.is-workspace-pane-collapsed > .fixed-shell-app-main {
     margin-left: var(--nox-rail-width);
   }
 
-  .fixed-shell-app.is-workspace-pane-collapsed > .nox-workspace-rail {
+  .fixed-shell-app > .nox-workspace-rail {
     position: absolute;
+    z-index: 1;
     inset: 0 auto 0 0;
     width: var(--nox-rail-width);
     display: flex;
@@ -49,9 +73,6 @@
   }
   .nox-workspace-rail-entries > * { flex-shrink: 0; }
   .nox-workspace-rail-entries form { margin: 0; }
-  .nox-workspace-rail-entries [aria-current="page"] {
-    box-shadow: inset 2px 0 var(--accent);
-  }
 
   /* Focus changes visibility, never the saved split width or sidebar preference. */
   .fixed-shell-app:has(.workspace-detail-resident.visible .is-work-pane-focused) > :is(.fixed-shell-workspace-pane, .nox-workspace-rail),
