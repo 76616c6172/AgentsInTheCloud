@@ -85,6 +85,10 @@ export function privateNetworkAccessRules(destinations: readonly PrivateNetworkF
 ${elements.length ? `add element inet agents-in-the-cloud_workspaces private_network_v4 { ${elements.join(", ")} }\n` : ""}`;
 }
 
+/** Tailscale's Quad100 resolvers. With MagicDNS, tailscaled rewrites
+ * /etc/resolv.conf to these after the firewall is installed. */
+export const tailscaleResolvers = ["100.100.100.100", "fd7a:115c:a1e0::53"];
+
 /** Private DNS is allowed only at configured resolvers on TCP/UDP port 53. */
 export function resolverAddresses(resolvConf: string): string[] {
   return resolvConf.split("\n").flatMap(line => {
