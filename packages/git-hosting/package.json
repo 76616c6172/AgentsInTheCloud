@@ -6,6 +6,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@agents-in-the-cloud/bitbucket": "workspace:*",
     "@agents-in-the-cloud/core": "workspace:*",
     "@agents-in-the-cloud/github": "workspace:*"
   }
