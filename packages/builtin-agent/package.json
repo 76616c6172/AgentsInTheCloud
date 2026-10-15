@@ -26,6 +26,7 @@
     "@agents-in-the-cloud/llm": "workspace:*",
     "@agents-in-the-cloud/prompt": "workspace:*",
     "@earendil-works/pi-durable": "catalog:",
+    "@earendil-works/pi-codemode": "catalog:",
     "@earendil-works/chord": "catalog:",
     "proper-lockfile": "4.1.2",
     "@agents-in-the-cloud/legacy-converter": "workspace:*",
