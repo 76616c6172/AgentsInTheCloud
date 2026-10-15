@@ -1,12 +1,6 @@
 ARG ATELIER_RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:144a54ae19731c822e750b1020bdfc5e2098348b4092e76e42b7f0cc576ca232
 FROM oven/bun:1.4.0 AS bun-dist
 
-FROM ubuntu:26.04 AS transcription-runtime
-ARG TARGETARCH
-ARG NEMO_SPEECH_VERSION=0.1.0
-COPY packages/dictation/install-runtime.sh /tmp/install-transcription-runtime.sh
-RUN sh /tmp/install-transcription-runtime.sh "$TARGETARCH" "$NEMO_SPEECH_VERSION"
-
 FROM ubuntu:26.04 AS deps
 ARG DEBIAN_FRONTEND=noninteractive
 COPY --from=bun-dist /usr/local/bin/bun /usr/local/bin/bun
@@ -48,8 +42,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 COPY --from=bun-dist /usr/local/bin/bun /usr/local/bin/bun
 COPY --from=bun-dist /usr/local/bin/bunx /usr/local/bin/bunx
 RUN setcap cap_net_bind_service=+ep /usr/local/bin/bun
-COPY --from=transcription-runtime /opt/nemo-speech /opt/nemo-speech
-RUN ln -s /opt/nemo-speech/bin/nemo-speech /usr/local/bin/nemo-speech
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0

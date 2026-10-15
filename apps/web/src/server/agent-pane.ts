@@ -63,7 +63,6 @@ function renderAgentTab(workspaceId: string, agent: AgentPaneContribution): stri
   return tabHtml({
     selected: false,
     label: { kind: "text", text: agent.title },
-    iconHtml: agent.iconHtml,
     status: {
       busy: agent.busy, requestingAttention: agent.requestingAttention,
       attributesHtml: `data-agent-attention-id="${escapeHtml(agent.id)}"${agent.attentionSequence === undefined ? "" : ` data-attention-sequence="${agent.attentionSequence}"`}`,

@@ -48,10 +48,6 @@ Use an Agent to ask for code changes, explanations, reviews, or debugging help.
 
 Agents run inside the workspace and can read and edit files under `/work`.
 
-### Dictation
-
-Use **Dictate with microphone** in the AgentPaneComposer or LaunchComposer to add spoken text to the draft. Stop Dictation to review and edit the text before sending it. Choose its local speech-to-text model in **Settings**. A repository can provide phrase hints in `.agents-in-the-cloud/dictation-context`, one phrase per line; blank lines and `#` comments are ignored. Older `transcription-context` files are still read when the new file is absent.
-
 ### Subagents
 
 A **Subagent** is a collaborator an Agent creates for delegated work, rather than another Agent you add with **New Agent**. Ask the Builtin Agent to delegate when you want it to use Subagents. Open **Subagents** from the Work-view launcher to inspect their activity, transcripts, and messages; it follows the selected Agent and includes nested Subagents.
@@ -124,7 +120,7 @@ shortcut: l
 Review the current changes, run the relevant checks, commit them, and prepare to push to ${1:-main}.
 ```
 
-Set `composer-button: true` to show a Prompt template button whenever the Agent pane composer is empty, whether or not it has focus. Selecting it expands the template into the composer for review and editing without submitting it. AgentsInTheCloud focuses the composer when doing so will not open a software keyboard; on software-keyboard devices it leaves the composer unfocused. Prompt template buttons do not appear in the new-workspace launch composer and disappear as soon as the user types or starts transcription.
+Set `composer-button: true` to show a Prompt template button whenever the Agent pane composer is empty, whether or not it has focus. Selecting it expands the template into the composer for review and editing without submitting it. AgentsInTheCloud focuses the composer when doing so will not open a software keyboard; on software-keyboard devices it leaves the composer unfocused. Prompt template buttons do not appear in the new-workspace launch composer and disappear as soon as the user types.
 
 Omit `composer-button` or set it to `false` to leave the button hidden. Slash-command access and the optional keyboard shortcut remain available independently.
 

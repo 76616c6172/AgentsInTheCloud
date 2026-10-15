@@ -1,7 +1,7 @@
 import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { escapeHtml, providerBrandIconHtml } from "@agents-in-the-cloud/shared";
 
-interface AgentTypeChoice { id: string; label: string; iconHtml: string }
+interface AgentTypeChoice { id: string; label: string }
 
 const agentOrder = ["builtin", "pi", "claude", "codex", "codex-cli"];
 const flexibleSubscriptions = [
@@ -32,7 +32,7 @@ export function renderAgentTypePicker(agentTypes: readonly AgentTypeChoice[], op
     const description = descriptions.get(agentType.id)!;
     const subscriptions = description.subscriptions.map(({ provider, label }) => `<span class="agent-type-subscription" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)} subscription">${providerBrandIconHtml(provider, label)}</span>`).join("");
     const row = contentRowHtml({
-      kind: "multiline", width: "fill", label: { kind: "text", text: agentType.label }, leadingHtml: agentType.iconHtml,
+      kind: "multiline", width: "fill", label: { kind: "text", text: agentType.label },
       trailingHtml: `<span class="agent-type-fields"><span class="agent-type-what">${escapeHtml(description.what)}</span><span>${description.models}</span><span class="agent-type-subscriptions">${subscriptions}</span></span>`,
       element: { tag: "button", attributesHtml: options.attributes(agentType) },
     });

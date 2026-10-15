@@ -39,7 +39,6 @@
         "@agents-in-the-cloud/proxy-ingress": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/subagents": "workspace:*",
-        "@agents-in-the-cloud/dictation": "workspace:*",
         "@agents-in-the-cloud/update": "workspace:*",
         "@agents-in-the-cloud/vscode": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
@@ -107,7 +106,6 @@
         "@agents-in-the-cloud/observable-terminal": "workspace:*",
         "@agents-in-the-cloud/prompt": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
-        "@agents-in-the-cloud/dictation": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
         "@agents-in-the-cloud/workspace-templates": "workspace:*",
         "@earendil-works/chord": "catalog:",
@@ -158,7 +156,6 @@
         "@agents-in-the-cloud/observable-terminal": "workspace:*",
         "@agents-in-the-cloud/prompt": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
-        "@agents-in-the-cloud/dictation": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
         "typebox": "^1.0.57",
       },
@@ -342,7 +339,6 @@
         "@agents-in-the-cloud/core": "workspace:*",
         "@agents-in-the-cloud/design-system": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
-        "@agents-in-the-cloud/dictation": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
       },
     },
@@ -404,18 +400,6 @@
         "@shikijs/core": "4.4.3",
         "@shikijs/engine-oniguruma": "4.4.3",
         "@shikijs/langs": "4.4.3",
-      },
-    },
-    "packages/dictation": {
-      "name": "@agents-in-the-cloud/dictation",
-      "dependencies": {
-        "@agents-in-the-cloud/core": "workspace:*",
-        "@agents-in-the-cloud/design-system": "workspace:*",
-        "@agents-in-the-cloud/observable-terminal": "workspace:*",
-        "@agents-in-the-cloud/shared": "workspace:*",
-        "@agents-in-the-cloud/workspace": "workspace:*",
-        "@agents-in-the-cloud/workspace-templates": "workspace:*",
-        "typebox": "^1.0.57",
       },
     },
     "packages/update": {
@@ -547,7 +531,6 @@
 
     "@agents-in-the-cloud/syntax": ["@agents-in-the-cloud/syntax@workspace:packages/syntax"],
 
-    "@agents-in-the-cloud/dictation": ["@agents-in-the-cloud/dictation@workspace:packages/dictation"],
 
     "@agents-in-the-cloud/update": ["@agents-in-the-cloud/update@workspace:packages/update"],
 

@@ -92,7 +92,7 @@ The `update-channel` section is **Update channel**, with **Stable** and **Latest
 
 The `update` section is **Updates**, the feature for managing AgentsInTheCloud installation Updates. It is separate from Workspace package and agent CLI updates.
 
-Settings is app-level, not configuration for the selected Workspace, a Workspace template, or an individual Agent. The GitHub connection is shared across Workspaces; its GitHub token is distinct from the Commit identity used to author commits. The settings section is a registered settings contribution ID, such as `theme`, `commit-identity`, `github`, `models`, `dictation`, or `update`.
+Settings is app-level, not configuration for the selected Workspace, a Workspace template, or an individual Agent. The GitHub connection is shared across Workspaces; its GitHub token is distinct from the Commit identity used to author commits. The settings section is a registered settings contribution ID, such as `theme`, `commit-identity`, `github`, `models`, or `update`.
 
 ## Create and wait for a workspace
 

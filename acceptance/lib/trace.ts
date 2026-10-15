@@ -21,7 +21,7 @@ export interface Frame {
   content: number | null;
   /** Screen y of the transcript content's end. */
   contentBottom: number | null;
-  /** Visible composer button slots (attach, close, transcribe, send); labels change with state, slots don't. */
+  /** Visible composer button slots (attach, close, send); labels change with state, slots don't. */
   buttons: string[];
   viewport: [number, number];
   /** The document's scroll offset: iOS scrolls it to reveal a focused field. */

@@ -28,7 +28,6 @@ import { createWorkspacePresentationController, installWorkspacePresentationTurb
 import { registerWorkspaceResidencyController } from "./workspace-residency.ts";
 import { registerWorkspaceSettingsControllers } from "./workspace-settings.ts";
 import { registerWorkspaceShortcutsController } from "./workspace-shortcuts.ts";
-import { registerWorkspacePaneSwipeController } from "./workspace-pane-swipe.ts";
 
 declare global {
   interface Window {
@@ -63,7 +62,6 @@ registerWorkspaceControllers({
 registerWorkspaceNavigationControllers();
 registerWorkspaceResidencyController();
 registerWorkspaceShortcutsController();
-registerWorkspacePaneSwipeController();
 registerWorkspaceFullscreenController();
 registerWorkspaceDialogControllers();
 registerWorkspaceAppFrameController();
