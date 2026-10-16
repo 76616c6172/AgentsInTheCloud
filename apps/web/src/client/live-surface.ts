@@ -70,6 +70,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
       ? CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue, agent: this.agentValue, work: this.workValue })
       : CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue });
     this.subscription = window.AgentsInTheCloudCable!.subscribe(identifier, {
+      shownIn: this.element,
       onReady: () => {
         this.ready = true;
         this.pending?.resolve();

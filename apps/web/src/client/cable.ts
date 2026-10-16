@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 
-import { decodeCableServerMessage, serializeCableIdentifier, type AgentsInTheCloudCableClient, type CableClientMessage, type CableIdentifier, type CableSubscription, type CableSubscriptionOptions, type WorkspaceVisibilityReport } from "@agents-in-the-cloud/shared";
+import { decodeCableServerMessage, liveRegionDigestsSchema, liveShownAttribute, serializeCableIdentifier, type AgentsInTheCloudCableClient, type CableClientMessage, type CableIdentifier, type CableSubscription, type CableSubscriptionOptions, type WorkspaceVisibilityReport } from "@agents-in-the-cloud/shared";
+import { Value } from "typebox/value";
 
 declare global {
   interface Window {
@@ -18,6 +19,8 @@ type DesiredSubscription = {
   leases: Set<SubscriptionLease>;
   status: "pending" | "ready" | "rejected";
   subscriptionId?: string;
+  /** Until a snapshot is applied, the page still shows this element's server render. */
+  shownIn?: Element;
 };
 
 export type CableStreamRenderer = (html: string, isCurrent: () => boolean, onApplied: () => void) => void;
@@ -52,7 +55,10 @@ export function createAgentsInTheCloudCableClient(renderStreams: CableStreamRend
     subscription.status = "pending";
     subscription.subscriptionId = subscriptionId;
     changed();
-    sendRaw({ command: "subscribe", identifier: subscription.identifier, subscriptionId });
+    const message: Extract<CableClientMessage, { command: "subscribe" }> = { command: "subscribe", identifier: subscription.identifier, subscriptionId };
+    const shown = subscription.shownIn?.getAttribute(liveShownAttribute);
+    if (shown) message.shown = Value.Parse(liveRegionDigestsSchema, JSON.parse(shown));
+    sendRaw(message);
   }
 
   function resubscribeAll(): void {
@@ -100,6 +106,8 @@ export function createAgentsInTheCloudCableClient(renderStreams: CableStreamRend
         const applied = () => {
           if (!isCurrent()) return;
           subscription.status = "ready";
+          subscription.shownIn?.removeAttribute(liveShownAttribute);
+          subscription.shownIn = undefined;
           if ([...desired.values()].every(item => item.status !== "pending")) recovering = false;
           changed();
           for (const lease of subscription.leases) lease.options?.onReady?.();
@@ -172,7 +180,7 @@ export function createAgentsInTheCloudCableClient(renderStreams: CableStreamRend
       const key = serializeCableIdentifier(identifier);
       let subscription = desired.get(key);
       if (!subscription) {
-        subscription = { identifier, leases: new Set(), status: "pending" };
+        subscription = { identifier, leases: new Set(), status: "pending", shownIn: options?.shownIn };
         desired.set(key, subscription);
         closingForPageHide = false;
         connect();
