@@ -1,5 +1,5 @@
 import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
-import { listWorkspaces } from "@agents-in-the-cloud/workspace";
+import { getWorkspaceInit } from "@agents-in-the-cloud/workspace";
 import { isGitWorkspaceTemplateInit } from "../workspace-template.ts";
 import { registerWorkspaceTemplateSshAgentWorkspaceEvents, restoreWorkspaceTemplateSshAgents } from "../ssh-agent.ts";
 import { registerWorkspaceTemplateWorkspaceEvents } from "../workspace-repos.ts";
@@ -14,8 +14,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     registerWorkspaceTemplateSshAgentWorkspaceEvents(events);
     await restoreWorkspaceTemplateSshAgents();
     events.on("agent_system_prompt_prepare", async ({ workspaceId, lines }) => {
-      const workspace = (await listWorkspaces()).workspaces.find((entry) => entry.id === workspaceId);
-      if (isGitWorkspaceTemplateInit(workspace?.init)) lines.push(persistentSystemPromptLine);
+      if (isGitWorkspaceTemplateInit(await getWorkspaceInit(workspaceId))) lines.push(persistentSystemPromptLine);
     });
   },
 };
