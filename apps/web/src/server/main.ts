@@ -341,6 +341,7 @@ const server = Bun.serve<SocketData>({
     return await compressDynamicResponse(request, await app.fetch(request));
   },
   websocket: {
+    perMessageDeflate: true,
     open(ws) {
       if (ws.data.kind === "cable") cableServer.open(ws, ws.data);
       else if (ws.data.kind === "provision-term") openProvisionTermSocket(ws, ws.data);
