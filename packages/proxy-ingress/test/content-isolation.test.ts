@@ -219,7 +219,9 @@ for (const kind of ["fetch", "http"] as const) {
         expect(response.status).toBe(status);
         for (const name of Object.keys(grants)) expect(response.headers.get(name)).toBeNull();
         expect(response.headers.get("x-frame-options")).toBeNull();
-        expect(response.headers.get("content-security-policy")).toBe("default-src 'self'");
+        if (status === 200) {
+          expect(response.headers.get("content-security-policy")).toMatch(/^default-src 'self'; script-src 'self' 'nonce-[A-Za-z0-9+/]+'$/);
+        } else expect(response.headers.get("content-security-policy")).toBe("default-src 'self'");
         expect(response.headers.get("x-workspace-header")).toBe("preserved");
         expect(response.headers.get("content-type")).toBe("text/html");
         if (status === 302) expect(new URL(response.headers.get("location")!, response.url).pathname).toBe("/200");

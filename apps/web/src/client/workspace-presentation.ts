@@ -5,6 +5,7 @@ import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { prepareLiveSurface, selectLiveSurface } from "./live-surface.ts";
 import { residencyController } from "./workspace-controller-registry.ts";
+import type { MobileSwipeDirection } from "@agents-in-the-cloud/shared/mobile-swipe";
 
 type PresentationPane = HTMLElement & { dataset: DOMStringMap & { workspacePaneRole?: string; workspacePaneId?: string; workspaceLogicallyVisible?: string } };
 const phoneDestinationSchema = Type.Union([
@@ -230,6 +231,28 @@ export function createWorkspacePresentationController(
     closeMore(): void {
       this.moreOpen = false;
       this.applyState({ emit: false });
+    }
+
+    mobileSwipeDestination(direction: MobileSwipeDirection): PhoneDestination | undefined {
+      const destinations = [...this.element.querySelectorAll<HTMLElement>("[data-mobile-destination]")]
+        .map(item => Value.Parse(phoneDestinationSchema, item.dataset.mobileDestination));
+      const index = destinations.indexOf(this.state.phoneDestination);
+      return index < 0 ? undefined : destinations[index + direction];
+    }
+
+    navigateMobileSwipe(direction: MobileSwipeDirection): void {
+      if (!this.isPhone) return;
+      const destination = this.mobileSwipeDestination(direction);
+      if (!destination) return;
+      this.selectResidentMobileDestination();
+      if (destination.startsWith("work:")) {
+        const key = destination.slice(5);
+        const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)!;
+        this.selectWorkViewState(key, selector.dataset.workViewKind === "contextual");
+      } else this.state.phoneDestination = destination;
+      this.moreOpen = false;
+      // Navigation must not focus a composer or terminal and open the keyboard.
+      this.persistAndApply();
     }
 
     selectMobileDestination(event: Event): void {
@@ -473,6 +496,7 @@ export function createWorkspacePresentationController(
       }
       if (options.emit) this.emitVisibilityChanges(before, after);
       if (options.focus && document.hasFocus()) this.focusActiveSurface();
+      this.element.dispatchEvent(new Event("agents-in-the-cloud:presentation-changed"));
     }
 
     private scheduleMobileNavigationLayout(): void {

@@ -7,6 +7,7 @@
     "./server": "./src/server/index.ts"
   },
   "dependencies": {
+    "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
     "@agents-in-the-cloud/core": "workspace:*",
     "@agents-in-the-cloud/shared": "workspace:*",
     "typebox": "^1.0.57",

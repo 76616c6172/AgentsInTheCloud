@@ -6,6 +6,7 @@
     ".": "./src/index.ts",
     "./egress-policy": "./src/egress-policy.ts",
     "./http": "./src/http.ts",
+    "./mobile-swipe": "./src/mobile-swipe.ts",
     "./theme": "./src/theme-setting.ts",
     "./file-metadata": "./src/file-metadata.ts",
     "./system-version": "./src/system-version.ts",

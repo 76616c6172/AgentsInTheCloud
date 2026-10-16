@@ -1,4 +1,5 @@
 import { ingressErrorPage } from "./error-page.ts";
+import { injectMobileSwipeBridge, mobileSwipeScriptPath, mobileSwipeScriptResponse } from "./mobile-swipe.ts";
 import { errorCategory, UnknownWorkspaceAppError, WorkspaceAuthenticationError, WorkspaceConnectionError, WorkspaceUpstreamError } from "./failure.ts";
 import { createLocalOriginPublisher, type ParentOriginPublisher } from "./parent.ts";
 import { adaptLocalAppResponse, localAppHost, translateLocalAppOrigin } from "./local-app.ts";
@@ -234,8 +235,12 @@ export function createWorkspaceIngress(options: WorkspaceIngressOptions): Worksp
         request.headers.set("cache-control", "no-cache");
       }
       const backend = await resolveBackend(lease.app, new URL(request.url), lease.protocol);
+      if (new URL(request.url).pathname === mobileSwipeScriptPath && request.method === "GET") {
+        return trackResponse(lease, await mobileSwipeScriptResponse());
+      }
       if (backend.kind === "fetch") {
-        const response = adaptWorkspaceResponse(await backend.fetch(request));
+        let response = adaptWorkspaceResponse(await backend.fetch(request));
+        if (request.method !== "HEAD") response = injectMobileSwipeBridge(response, appPublicOrigin(lease, request));
         lease.lastFailure = undefined;
         recentFailures.delete(appIdentity(lease.app));
         return trackResponse(lease, response);
@@ -265,6 +270,7 @@ export function createWorkspaceIngress(options: WorkspaceIngressOptions): Worksp
       if (backend.adaptResponse) response = await backend.adaptResponse(response, request);
       response = adaptLocalAppResponse(backend, response, appPublicOrigin(lease, request));
       response = adaptWorkspaceResponse(response);
+      if (method !== "HEAD") response = injectMobileSwipeBridge(response, appPublicOrigin(lease, request));
       lease.lastFailure = undefined;
       recentFailures.delete(appIdentity(lease.app));
       return trackResponse(lease, response);

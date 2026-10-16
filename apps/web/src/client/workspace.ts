@@ -15,6 +15,7 @@ import * as Turbo from "@hotwired/turbo";
 import { NavigationOriginController } from "./navigation-origin-controller.ts";
 import { ConnectionModeSettingsController } from "./connection-mode-settings.ts";
 import { PwaReminderController } from "./pwa-reminder.ts";
+import { MobileSwipeController } from "./mobile-swipe-controller.ts";
 import { registerWorkspaceAppFrameController } from "./workspace-app-frame.ts";
 import { installWorkspaceCable } from "./workspace-cable.ts";
 import { clientHooks } from "./workspace-client-hooks.ts";
@@ -57,6 +58,7 @@ for (const module of workspaceClientModules) await module.install({ application,
 registerWorkspaceControllers({
   "connection-mode-settings": ConnectionModeSettingsController,
   "pwa-reminder": PwaReminderController,
+  "mobile-swipe": MobileSwipeController,
   "workspace-presentation": createWorkspacePresentationController(Controller, application, clientHooks),
 });
 registerWorkspaceNavigationControllers();
