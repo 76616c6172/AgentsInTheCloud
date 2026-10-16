@@ -86,8 +86,15 @@ class LiveSurfaceController extends Controller<HTMLElement> {
         this.pending = undefined;
         this.subscription = undefined;
         this.ready = false;
-        pending?.reject(new Error(reason));
         subscription?.unsubscribe();
+        if (this.kindValue === "workspace" && /^workspace (?:not found|not in registry):/.test(reason)) {
+          const workspaceId = this.workspaceValue;
+          pending?.resolve();
+          this.element.remove();
+          document.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-removed", { detail: { workspaceId } }));
+          return;
+        }
+        pending?.reject(new Error(reason));
       },
     });
     return pending.promise;
