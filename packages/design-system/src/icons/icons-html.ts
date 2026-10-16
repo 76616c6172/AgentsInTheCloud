@@ -9,14 +9,14 @@ export const agentsInTheCloudBrandIconHtml = '<img class="agents-in-the-cloud-br
 export const builtinAgentIconHtml = '<img class="builtin-agent-icon" src="/builtin-agent.png" width="20" height="24" alt="" aria-hidden="true">';
 
 /** Canonical decorative icons. Accessible names belong on the control or content that contains them. */
-// Changes, Maximize and Sidebar adapt Lucide; Browser uses the Helium mark. See NOTICE.
+// Browser, Changes, Maximize and Sidebar adapt Lucide icons; see NOTICE for licenses.
 export const Icons = {
   Agent: iconHtml('<path d="M9 4h6M12 4V2M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/>'),
   Subagents: iconHtml('<path d="M7 5V3M5 3h4M3 7h8a1 1 0 0 1 1 1v6H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM17 12v-2m-2 0h4M13 14h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/><path d="M5 10h.01M9 10h.01M15 18h.01M19 18h.01" stroke-width="2.6"/>'),
   ArrowDown: iconHtml('<path d="M12 4v16M6 14l6 6 6-6"/>'),
   Back: iconHtml('<path d="m15 18-6-6 6-6"/>'),
   Bell: iconHtml('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>'),
-  Browser: iconHtml('<path fill="currentColor" stroke="none" d="M14.3081 22.2984 12 24l-2.3081-1.7016 1.0489-8.1189-6.5174 4.9661L1.5938 18l.321-2.8467L9.4808 12l-7.566-3.1533L1.5938 6l2.6296-1.1456 6.5174 4.9661-1.049-8.119L12 0l2.3081 1.7016-1.0488 8.1189 6.5173-4.9661L22.4062 6l-.321 2.8467L14.5192 12l7.566 3.1533.321 2.8467-2.6296 1.1456-6.5173-4.9661z"/>'),
+  Browser: iconHtml('<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4M2 8h20M6 4v4"/>'),
   Check: iconHtml('<path d="m5 12 4 4L19 6"/>'),
   Cloud: iconHtml('<path d="M6 19a4 4 0 0 1-1-7.87A7 7 0 0 1 18.6 9.4 4.8 4.8 0 0 1 18 19Z"/>'),
   Copy: iconHtml('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/>'),

@@ -1238,7 +1238,7 @@ export const entries: CatalogueEntry[] = [
     title: "Icons",
     when: "Shared decorative vocabulary. Use icon-only Button for standalone icon actions.",
     contract:
-      "Icons exports trusted decorative SVG strings. Ready is a static faceted orb with shaded faces and subdued rear edges. Browser uses the supplied Helium mark in currentColor. Changes uses a diff document, Sidebar a left-panel outline, and Maximize diagonal arrows from Lucide (attribution in NOTICE). WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. agentsInTheCloudBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml is the transparent A robot from the social card, used for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
+      "Icons exports trusted decorative SVG strings. Ready is a static faceted orb with shaded faces and subdued rear edges. Browser uses an app-window outline, Changes a diff document, Sidebar a left-panel outline, and Maximize diagonal arrows from Lucide (attribution in NOTICE). These share the same currentColor strokes, size and rounded joins. WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. agentsInTheCloudBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml is the transparent A robot from the social card, used for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
     imports: { icons: "Icons" },
     examples: [
       {

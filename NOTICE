@@ -11,12 +11,8 @@ from OpenAI Codex (https://github.com/openai/codex), commit
 574a36ff99f0807a24f5b043f593122bf151908d, licensed under Apache License 2.0.
 Copyright OpenAI. The license is included in docs/licenses/codex-LICENSE.
 
-The Browser icon adapts the Helium Browser logo to use the current text color.
-Source: https://cdn.jsdelivr.net/gh/glincker/thesvg@main/public/icons/helium-browser/default.svg
-The Helium Browser name and logo remain the property of their respective owners.
-
-The Changes, Maximize and Sidebar SVG icons are adapted from Lucide
-(file-diff, maximize-2 and panel-left).
+The Browser, Changes, Maximize and Sidebar SVG icons are adapted from Lucide
+(app-window, file-diff, maximize-2 and panel-left).
 Source: https://github.com/lucide-icons/lucide
 
 ISC License
