@@ -1,5 +1,5 @@
 import { parseModelRef } from "@agents-in-the-cloud/llm/server";
-import { renderTranscript } from "@agents-in-the-cloud/agent/server/render-transcript";
+import { renderLazyTranscriptEntry, renderTranscript } from "@agents-in-the-cloud/agent/server/render-transcript";
 import { ids, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
 import type { TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderAgentPane, renderAgentPaneComposerFooter, renderPromptActions, type AgentStatsView } from "@agents-in-the-cloud/builtin-agent/server/render-composer";
@@ -25,7 +25,9 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
     ];
   }
   function transcriptHtml(runtime: Runtime) {
-    return renderTranscript(renderContext(runtime), transcriptItems(runtime), { systemPrompt: runtime.instructions, tools: [] });
+    const ctx = renderContext(runtime);
+    // A harness may still be connecting; its prompt loads when the entry opens, so connecting doesn't change the transcript.
+    return renderLazyTranscriptEntry(ctx, "system-prompt", "System prompt") + renderTranscript(ctx, transcriptItems(runtime), { systemPrompt: "", tools: [] });
   }
   function liveRegions(runtime: Runtime): LiveRegion[] {
     const ctx = renderContext(runtime);
