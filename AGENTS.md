@@ -58,3 +58,7 @@ Follow these guidelines whenever writing or changing user-facing text, panels, o
 - Give each element a distinct job: the title orients, the body adds context or consequences, labels identify content, and buttons offer actions. Avoid repeating the same message across them.
 - Write for the person using the app—not the person requesting the implementation. Apply requirements silently; don’t turn implementation commentary into app copy.
 - Make button labels understandable in context. Explicit action labels are useful, but conversational labels can work too.
+
+### Nox fork
+
+The design goak of this fork on the nox branch is to more closely match my preferences and workflow and any changes we make need to be implemented with maintainability in mind - considering that we want to be able to merge upstream changes from https://github.com/lucasmeijer/AgentsInTheCloud back into the nox branch in a way so it's not difficult to make sure we get all the benefits but without breaking the changes that we are making (or making it easy to fix).

@@ -54,21 +54,22 @@ const draftKey = `agents-in-the-cloud.agentComposerText:${JSON.stringify([setup.
 const sel = {
   pane: ".agent-composer-pane",
   transcript: ".agent-pane .agent-transcript",
-  opener: '.agent-composer-pane [data-agent-composer-target="opener"]',
-  draftDot: ".agent-composer-opener[data-draft] .agent-composer-draft-dot",
+  opener: '.agent-composer-pane [data-agent-composer-target="opener"], .nox-agent-composer-action > button',
+  draftDot: ".agent-composer-opener[data-draft] .agent-composer-draft-dot, .nox-agent-composer-action > .agent-composer-draft-dot",
   close: '.agent-composer-pane .composer-close button',
   input: ".agent-composer-pane .composer-input",
   send: ".agent-composer-pane .composer-send button:not([data-action])",
   followLatest: '.floating-stack :is([data-agent-pane-target="transcriptEnd"], [data-cli-terminal-target="transcriptEnd"])',
   terminal: ".observable-terminal-host",
-  viewTranscript: '.floating-stack [data-action~="cli-terminal#showTranscript"]',
-  showTerminal: '.floating-stack [data-cli-transcript-button="terminal"]',
+  viewTranscript: '.floating-stack [data-action~="cli-terminal#showTranscript"], .nox-agent-transcript-action > button',
+  showTerminal: '.floating-stack [data-cli-transcript-button="terminal"], .nox-agent-terminal-action > button',
   cliTranscript: ".cli-agent-body.cli-transcript-mode .cli-transcript-view .agent-transcript-content",
 };
 
 const bottom = (box: Box): number => box ? box[1] + box[3] : Number.NaN;
 /** Floating buttons keep the workspace bar's outer inset: 4px on mobile, 10px on desktop. */
 let floatingInset = 4;
+let desktopActions = false;
 const floatingLabel = { opener: "Open composer", followLatest: "Follow latest", pendingTranscript: "Will autoswitch to transcript when agent is done" };
 
 async function scenario(name: string, description: string, body: (recorder: ScenarioRecorder) => Promise<void>): Promise<void> {
@@ -134,23 +135,41 @@ async function closeComposer(): Promise<void> {
   }
 }
 
-/** Floating stack slots, bottom to top. */
-const floatingOrder = [[floatingLabel.opener], ["View transcript", "Back to terminal", floatingLabel.pendingTranscript], [floatingLabel.followLatest]];
+async function switchAgentView(selector: string): Promise<void> {
+  if (!desktopActions) {
+    await page.tap(".fixed-shell-workspace-bar [data-mobile-more]");
+    await Bun.sleep(250); // Wait for the menu's positioning and entrance before tapping it.
+  }
+  await page.tap(selector);
+}
 
 function floatingStackChecks(frame: Frame, composerOpen: boolean, surface: Box = frame.transcript): ReturnType<typeof check>[] {
-  const opener = frame.floating[floatingLabel.opener] ?? null;
+  const opener = (desktopActions ? frame.toolbar : frame.navbar)[floatingLabel.opener] ?? null;
   const shown = Object.entries(frame.floating).filter((entry): entry is [string, NonNullable<Box>] => entry[1] !== null);
-  const rank = (label: string): number => floatingOrder.findIndex((labels) => labels.includes(label));
-  const lowestFirst = [...shown].sort((a, b) => bottom(b[1]) - bottom(a[1]));
-  const lowest = lowestFirst[0]?.[1] ?? null;
+  const lowest = frame.floating[floatingLabel.followLatest] ?? null;
   const results = [
-    check("D21: floating stack bottom to top: open composer, view switch, follow latest", lowestFirst.every(([label], index) => index === 0 || rank(label) > rank(lowestFirst[index - 1]![0])) && lowestFirst.every(([, box]) => close(box[0] + box[2] / 2, lowest![0] + lowest![2] / 2, 2)), lowestFirst.map(([label, box]) => `${label} ${JSON.stringify(box)}`).join(" ↑ ") || "no floating buttons"),
+    check("Only Follow latest floats over the content", shown.every(([label]) => label === floatingLabel.followLatest), JSON.stringify(frame.floating)),
+    check("Open composer is available only while the composer is closed", Boolean(opener) === !composerOpen, JSON.stringify(opener)),
   ];
+  if (!desktopActions && !composerOpen) {
+    const workspace = frame.navbar["Show workspaces"], more = frame.navbar["More"];
+    results.push(check("Mobile: composer shares the bottom navigation row", Boolean(opener && workspace && more) && close(opener![1] + opener![3] / 2, workspace![1] + workspace![3] / 2, 1) && close(opener![1] + opener![3] / 2, more![1] + more![3] / 2, 1), JSON.stringify(frame.navbar)));
+  }
+  if (desktopActions) {
+    const headerOpener = frame.toolbar[floatingLabel.opener];
+    const park = frame.toolbar["Park workspace"];
+    const headerActions = Object.entries(frame.toolbar).filter((entry): entry is [string, NonNullable<Box>] => entry[1] !== null);
+    results.push(
+      check("Desktop: only Follow latest floats over the content", shown.every(([label]) => label === floatingLabel.followLatest), JSON.stringify(frame.floating)),
+      check("Desktop: composer action is in the toolbar only while closed", Boolean(headerOpener) === !composerOpen, JSON.stringify(headerOpener ?? null)),
+      check("Desktop: agent actions align with Park and Delete", Boolean(park && frame.toolbar["Delete workspace"]) && headerActions.every(([, box]) => close(box[1] + box[3] / 2, park![1] + park![3] / 2, 1)), JSON.stringify(frame.toolbar)),
+    );
+  }
   if (composerOpen) {
     results.push(check("D22: open-composer hidden while the composer is open", !opener, opener ? `visible at ${JSON.stringify(opener)}` : "hidden"));
     if (lowest && surface) results.push(check("D22: the stack sits just above the composer, bottom right", close(bottom(lowest), frame.composer![1] - 12, 2) && close(lowest[0] + lowest[2], surface[0] + surface[2] - floatingInset, 3), `lowest button bottom ${bottom(lowest)}, composer top ${frame.composer![1]}; button right ${lowest[0] + lowest[2]}, surface right ${surface[0] + surface[2]}`));
-  } else {
-    results.push(check("D21: open-composer at the bottom right of the surface", Boolean(opener) && opener === lowest && close(bottom(opener), bottom(surface) - 12, 2), opener ? `button bottom ${bottom(opener)}, surface bottom ${bottom(surface)}` : "open-composer not visible"));
+  } else if (lowest && surface) {
+    results.push(check("Follow latest stays bottom right", close(bottom(lowest), bottom(surface) - 12, 2) && close(lowest[0] + lowest[2], surface[0] + surface[2] - floatingInset, 3), JSON.stringify(lowest)));
   }
   return results;
 }
@@ -315,7 +334,7 @@ await scenario("mobile-D2-send", "D2: sending on mobile closes the composer in o
 await page.navigate(piUrl, sel.terminal);
 await Bun.sleep(2500);
 // Selecting transcript can now queue autoswitch before Pi has a completed turn.
-await page.tap(sel.viewTranscript);
+await switchAgentView(sel.viewTranscript);
 await Bun.sleep(500);
 if (!await page.visible(sel.cliTranscript)) {
   log("giving Pi a turn");
@@ -327,7 +346,7 @@ if (!await page.visible(sel.cliTranscript)) {
   await page.waitFor(sel.cliTranscript, 120_000);
   await page.evaluate<boolean>("(document.activeElement.blur(), true)");
 }
-await page.tap(sel.showTerminal);
+await switchAgentView(sel.showTerminal);
 await Bun.sleep(400);
 
 await scenario("mobile-D14-terminal-focus", "D14: focusing the Pi terminal collapses the open composer (keeping its draft) in one step; the terminal moves, never resizes.", async (recorder) => {
@@ -346,14 +365,14 @@ await scenario("mobile-D14-terminal-focus", "D14: focusing the Pi terminal colla
   );
 });
 
-await scenario("mobile-D21-pi-floating", "D21: on a CLI agent the view switch sits above open-composer, and follow latest above both while reading the transcript.", async (recorder) => {
+await scenario("mobile-D21-pi-floating", "Mobile: composer lives in the navbar, the view switch in More, and only Follow latest floats while reading the transcript.", async (recorder) => {
   await page.evaluate<boolean>("(document.activeElement.blur(), true)");
   const terminal = await transition(recorder, "terminal", async () => {}, { waitMs: 200, expectChange: false });
   recorder.add(
-    check("D21: open composer and view switch shown on the terminal", Boolean(terminal.after.floating["Open composer"] && terminal.after.floating["View transcript"]), JSON.stringify(terminal.after.floating)),
+    check("Mobile: composer and More available beside workspace destinations", Boolean(terminal.after.navbar["Open composer"] && terminal.after.navbar["More"]), JSON.stringify(terminal.after.navbar)),
     ...floatingStackChecks(terminal.after, false, terminal.after.terminal),
   );
-  await page.tap(sel.viewTranscript);
+  await switchAgentView(sel.viewTranscript);
   await page.waitFor(sel.cliTranscript, 15_000);
   await Bun.sleep(800);
   await page.wheel(".cli-transcript-view", -900);
@@ -361,12 +380,12 @@ await scenario("mobile-D21-pi-floating", "D21: on a CLI agent the view switch si
   const reading = await transition(recorder, "CLI transcript, scrolled up", async () => {}, { waitMs: 200, expectChange: false });
   recorder.add(...floatingStackChecks(reading.after, false));
   await recorder.file("pi-transcript.png", await page.screenshot());
-  await page.tap(sel.showTerminal);
+  await switchAgentView(sel.showTerminal);
   await Bun.sleep(800);
 });
 
 await scenario("mobile-D18-frozen-send", "D18: sending while the frozen transcript shows switches to the terminal instantly, in the same frame as the composer closing.", async (recorder) => {
-  await page.tap(sel.viewTranscript);
+  await switchAgentView(sel.viewTranscript);
   await page.waitFor(sel.cliTranscript, 15_000);
   await Bun.sleep(800);
   await openComposer();
@@ -380,14 +399,12 @@ await scenario("mobile-D18-frozen-send", "D18: sending while the frozen transcri
     check("D18: terminal showing after send", after.transcript === null && after.terminal !== null, `transcript ${JSON.stringify(after.transcript)}, terminal ${JSON.stringify(after.terminal)}`),
     check("D2: composer closed after send", after.composer === null, JSON.stringify(after.composer)),
     check("D17: terminal not focused after send", !after.focus.includes("gespenst__input"), `focus: ${after.focus || "body"}`),
-    // Use the same recorded working frame as the layout checks above. A short
-    // reply can finish before transition() returns and legitimately restore the switch.
-    check("D18: pending autoswitch shown while the agent works", Boolean(after.floating[floatingLabel.pendingTranscript]), JSON.stringify(after.floating)),
+    check("Mobile: secondary agent actions stay out of the floating stack", Object.keys(after.floating).every(label => label === floatingLabel.followLatest), JSON.stringify(after.floating)),
   );
   await page.waitFor(sel.cliTranscript, 120_000);
-  recorder.add(check("D18: transcript returns when the turn finishes", await page.visible(sel.showTerminal), "Back to terminal shown"));
+  recorder.add(check("D18: transcript returns when the turn finishes", await page.visible(sel.cliTranscript), "Transcript shown; return action lives in More"));
   await recorder.file("pi-transcript-after-turn.png", await page.screenshot());
-  await page.tap(sel.showTerminal);
+  await switchAgentView(sel.showTerminal);
   await Bun.sleep(800);
 });
 
@@ -405,7 +422,7 @@ await scenario("mobile-terminal-tab", "D19: focusing a Terminal view and switchi
 
 await page.navigate(builtinUrl, sel.transcript);
 
-await scenario("mobile-D21-D22-floating", "D21/D22: floating buttons stack bottom right; follow latest only away from the bottom; open-composer hides while the composer is open.", async (recorder) => {
+await scenario("mobile-D21-D22-floating", "Mobile: only Follow latest floats; composer sits in the navbar and hides while open.", async (recorder) => {
   await closeComposer();
   await scrollPartway();
   const reading = await transition(recorder, "reading, scrolled up", async () => {}, { waitMs: 200, expectChange: false });
@@ -424,6 +441,7 @@ await scenario("mobile-D21-D22-floating", "D21/D22: floating buttons stack botto
 // ─── Desktop layout ─────────────────────────────────────────────────────────
 await page.layout("desktop");
 floatingInset = 10;
+desktopActions = true;
 await page.navigate(builtinUrl, sel.transcript);
 // Terminals open beside the agent attach at the desktop size before any scenario's baseline.
 await Bun.sleep(3000);
@@ -479,7 +497,7 @@ await scenario("desktop-H3-max", "H3: the composer grows to 40% of the window, t
   await Bun.sleep(8000);
 });
 
-await scenario("desktop-D21-D22-floating", "D21/D22 on desktop: the floating-button stack with the composer closed and open.", async (recorder) => {
+await scenario("desktop-D21-D22-floating", "Desktop: composer lives in the header; only Follow latest floats, with the composer closed and open.", async (recorder) => {
   const closed = await transition(recorder, "close composer", () => page.tap(sel.close));
   recorder.add(...floatingStackChecks(closed.after, false));
   await scrollPartway();
@@ -487,6 +505,23 @@ await scenario("desktop-D21-D22-floating", "D21/D22 on desktop: the floating-but
   recorder.add(...floatingStackChecks(reading.after, false));
   const opened = await transition(recorder, "open composer", () => page.tap(sel.opener));
   recorder.add(...floatingStackChecks(opened.after, true));
+});
+
+await page.navigate(piUrl, sel.terminal);
+await Bun.sleep(3000);
+await scenario("desktop-pi-toolbar", "Desktop Pi: transcript and composer actions share the Park/Delete toolbar and operate the active agent.", async (recorder) => {
+  const terminal = await transition(recorder, "terminal ready", async () => {}, { expectChange: false });
+  recorder.add(...floatingStackChecks(terminal.after, false, terminal.after.terminal));
+  recorder.add(check("View transcript is in the toolbar", Boolean(terminal.after.toolbar["View transcript"]), JSON.stringify(terminal.after.toolbar)));
+  const transcript = await transition(recorder, "view transcript from toolbar", () => page.tap(sel.viewTranscript));
+  recorder.add(check("Transcript opens and action becomes Back to terminal", Boolean(transcript.after.transcript && transcript.after.toolbar["Back to terminal"]), JSON.stringify(transcript.after.toolbar)));
+  const opened = await transition(recorder, "open composer from toolbar", () => page.tap(sel.opener));
+  recorder.add(...floatingStackChecks(opened.after, true));
+  const returned = await transition(recorder, "back to terminal from toolbar", () => page.tap(sel.showTerminal));
+  recorder.add(
+    check("Terminal returns and receives focus", Boolean(returned.after.terminal) && !returned.after.transcript && returned.after.focus.includes("gespenst"), `focus ${returned.after.focus}`),
+    ...floatingStackChecks(returned.after, false, returned.after.terminal),
+  );
 });
 
 // Launch is a dialog host for the same editor, with its own height budget.

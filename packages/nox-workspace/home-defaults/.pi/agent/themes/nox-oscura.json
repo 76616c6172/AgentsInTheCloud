@@ -35,10 +35,10 @@
     "success": "green",
     "error": "redBright",
     "warning": "blue",
-    "muted": "muted",
-    "dim": "dim",
+    "muted": "uiGray",
+    "dim": "muted",
     "text": "fg",
-    "thinkingText": "muted",
+    "thinkingText": "uiGray",
 
     "selectedBg": "bgHover",
     "userMessageBg": "#1D2230",

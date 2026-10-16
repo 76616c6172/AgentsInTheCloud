@@ -45,7 +45,7 @@ export const entries: CatalogueEntry[] = [
   },
   {
     id: "tab-strip", title: "Tab strip", when: "Horizontal closable views, including Agent, Work and Host terminals.",
-    contract: "Provide a page-unique stable id for Turbo updates. Content-sized short tabs; long titles shrink to 7rem (maximum 20rem) before scrolling. The strip owns edge fades, title fades and Left/Right/Home/End navigation. Shared scrollbars own overlay tracks and mouse-wheel scrolling. Busy and attention share one status slot; desktop close replaces status on engagement without resizing tabs. On mobile/touch, only the selected tab shows close; unselected tabs retain status. Features supply selection, status, icons and close forms, with fixed pane actions beside the strip—no tab styling overrides.",
+    contract: "Provide a page-unique stable id for Turbo updates. Tabs size to their content with a measured minimum that preserves a 2em title/selection area beside icons and the desktop close button. Short Agent and Work tabs stay compact without letting close cover their selection target. Long titles shrink to 7rem (maximum 20rem) before scrolling. Selection uses bright text only; hover adds a pill background and keyboard focus adds an outline. The strip owns edge fades, title fades and Left/Right/Home/End navigation. Shared scrollbars own overlay tracks and mouse-wheel scrolling. Busy and attention share one status slot; desktop close replaces status on engagement without resizing tabs. On mobile/touch, only the selected tab shows its action; unselected tabs retain status. Supply touchMenu with a stable id, accessible label and feature-owned items to replace the touch close button with a quiet More menu. Desktop keeps hover-close. Nested confirmation triggers keep the menu open. Features supply selection, status, icons and close forms, with fixed pane actions beside the strip—no tab styling overrides.",
     imports: { "tab-strip": "tabHtml, tabStripHtml", "tab-strip/client": "setTabStatus", button: "buttonHtml", "button-group": "buttonGroupHtml", "destructive-confirmation": "destructiveConfirmationHtml", panel: "panelHtml", icons: "Icons" },
     sources: ["tab-strip/tab-strip-controller.ts", "tab-strip/tab-strip.css"],
     examples: [{
@@ -55,16 +55,24 @@ export const entries: CatalogueEntry[] = [
           element: { tag: "section" },
           headerHtml: tabStripHtml({
             id: "catalogue_work_views", label: "Example work views",
-            tabsHtml: ["Shell", "Investigate terminal reconnect and attention handling", "Files", "Dev server", "Changes"].map((text, index) => tabHtml({
+            tabsHtml: ["Shell", "Investigate terminal reconnect and attention handling", "Files", "Dev server", "Changes", "Pi"].map((text, index) => tabHtml({
               label: { kind: "text", text }, selected: index === 0,
               primary: { tag: "button", attributesHtml: 'type="button" data-action="catalogue#selectTab"' },
-              iconHtml: index === 1 ? Icons.Browser : Icons.Terminal,
+              iconHtml: text === "Pi" ? undefined : index === 1 ? Icons.Browser : Icons.Terminal,
               status: { busy: index === 1, requestingAttention: index === 1 || index === 2 },
               closeHtml: `<form>${destructiveConfirmationHtml({
                 id: `catalogue_tab_close_${index}`,
                 trigger: { type: "button", variant: "danger", content: { kind: "icon-only", iconHtml: Icons.Close, label: `Close ${text}` } },
                 confirmCaption: "Yes, close", cancelCaption: "Oops",
               })}</form>`,
+              touchMenu: {
+                id: `catalogue_tab_menu_${index}`, label: `More for ${text}`,
+                contentHtml: `<form>${destructiveConfirmationHtml({
+                  id: `catalogue_tab_touch_close_${index}`,
+                  trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Close view" }, attributesHtml: 'role="menuitem"' },
+                  confirmCaption: "Yes, close", cancelCaption: "Keep view",
+                })}</form>`,
+              },
             })).join(""),
           }) + `<form>${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "New view" } })}</form>`,
           bodyLayout: "padded", bodyHtml: '<span data-tab-selected-title>Shell</span><output></output>',
@@ -373,7 +381,7 @@ export const entries: CatalogueEntry[] = [
     id: "button",
     compareButtonSizes: true,
     title: "Button",
-    when: "An action with a quiet directional rim and background light, not navigation. Primary for the main action, secondary for supporting actions, danger for destructive actions, quiet for dense toolbars with a flat symmetric outline. Progress and usage rings retain their own perimeter treatment.",
+    when: "An action with a quiet directional rim and background light, not navigation. Primary for the main action, secondary for supporting actions, danger for destructive actions, quiet for dense toolbars with flat rounded corners, a faint borderless selected fill, and an outline on hover or keyboard focus. Progress and usage rings retain their own perimeter treatment.",
     contract:
       "Choose caption OR icon-only with a mandatory accessible label. On narrow screens (≤700px) or coarse pointers, regular icon-only controls are 42.5px with 17.85px icons. Add data-popular-button to a button (via attributesHtml) or containing group for 62.5px controls and 26.25px icons. Popular caption buttons also have a 62.5px minimum height; ordinary caption buttons are unchanged. Desktop popular sizes are fixed: 38.24px icon controls with 20.59px icons, and 36.93px minimum-height caption controls with 18.38px icons. Native type and disabled are explicit. Do not add classes or override component anatomy via attributesHtml.",
     imports: { button: "buttonHtml", icons: "Icons" },
@@ -542,7 +550,7 @@ export const entries: CatalogueEntry[] = [
   {
     id: "content-row",
     title: "Content row",
-    when: "Menu items, navigation entries, action rows, tree entries, standalone information and disclosure summaries. Compact is a single-line pill; multiline is an intrinsic-height soft rectangle. Both share selection, keyboard focus and quiet directional lighting.",
+    when: "Menu items, navigation entries, action rows, tree entries, standalone information and disclosure summaries. Compact is a single-line rounded rectangle; multiline is an intrinsic-height soft rectangle. Both share selection, keyboard focus and quiet directional lighting.",
     contract:
       "kind chooses compact or multiline, never the number of actions. width defaults to fit; use fill for rows in a collection or an allocated layout slot. Width is independent of shape and interaction. Compact labels truncate and reveal on engagement; multiline labels and optional descriptions wrap. element supplies native semantics (button/a/div/span); primary: false renders information without primary-action behavior. For independent controls, supply primary as an element instead of element, with optional leadingActionsHtml and engagedActionsHtml. Never nest buttons. Plain labels/descriptions are escaped; leadingHtml and trailingHtml fill bounded visual/status slots. A sole hidden trailing element collapses its slot while preserving its update target. Roles, selection and integration attributes belong to the caller; no class/style overrides. Use Disclosure for native open/close and guttered content, not a hand-built summary. Search terms: row, menu item, list item, action item, navigation row, compact, multiline.",
     imports: {
@@ -572,7 +580,7 @@ export const entries: CatalogueEntry[] = [
         title: "Same long label · compact truncation versus multiline wrapping",
         render: () => '<div class="form-section">' +
           contentRowHtml({ kind: "compact", element: { tag: "button", attributesHtml: 'type="button"' }, label: { kind: "text", text: "packages/design-system/src/content-row/content-row-html.ts" } }) +
-          contentRowHtml({ kind: "multiline", element: { tag: "button", attributesHtml: 'type="button"' }, label: { kind: "text", text: "packages/design-system/src/content-row/content-row-html.ts" }, description: "A wrapping row with a soft rectangular shape. Hover and focus keep the same shared lighting as the compact pill." }) + '</div>',
+          contentRowHtml({ kind: "multiline", element: { tag: "button", attributesHtml: 'type="button"' }, label: { kind: "text", text: "packages/design-system/src/content-row/content-row-html.ts" }, description: "A wrapping row with a soft rectangular shape. Hover and focus keep the same shared lighting as the compact row." }) + '</div>',
       },
       {
         title: "Compact · multiline information · disabled · independent controls",
@@ -1077,7 +1085,7 @@ export const entries: CatalogueEntry[] = [
     title: "Panel",
     when: "A bounded surface with a continuous outline, soft upper-left rim reflection and faint localized background light, fixed chrome and flexible body. Dialog composes this; workspace panes use it directly.",
     contract:
-      "Supply semantic element tag, trusted header/body and optional footer. Use an outer layout container for dimensions. chrome: integrated removes the outer rim for flush split layouts. bodyLayout: padded/full-bleed and bodyOverflow: scroll/contained are the supported body behaviors. No root or body classes. panel__title uses normal body text and accepts a leading icon; strong.panel__title adds emphasis for the AgentsInTheCloud identity.",
+      "Supply semantic element tag, trusted header/body and optional footer. Use an outer layout container for dimensions. chrome: integrated removes the outer rim for flush split layouts. Outlined panels use the inherited --panel-border-width and --panel-radius roles (default 1px and radius-overlay), allowing a desktop window layout to become edge-to-edge on touch screens. bodyLayout: padded/full-bleed and bodyOverflow: scroll/contained are the supported body behaviors. No root or body classes. panel__title uses normal body text and accepts a leading icon; strong.panel__title adds emphasis for the AgentsInTheCloud identity.",
     imports: { panel: "panelHtml", icons: "Icons" },
     examples: [
       {
@@ -1230,7 +1238,7 @@ export const entries: CatalogueEntry[] = [
     title: "Icons",
     when: "Shared decorative vocabulary. Use icon-only Button for standalone icon actions.",
     contract:
-      "Icons exports trusted decorative SVG strings. WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. agentsInTheCloudBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml is the transparent A robot from the social card, used for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
+      "Icons exports trusted decorative SVG strings. Ready is a static faceted orb with shaded faces and subdued rear edges. Browser uses the supplied Helium mark in currentColor. Changes uses a diff document, Sidebar a left-panel outline, and Maximize diagonal arrows from Lucide (attribution in NOTICE). WorkspaceTemplates uses a repository/book outline; Files uses a folder; Server uses a single rack for host diagnostics and administration. agentsInTheCloudBrandIconHtml is the compact raster product mark for app branding. builtinAgentIconHtml is the transparent A robot from the social card, used for Builtin agent tabs and launchers. Put the accessible name on the containing control. Never use an unlabeled icon as an action.",
     imports: { icons: "Icons" },
     examples: [
       {

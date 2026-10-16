@@ -10,6 +10,18 @@ import { registerWorkspaceControllers, residencyController, workspaceNavigationC
 
 type WorkspaceCommandRegistration = Omit<WorkspaceClientCommand, "run">;
 
+const shortcutAliases = new Map([
+  ["agents-in-the-cloud.open-palette", ["Control+KeyO", "Control+KeyK"]],
+  ["changes.open", ["Control+Digit1"]],
+  ["browser.open", ["Control+Digit2"]],
+  ["terminal.open", ["Control+Digit3"]],
+  ["files.open", ["Control+Digit4"]],
+]);
+
+function commandBindings(command: WorkspaceClientCommand): readonly string[] {
+  return [...(command.binding ? [command.binding] : []), ...(shortcutAliases.get(command.id) ?? [])];
+}
+
 class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   private shortcutOverlayTimer: ReturnType<typeof setTimeout> | undefined;
   private shortcutOverlay: HTMLElement | undefined;
@@ -32,8 +44,8 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
           id: `command:${command.id}`,
           title: command.label,
           subtitle: command.description,
-          badge: command.binding ? formatShortcutBinding(command.binding) : undefined,
-          keywords: [command.id, command.scope, command.binding ?? ""],
+          badge: commandBindings(command).map(formatShortcutBinding).join(" / ") || undefined,
+          keywords: [command.id, command.scope, ...commandBindings(command)],
           run: command.run,
         })),
     });
@@ -75,8 +87,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
 
     this.hideShortcutOverlay();
     const command = this.currentCommands().find((candidate) =>
-      (candidate.binding && this.matchesBinding(event, candidate.binding))
-      || (candidate.id === "agents-in-the-cloud.open-palette" && this.matchesBinding(event, "Control+KeyO")));
+      commandBindings(candidate).some((binding) => this.matchesBinding(event, binding)));
     if (!command) return;
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -124,20 +135,34 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       id: "work-view.open-next",
       label: "Open next Work view",
       scope: "workspace",
-      binding: "Control+Tab",
       run: () => this.openAdjacentWorkView(1),
+    });
+    clientHooks.registerCommand({
+      id: "agent.open-previous",
+      label: "Open previous Agent",
+      scope: "workspace",
+      binding: "Control+Shift+Tab",
+      run: () => this.openAdjacentAgent(-1),
+    });
+    clientHooks.registerCommand({
+      id: "agent.open-next",
+      label: "Open next Agent",
+      scope: "workspace",
+      binding: "Control+Tab",
+      run: () => this.openAdjacentAgent(1),
     });
     clientHooks.registerCommand({
       id: "agents-in-the-cloud.open-palette",
       label: "Open palette",
       scope: "global",
-      binding: "Control+KeyK",
+      binding: "Control+KeyP",
       run: () => this.openPalette(),
     });
     clientHooks.registerCommand({
       id: "work-pane.toggle-focus",
       label: "Toggle Work pane focus",
       scope: "workspace",
+      binding: "Control+KeyF",
       run: () => this.visibleWorkspacePresentation()?.querySelector<HTMLButtonElement>("[data-collapse-work-pane]")?.click(),
     });
     clientHooks.registerCommand({
@@ -239,6 +264,15 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     return [];
   }
 
+  private openAdjacentAgent(direction: -1 | 1): void {
+    const presentation = this.visibleWorkspacePresentation();
+    if (!presentation) return;
+    const selectors = [...presentation.querySelectorAll<HTMLButtonElement>("[data-agent-id]")];
+    const activeIndex = selectors.findIndex((selector) => selector.getAttribute("aria-selected") === "true");
+    if (activeIndex < 0 || selectors.length < 2) return;
+    selectors[(activeIndex + direction + selectors.length) % selectors.length]!.click();
+  }
+
   private openAdjacentWorkView(direction: -1 | 1): void {
     const presentation = this.visibleWorkspacePresentation();
     if (!presentation) return;
@@ -270,7 +304,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
 
   private showShortcutOverlay(): void {
     const commands = this.currentCommands()
-      .filter((command): command is WorkspaceClientCommand & { binding: string } => Boolean(command.binding))
+      .filter((command) => commandBindings(command).length > 0)
       .sort((a, b) => a.label.localeCompare(b.label));
 
     const overlay = document.createElement("aside");
@@ -298,7 +332,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
         kind: "compact",
         width: "fill",
         label: { kind: "text", text: command.label },
-        trailingHtml: `<kbd class="shortcut-overlay-binding">${escapeHtml(formatShortcutBinding(command.binding))}</kbd>`,
+        trailingHtml: `<kbd class="shortcut-overlay-binding">${escapeHtml(commandBindings(command).map(formatShortcutBinding).join(" / "))}</kbd>`,
         element: { tag: "button",  attributesHtml: 'type="button"' },
       });
       button.addEventListener("click", () => {

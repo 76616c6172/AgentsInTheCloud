@@ -9,9 +9,13 @@ import { buttonElement } from "../button/button-html.ts";
 let menuSequence = 0;
 const enabledItem = "[role^='menuitem']:not(:disabled):not([aria-disabled='true']):not([hidden])";
 
+function visibleItems(menu: HTMLElement): HTMLElement[] {
+  return [...menu.querySelectorAll<HTMLElement>(enabledItem)].filter(item => item.checkVisibility());
+}
+
 function navigateMenu(menu: HTMLElement, event: KeyboardEvent): void {
   if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-  const items = Array.from(menu.querySelectorAll<HTMLElement>(enabledItem));
+  const items = visibleItems(menu);
   if (!items.length) return;
   const current = event.target instanceof HTMLElement ? items.indexOf(event.target) : -1;
   event.preventDefault();
@@ -21,7 +25,8 @@ function navigateMenu(menu: HTMLElement, event: KeyboardEvent): void {
 }
 
 function focusMenu(menu: HTMLElement): void {
-  (menu.querySelector<HTMLElement>(`${enabledItem}[aria-checked='true']`) ?? menu.querySelector<HTMLElement>(enabledItem))?.focus();
+  const items = visibleItems(menu);
+  (items.find(item => item.getAttribute("aria-checked") === "true") ?? items[0])?.focus();
 }
 
 
@@ -57,6 +62,8 @@ export class PopupController extends Controller<HTMLElement> {
   private readonly choose = (event: MouseEvent): void => {
     const item = event.target instanceof Element ? event.target.closest<HTMLElement>(enabledItem) : null;
     if (!item) return;
+    // A nested menu or confirmation needs its parent to remain open.
+    if (item.hasAttribute("popovertarget")) return;
     if (item.getAttribute("role") === "menuitemradio") {
       for (const candidate of this.menu.querySelectorAll<HTMLElement>("[role='menuitemradio']")) candidate.setAttribute("aria-checked", String(candidate === item));
     }

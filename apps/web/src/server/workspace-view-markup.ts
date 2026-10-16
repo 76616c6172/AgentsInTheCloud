@@ -7,7 +7,7 @@ export interface ViewCloseAction {
   label: string;
 }
 
-export function barButton(label: string, action: string, iconHtml: string, attributes = "", variant: ButtonVariant = "secondary"): string {
+export function barButton(label: string, action: string, iconHtml: string, attributes = "", variant: ButtonVariant = "quiet"): string {
   return buttonHtml({
     type: "button",
     variant,

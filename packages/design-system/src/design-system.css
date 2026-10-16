@@ -281,8 +281,8 @@
 [data-theme="nox-oscura"] {
   color-scheme: dark;
   --bg: #131419;
-  --panel: #1b1d24;
-  --elev: #20232b;
+  --panel: var(--bg);
+  --elev: var(--bg);
   --line: #32333b;
   --line-strong: #46474f;
   --text: #e6e6e6;

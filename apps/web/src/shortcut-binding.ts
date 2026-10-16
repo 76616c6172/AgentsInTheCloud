@@ -14,7 +14,7 @@ export function formatShortcutBinding(binding: string): string {
       case "Backspace": return "⌫";
       case "BracketLeft": return "[";
       case "BracketRight": return "]";
-      default: return part.replace(/^Key/, "");
+      default: return part.replace(/^(Key|Digit)/, "");
     }
   }).join("");
 }

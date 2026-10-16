@@ -1,4 +1,4 @@
-import type { Api, AuthResult, Model } from "@earendil-works/pi-ai";
+import { ModelsError, type Api, type AuthResult, type Model } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -15,7 +15,10 @@ const markerSchema = Type.Object({
   style: Type.Union([Type.Literal("plain"), Type.Literal("codex"), Type.Literal("sk")]),
 });
 type Marker = Static<typeof markerSchema>;
-type Runtime = Pick<ModelRuntime, "getAvailable" | "getModel" | "checkAuth"> & { getAuth(model: Model<Api>): Promise<AuthResult | undefined> };
+type Runtime = Pick<ModelRuntime, "getAvailable" | "getModel" | "checkAuth"> & {
+  getProviders(): readonly { id: string }[];
+  getAuth(model: Model<Api>): Promise<AuthResult | undefined>;
+};
 const markerPattern = /agents-in-the-cloud-pi-([A-Za-z0-9_-]+)-end/g;
 
 function markerToken(marker: Marker): string {
@@ -68,14 +71,32 @@ export interface PiCliConfiguration {
   enabledModels: string[];
 }
 
+/** An expired subscription must not prevent other providers from starting or connecting. */
+async function resolvedProviderModels(runtime: Runtime): Promise<Array<{ model: Model<Api>; auth: AuthResult }>> {
+  const providers = await Promise.all(runtime.getProviders().map(async ({ id }) => {
+    try {
+      const resolved = [];
+      for (const model of await availableProviderModels(runtime, id)) {
+        const auth = await runtime.getAuth(model);
+        if (!auth) throw new Error(`Provider disconnected while preparing Pi: ${model.provider}`);
+        resolved.push({ model, auth });
+      }
+      return resolved;
+    } catch (error) {
+      // Authentication failures remain visible in Models and on requests to that provider.
+      if (!(error instanceof ModelsError) || error.code !== "oauth") throw error;
+      return [];
+    }
+  }));
+  return providers.flat();
+}
+
 /** Export resolved model configuration, never raw models.json (which may contain secrets or commands). */
 export async function createPiCliConfiguration(runtime: Runtime, enabledModels: EnabledModel[]): Promise<PiCliConfiguration> {
   const result: PiCliConfiguration = { auth: {}, models: { providers: {} }, enabledModels: [] };
-  const available = await availableProviderModels(runtime);
+  const available = await resolvedProviderModels(runtime);
   const enabledModelLabels = new Map(enabledModels.map((model) => [modelRefValue(model), model.label]));
-  for (const model of available) {
-    const auth = await runtime.getAuth(model);
-    if (!auth) throw new Error(`Provider disconnected while preparing Pi: ${model.provider}`);
+  for (const { model, auth } of available) {
     // Ambient host credentials have no safe file representation. Do not advertise them in Pi.
     if (unsupportedAuth(model, auth)) continue;
     const baseUrl = endpoint(model, auth).href.replace(/\/$/, "");
@@ -97,9 +118,7 @@ export async function createPiCliConfiguration(runtime: Runtime, enabledModels: 
 /** Resolve current endpoints on each CONNECT, including OAuth endpoint overrides. */
 export async function piCliCredentialHosts(runtime: Runtime): Promise<string[]> {
   const hosts = new Set<string>();
-  for (const model of await availableProviderModels(runtime)) {
-    const auth = await runtime.getAuth(model);
-    if (!auth) throw new Error(`Provider disconnected while resolving Pi endpoints: ${model.provider}`);
+  for (const { model, auth } of await resolvedProviderModels(runtime)) {
     if (!unsupportedAuth(model, auth)) hosts.add(endpoint(model, auth).hostname);
   }
   return [...hosts];

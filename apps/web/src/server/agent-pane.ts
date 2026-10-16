@@ -1,6 +1,7 @@
 import { renderAgentTypePicker } from "./agent-type-picker.ts";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
 import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
+import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
@@ -70,6 +71,15 @@ function renderAgentTab(workspaceId: string, agent: AgentPaneContribution): stri
     containerAttributesHtml: `id="${agentTabDomId(workspaceId, agent.id)}"`,
     primary: { tag: "button", attributesHtml: `type="button" data-agent-id="${escapeHtml(agent.id)}" ${fullscreenViewAttributes(agent.id, agent.title)} data-action="click->workspace-presentation#selectAgent"` },
     closeHtml: agent.close ? selectorCloseForm(agent.close) : "",
+    touchMenu: agent.close ? {
+      id: domId("agent_tab_menu", workspaceId, agent.id),
+      label: `More for ${agent.title}`,
+      contentHtml: `<form data-turbo="true" method="post" action="${escapeHtml(agent.close.action)}">${destructiveConfirmationHtml({
+        id: domId("agent_tab_close", workspaceId, agent.id),
+        trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Close agent" }, attributesHtml: 'role="menuitem"' },
+        confirmCaption: "Yes, close", cancelCaption: "Keep agent",
+      })}</form>`,
+    } : undefined,
   });
 }
 
@@ -91,7 +101,7 @@ export function renderAgentNavigation(presentation: WorkspacePresentation): stri
     : `<div class="fixed-shell-workspace-title"><strong>${escapeHtml(presentation.workspace.title)}</strong></div>`;
   const menu = popupHtml({
     id: domId("agent_types", presentation.workspace.id), label: "New agent",
-    trigger: { variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "New agent" } },
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "New agent" } },
     width: "content",
     contentHtml: agentTypeOptions(presentation, true),
   });
@@ -108,17 +118,34 @@ function renderAgentPaneSlot(workspaceId: string, agent: AgentPaneContribution, 
   return `<section id="${agentPaneSlotDomId(workspaceId, agent.id)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="agent" data-workspace-pane-id="${escapeHtml(agent.id)}" data-agents-in-the-cloud-fullscreen-view-key="${escapeHtml(agent.id)}" data-workspace-logically-visible="false" tabindex="-1"><div class="fixed-shell-live-body" id="${agentContentId(workspaceId, agent.id)}" data-turbo-permanent>${agent.bodyHtml ?? ""}</div></section>`;
 }
 
+export function renderAgentViewSwitch(menu = false): string {
+  // Reuse the module commands; the active pane remains the source of view/draft state.
+  const commandAction = "click->agents-in-the-cloud-shortcuts#runCommand";
+  return ([
+    ["transcript", "View transcript", Icons.Transcript],
+    ["terminal", "Back to terminal", Icons.Terminal],
+    ["pending", "Will autoswitch to transcript when agent is done", Icons.TranscriptPending],
+  ] as const).map(([state, label, icon]) => `<span class="nox-agent-action nox-agent-${state}-action">${menu ? contentRowHtml({
+    kind: "compact", width: "fill", label: { kind: "text", text: label }, leadingHtml: icon,
+    element: { tag: "button", attributesHtml: `type="button" role="menuitem" data-action="${commandAction}" data-command-id="cli-agent.toggle-mode"` },
+  }) : barButton(label, commandAction, icon, 'data-command-id="cli-agent.toggle-mode"')}</span>`).join("");
+}
+
+export function renderAgentComposerAction(): string {
+  return `<span class="nox-agent-action nox-agent-composer-action">${barButton("Open composer", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Keyboard, 'data-command-id="agent.toggle-composer"')}<span class="status-dot attention agent-composer-draft-dot" aria-hidden="true"></span></span>`;
+}
+
 function renderAgentActions(presentation: WorkspacePresentation): string {
-  const parkButton = buttonHtml({ type: "submit", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Park, label: "Park workspace" } });
+  const parkButton = buttonHtml({ type: "submit", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Park, label: "Park workspace" } });
   const parkWorkspace = `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/park" data-action="submit->workspace-navigation#parkWorkspace">${parkButton}</form>`;
   const deleteConfirmation = destructiveConfirmationHtml({
     id: domId("delete_workspace", presentation.workspace.id),
-    trigger: { type: "button", variant: "danger", content: { kind: "icon-only", iconHtml: Icons.Trash, label: "Delete workspace" } },
+    trigger: { type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Trash, label: "Delete workspace" } },
     confirmCaption: "Yes, delete",
     cancelCaption: "Oops",
   });
   const deleteWorkspace = `<form class="fixed-shell-delete-workspace" data-turbo="true" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/delete">${deleteConfirmation}</form>`;
-  const itemsHtml = `${parkWorkspace}${deleteWorkspace}${barButton("Show Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Panel, "data-show-work-pane")}`;
+  const itemsHtml = `${renderAgentViewSwitch()}${renderAgentComposerAction()}${parkWorkspace}${deleteWorkspace}${barButton("Show Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Panel, "data-show-work-pane")}`;
   return buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml });
 }
 
@@ -126,8 +153,8 @@ export function renderAgentPane(presentation: WorkspacePresentation): string {
   const panes = presentation.agents.map((agent) => renderAgentPaneSlot(presentation.workspace.id, agent, agent.id === (presentation.initialSelection?.agent ?? presentation.agents[0]?.id))).join("");
   return `<div class="fixed-shell-agent-pane"><div class="workspace-warning-stack" id="${domId("workspace_warnings", presentation.workspace.id)}">${presentation.warningsHtml ?? ""}</div>${panelHtml({
     element: { tag: "section",  attributesHtml: 'data-workspace-role-region="agent" data-workspace-presentation-target="agentPane" aria-label="Agent"' },
-    chrome: "integrated",
-    headerHtml: `${barButton("Show Workspace pane", "click->workspace-navigation#toggleWorkspacePaneCollapsed", Icons.Panel, "data-show-workspace-pane")}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
+    chrome: "outlined",
+    headerHtml: `${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Sidebar, 'data-show-workspace-pane aria-pressed="false"')}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
     bodyHtml: `<div id="${agentBodiesDomId(presentation.workspace.id)}" class="fixed-shell-agent-bodies">${panes || renderAgentEmpty(presentation)}</div>`,
   })}</div>`;
 }

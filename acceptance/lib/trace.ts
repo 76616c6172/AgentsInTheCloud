@@ -16,6 +16,10 @@ export interface Frame {
   keyRow: Box;
   /** Visible floating buttons by accessible label, measured without press transforms. */
   floating: Record<string, Box>;
+  /** Visible agent toolbar actions by accessible label. */
+  toolbar: Record<string, Box>;
+  /** Visible bottom navigation actions, excluding popup contents. */
+  navbar: Record<string, Box>;
   scrollTop: number | null;
   /** Height of the transcript's content; changes when the server adds messages. */
   content: number | null;
@@ -57,6 +61,12 @@ export const samplerSource = String.raw`(() => {
     const floating = {};
     const stack = first(".floating-stack");
     if (stack) for (const button of stack.querySelectorAll("button, a")) if (shown(button)) floating[label(button)] = layoutBox(button);
+    const toolbar = {};
+    const actions = first(".fixed-shell-agent-actions");
+    if (actions) for (const button of actions.querySelectorAll("button")) if (shown(button)) toolbar[label(button)] = layoutBox(button);
+    const navbar = {};
+    const bar = first(".fixed-shell-workspace-bar");
+    if (bar) for (const button of bar.querySelectorAll("button")) if (shown(button) && !button.closest(".popup-menu")) navbar[label(button)] = layoutBox(button);
     const content = transcript ? transcript.querySelector(".agent-transcript-content") : null;
     const active = document.activeElement;
     return {
@@ -66,6 +76,8 @@ export const samplerSource = String.raw`(() => {
       composer: box(composer),
       keyRow: box(first(".terminal-key-bar")),
       floating,
+      toolbar,
+      navbar,
       scrollTop: transcript ? round(transcript.scrollTop) : null,
       content: shown(content) ? round(content.getBoundingClientRect().height) : null,
       contentBottom: shown(content) ? round(content.getBoundingClientRect().bottom) : null,

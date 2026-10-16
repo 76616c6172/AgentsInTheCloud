@@ -206,6 +206,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   declare readonly scrollTarget: HTMLElement;
   private scrollTimer?: ReturnType<typeof setTimeout>;
   private pinnedWorkspace?: { id: string; index: number };
+  private workspacePanePinned = false;
 
   connect(): void {
     this.scrollTarget.addEventListener("scroll", this.scrolled, { passive: true });
@@ -214,7 +215,8 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     const scroll = Number(localStorage.getItem("agents-in-the-cloud:workspace-pane-scroll"));
     if (Number.isFinite(scroll)) this.scrollTarget.scrollTop = scroll;
     this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-resident.visible"));
-    this.setWorkspacePaneCollapsed(true);
+    this.workspacePanePinned = localStorage.getItem("agents-in-the-cloud:workspace-pane-pinned") === "true";
+    this.setWorkspacePaneCollapsed(!this.workspacePanePinned);
   }
 
   disconnect(): void {
@@ -233,14 +235,11 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     this.setWorkspacePaneOpen(true);
   }
 
-  toggleWorkspacePaneCollapsed(): void {
-    const collapsed = !this.element.classList.contains("is-workspace-pane-collapsed");
-    const toggle = collapsed
-      ? this.visibleWorkspacePaneToggle()
-      : this.element.querySelector<HTMLButtonElement>("[data-collapse-workspace-pane]");
-    if (!toggle) return;
-    this.setWorkspacePaneCollapsed(collapsed);
-    requestAnimationFrame(() => toggle.focus());
+  toggleWorkspacePanePinned(): void {
+    this.workspacePanePinned = !this.workspacePanePinned;
+    localStorage.setItem("agents-in-the-cloud:workspace-pane-pinned", String(this.workspacePanePinned));
+    // Unpinning resumes hover behavior; don't hide the button under the pointer.
+    this.setWorkspacePaneCollapsed(false);
   }
 
   revealWorkspacePane(event: PointerEvent): void {
@@ -249,11 +248,18 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   }
 
   leaveWorkspacePane(event: PointerEvent | FocusEvent): void {
-    if (window.matchMedia(phoneLayoutMediaQuery).matches) return;
+    if (this.workspacePanePinned || window.matchMedia(phoneLayoutMediaQuery).matches) return;
     if (event instanceof PointerEvent && event.pointerType !== "mouse") return;
     const regions = ".fixed-shell-workspace-pane, .nox-workspace-rail";
     if (event.relatedTarget instanceof Element && event.relatedTarget.closest(regions)) return;
-    // Keyboard users can leave the overlay with Tab; moving between its controls
+    if (event instanceof PointerEvent) {
+      // View transitions cover the pane briefly without the pointer actually leaving it.
+      // SAFETY: This action is attached to the workspace pane and its collapsed rail.
+      const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      if (event.clientX >= bounds.left && event.clientX < bounds.right
+        && event.clientY >= bounds.top && event.clientY < bounds.bottom) return;
+    }
+    // Keyboard users can leave the pane with Tab; moving between its controls
     // or using a popup inside it must not close it.
     if (event.type === "focusout" && [...this.element.querySelectorAll(regions)].some(region => region.matches(":hover"))) return;
     const focusInPane = document.activeElement?.closest(".fixed-shell-workspace-pane");
@@ -264,13 +270,17 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   private setWorkspacePaneCollapsed(collapsed: boolean): void {
     this.element.classList.toggle("is-workspace-pane-collapsed", collapsed);
     const rail = this.element.querySelector<HTMLElement>(".nox-workspace-rail")!;
-    // Move focus before making the covered rail inert, so blur cannot close the overlay.
+    // Move focus before making the covered rail inert, so blur cannot close the pane.
     if (!collapsed && rail.contains(document.activeElement)) {
       this.element.querySelector<HTMLButtonElement>("[data-collapse-workspace-pane]")!.focus({ preventScroll: true });
     }
     rail.inert = !collapsed;
     for (const toggle of this.element.querySelectorAll("[data-show-workspace-pane], [data-collapse-workspace-pane]")) {
       toggle.setAttribute("aria-expanded", String(!collapsed));
+      toggle.setAttribute("aria-pressed", String(this.workspacePanePinned));
+      const label = this.workspacePanePinned ? "Unpin sidebar" : "Pin sidebar";
+      toggle.setAttribute("aria-label", label);
+      toggle.setAttribute("title", label);
     }
   }
 

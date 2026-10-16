@@ -9,13 +9,14 @@ export const agentsInTheCloudBrandIconHtml = '<img class="agents-in-the-cloud-br
 export const builtinAgentIconHtml = '<img class="builtin-agent-icon" src="/builtin-agent.png" width="20" height="24" alt="" aria-hidden="true">';
 
 /** Canonical decorative icons. Accessible names belong on the control or content that contains them. */
+// Changes, Maximize and Sidebar adapt Lucide; Browser uses the Helium mark. See NOTICE.
 export const Icons = {
   Agent: iconHtml('<path d="M9 4h6M12 4V2M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/>'),
   Subagents: iconHtml('<path d="M7 5V3M5 3h4M3 7h8a1 1 0 0 1 1 1v6H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM17 12v-2m-2 0h4M13 14h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z"/><path d="M5 10h.01M9 10h.01M15 18h.01M19 18h.01" stroke-width="2.6"/>'),
   ArrowDown: iconHtml('<path d="M12 4v16M6 14l6 6 6-6"/>'),
   Back: iconHtml('<path d="m15 18-6-6 6-6"/>'),
   Bell: iconHtml('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>'),
-  Browser: iconHtml('<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>'),
+  Browser: iconHtml('<path fill="currentColor" stroke="none" d="M14.3081 22.2984 12 24l-2.3081-1.7016 1.0489-8.1189-6.5174 4.9661L1.5938 18l.321-2.8467L9.4808 12l-7.566-3.1533L1.5938 6l2.6296-1.1456 6.5174 4.9661-1.049-8.119L12 0l2.3081 1.7016-1.0488 8.1189 6.5173-4.9661L22.4062 6l-.321 2.8467L14.5192 12l7.566 3.1533.321 2.8467-2.6296 1.1456-6.5173-4.9661z"/>'),
   Check: iconHtml('<path d="m5 12 4 4L19 6"/>'),
   Cloud: iconHtml('<path d="M6 19a4 4 0 0 1-1-7.87A7 7 0 0 1 18.6 9.4 4.8 4.8 0 0 1 18 19Z"/>'),
   Copy: iconHtml('<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V4H4v12h4"/>'),
@@ -32,14 +33,16 @@ export const Icons = {
   More: iconHtml('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'),
   Next: iconHtml('<path d="M4 12h14M13 7l5 5-5 5"/><circle cx="5" cy="6" r="1.5" fill="currentColor" stroke="none"/>'),
   Panel: iconHtml('<path d="M4 4h16v16H4zM15 4v16"/>'),
-  Maximize: iconHtml('<path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/>'),
+  Sidebar: iconHtml('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/>'),
+  Maximize: iconHtml('<path d="M15 3h6v6m0-6-7 7M3 21l7-7M9 21H3v-6"/>'),
   Park: iconHtml('<path d="M17.5 15.5A7 7 0 0 1 8.5 6.5a7 7 0 1 0 9 9z"/><path d="M16 5h4M18 3v4"/>'),
   Paperclip: iconHtml('<path d="m21 11-8.5 8.5a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8l8.5-8.5"/>'),
   Plus: iconHtml('<path d="M12 5v14M5 12h14"/>'),
   WorkspaceTemplates: iconHtml('<path d="M5 18V5a2 2 0 0 1 2-2h12v18H7a2 2 0 0 1 0-4h12M9 3v14M12 7h4"/>'),
   QrCode: iconHtml('<path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h3v3h-3zM18 18h3v3h-3zM12 3v9H3M21 12h-6v3M12 15v6M21 15v-3"/>'),
+  Ready: iconHtml('<g stroke-width="1.15"><path d="M16.56 4.52 16.71 14.38 7.73 8.91ZM16.56 4.52 16.71 14.38 22 11.94ZM16.56 4.52 7.46 3.09 7.73 8.91Z" fill="currentColor" fill-opacity=".12" stroke="none"/><path d="M7.29 9.62 7.44 19.48M7.29 9.62 7.46 3.09M7.29 9.62 16.28 4.96M7.29 9.62 2 12.06M7.29 9.62 16.27 15.09M16.56 4.52 16.28 4.96M7.44 19.48 16.27 15.09M7.46 3.09 16.28 4.96M16.28 4.96 16.27 15.09M16.28 4.96 22 11.94M16.54 20.91 16.27 15.09M16.27 15.09 22 11.94" opacity=".25"/><path d="M16.56 4.52 16.71 14.38M16.56 4.52 7.46 3.09M16.56 4.52 7.73 8.91M16.56 4.52 22 11.94M7.44 19.48 7.72 19.04M7.44 19.48 16.54 20.91M7.44 19.48 2 12.06M16.71 14.38 7.72 19.04M16.71 14.38 16.54 20.91M16.71 14.38 7.73 8.91M16.71 14.38 22 11.94M7.46 3.09 2 12.06M7.46 3.09 7.73 8.91M7.72 19.04 16.54 20.91M7.72 19.04 2 12.06M7.72 19.04 7.73 8.91M16.54 20.91 22 11.94M2 12.06 7.73 8.91"/></g>'),
   Refresh: iconHtml('<path d="M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7"/>'),
-  Changes: iconHtml('<path d="M9 5h6M9 3h6v4H9zM7 5H5v16h14V5h-2M8 13l2 2 5-5"/>'),
+  Changes: iconHtml('<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zM9 10h6m-3 3V7m-3 10h6"/>'),
   Star: iconHtml('<path d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9z"/>'),
   StarFilled: iconHtml('<path fill="currentColor" d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3L3 9.6l6.2-.9z"/>'),
   Search: iconHtml('<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>'),

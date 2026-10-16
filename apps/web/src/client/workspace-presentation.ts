@@ -113,6 +113,7 @@ export function createWorkspacePresentationController(
         this.scheduleMobileNavigationLayout();
       });
       this.sizeObserver.observe(this.element);
+      this.sizeObserver.observe(this.element.querySelector(".fixed-shell-mobile-scroll")!);
       this.acceptWorkIntent();
       this.normalizeState();
       this.applyDeepLink(initialUrl);

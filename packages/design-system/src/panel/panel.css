@@ -5,8 +5,8 @@
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid transparent;
-  border-radius: var(--radius-overlay);
+  border: var(--panel-border-width, 1px) solid transparent;
+  border-radius: var(--panel-radius, var(--radius-overlay));
   /* A localized reflection wraps the upper corners; the quiet outline stays visible below.
    * Fixed vertical reach keeps the reflection consistent on short and tall panels. */
   background:

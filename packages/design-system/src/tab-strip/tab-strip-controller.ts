@@ -64,9 +64,15 @@ export class TabStripController extends Controller<HTMLElement> {
       const itemStyle = getComputedStyle(item), primaryStyle = getComputedStyle(primary);
       const padding = [itemStyle.paddingInlineStart, itemStyle.paddingInlineEnd, primaryStyle.paddingInlineStart, primaryStyle.paddingInlineEnd].reduce((sum, value) => sum + parseFloat(value), 0);
       const gaps = parseFloat(primaryStyle.columnGap) * (Number(!!icon) + Number(showStatus));
-      const actionWidth = inlineActions ? actions!.getBoundingClientRect().width : 0;
-      const natural = Math.ceil(this.titleBounds(item).width + (icon?.getBoundingClientRect().width ?? 0) + statusWidth + padding + gaps + actionWidth);
+      const actionWidth = inlineActions ? actions!.getBoundingClientRect().width + parseFloat(itemStyle.columnGap) : 0;
+      const iconWidth = icon?.getBoundingClientRect().width ?? 0;
+      const natural = Math.ceil(this.titleBounds(item).width + iconWidth + statusWidth + padding + gaps + actionWidth);
+      // Keep a 2em title/selection area beside the close or touch menu, even for "Pi".
+      // Status disappears on engagement, so it does not add to this minimum.
+      const closeWidth = actionsStyle?.position === "absolute" ? actions!.getBoundingClientRect().width + 2 : 0;
+      const minimum = Math.ceil(2 * parseFloat(primaryStyle.fontSize) + iconWidth + padding + (icon ? parseFloat(primaryStyle.columnGap) : 0) + closeWidth + actionWidth);
       item.style.setProperty("--tab-content-width", `${natural}px`);
+      item.style.setProperty("--tab-min-width", `${minimum}px`);
     }
     const selected = this.items.find(item => item.querySelector('[aria-selected="true"]')) ?? null;
     if (selected !== this.selected) {

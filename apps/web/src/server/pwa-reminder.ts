@@ -85,7 +85,7 @@ function menuPathHtml(menu: string, item: string): string {
 
 export function renderPwaReminder(): string {
   const button = activityButtonHtml({
-    variant: "secondary",
+    variant: "quiet",
     state: "initial",
     iconOnly: true,
     initialLabel: "Install AgentsInTheCloud as an app",

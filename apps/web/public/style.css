@@ -87,8 +87,6 @@ turbo-frame { display: contents; }
 
 .fixed-shell-workspace-pane { flex: 0 0 var(--fixed-workspace-width); width: var(--fixed-workspace-width); gap: var(--fixed-shell-gap); background: var(--fixed-shell-bg); }
 
-[data-show-workspace-pane] > svg, [data-collapse-workspace-pane] > svg { transform: scaleX(-1); }
-
 .fixed-workspace-presentation.is-work-pane-open [data-show-work-pane],
 .fixed-workspace-presentation:not(.is-work-pane-open) [data-collapse-work-pane],
 .fixed-shell-app:not(.is-workspace-pane-collapsed) [data-show-workspace-pane],
@@ -109,11 +107,9 @@ turbo-frame { display: contents; }
 .fixed-shell-workspace-pane.is-picking-template .workspace-pane-slides { transform: translateX(-100%); }
 .fixed-shell-workspace-pane.is-picking-template .workspace-pane-slides:dir(rtl) { transform: translateX(100%); }
 .workspace-pane-slide { flex: 0 0 100%; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-/* "New workspace" heads the workspace list: its badge takes the slot of a row's template swatch, so icons and titles line up. */
 .fixed-shell-workspace-pane { --workspace-swatch-slot: 26px; }
-.workspace-pane-new-workspace { padding: 8px 8px 0; }
-.workspace-pane-new-workspace > .content-row { padding-inline-start: 2px; gap: 2px; }
-.workspace-pane-new-workspace-icon { width: var(--workspace-swatch-slot); display: grid; place-items: center; }
+/* Match the rail: workspace creation above Settings, anchored below the scrolling list. */
+.workspace-pane-footer { flex: none; display: flex; flex-direction: column; gap: 4px; padding: 8px 4px; }
 .workspace-pane-slide > .fixed-shell-pane-collections { flex: 1; height: auto; }
 
 /* Template icons: a deterministic swatch per template; workspaces without one get an outline. */
@@ -143,7 +139,8 @@ turbo-frame { display: contents; }
   .workspace-template-icon-button { height: 50px; }
   .workspace-template-icon { width: 18px; height: 18px; }
 }
-.fixed-shell-workspace-status { position: relative; display: inline-grid; width: 16px; height: 16px; place-items: center; overflow: visible; }
+.fixed-shell-workspace-status { position: relative; display: inline-grid; width: 18px; height: 18px; place-items: center; overflow: visible; }
+.fixed-shell-workspace-idle { display: inline-flex; color: var(--text-muted); }
 .fixed-shell-workspace-warning { color: var(--warning); font-style: normal; line-height: 1; }
 [data-workspace-entry-id]:not([data-workspace-preload-state="preloaded"]) .status-indicator > .status-dot { opacity: .35; }
 .fixed-shell-main { min-width: 0; min-height: 0; flex: 1; display: flex; gap: var(--fixed-shell-gap); }

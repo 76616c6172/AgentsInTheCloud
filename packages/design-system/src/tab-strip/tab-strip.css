@@ -1,8 +1,17 @@
 .tab-strip { display: flex; flex: 1; align-self: stretch; align-items: center; min-width: 0; padding-block: 4px; }
 .tab-strip__tabs { display: flex; flex: 1; align-items: center; gap: 4px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; }
-/* Content-sized short tabs; longer tabs shrink to 7rem before scrolling. */
-.tab-strip__tabs > .content-row { --tab-content-width: 20rem; flex: 0 1 min(20rem, var(--tab-content-width)); min-width: min(7rem, var(--tab-content-width)); user-select: none; -webkit-user-select: none; }
+/* Content-sized tabs with measured close clearance; longer titles shrink to 7rem before scrolling. */
+.tab-strip__tabs > .content-row { --tab-content-width: 20rem; flex: 0 1 min(20rem, var(--tab-content-width)); min-width: min(7rem, max(var(--tab-content-width), var(--tab-min-width, 0px))); user-select: none; -webkit-user-select: none; }
+/* Selection is text-only. A pill appears on hover, never as persistent chrome. */
+.tab-strip__tabs > .content-row:has(> .content-row__primary[role="tab"]) { --content-row-reflection: none; background: transparent; color: var(--text-muted); }
+.tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { color: var(--text-bright); }
+.tab-strip__tabs > .content-row:has(> .content-row__primary[role="tab"]):has(:focus-visible) { outline: 1px solid var(--accent); outline-offset: -1px; color: var(--text-bright); }
+@media (hover: hover) {
+  .tab-strip__tabs > .content-row:has(> .content-row__primary[role="tab"]):hover { background: var(--accent-soft); color: var(--text-bright); }
+}
 .tab-strip__tabs > .content-row > .content-row__primary { padding-inline-end: 0; }
+.tab-strip__pointer-actions, .tab-strip__pointer-actions > form { display: flex; margin: 0; }
+.tab-strip__touch-actions { display: none; }
 .tab-strip__status { display: inline-flex; }
 .tab-strip__status[hidden], .tab-strip__status [hidden] { display: none; }
 .tab-strip__tabs .content-row__primary:has(> .content-row__metadata > .tab-strip__status:not([hidden])) > .content-row__content { flex: 0 1 auto; }
@@ -13,8 +22,10 @@
   .tab-strip__tabs > .content-row:has(> .content-row__actions--engaged):is(:hover, :has(:focus-visible), :has(> .content-row__actions--engaged :popover-open)) > .content-row__primary > .content-row__metadata { display: none; }
 }
 @media (max-width: 700px), (hover: none), (pointer: coarse) {
-  /* Touch reveals close through selection, not hover. Unselected tabs keep status. */
-  .tab-strip__tabs > .content-row { padding-inline-end: 8px; }
+  /* Touch reveals the menu (or close) through selection. Unselected tabs keep status. */
+  .tab-strip__pointer-actions { display: none; }
+  .tab-strip__touch-actions { display: flex; }
+  .tab-strip__tabs > .content-row { padding-inline-end: 8px; column-gap: 6px; }
   .tab-strip__tabs > .content-row:has(> .content-row__actions--engaged) > .content-row__primary { flex: 1; }
   .tab-strip__tabs .content-row__actions--engaged { display: none; position: static; }
   .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) > .content-row__actions--engaged { display: flex; opacity: 1; pointer-events: auto; }

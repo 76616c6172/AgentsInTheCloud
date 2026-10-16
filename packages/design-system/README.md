@@ -141,7 +141,7 @@ items retain their shared rounded treatment and reveal truncated labels on engag
 Public renderers have no `className` or `bodyClassName`. Do not replace these with
 feature-specific variants or selectors. Put layout on a **surrounding element**.
 Panel owns its regions (`bodyLayout`, `bodyOverflow`); Dialog owns its surface.
-Content row uses `kind: "compact"` for single-line pills or `kind: "multiline"`
+Content row uses `kind: "compact"` for single-line rounded rectangles or `kind: "multiline"`
 for wrapping soft rectangles. `width` defaults to `"fit"`; opt into `"fill"` for
 collection rows (menus, navigation, pickers, file/account lists) or an allocated
 layout slot. Standalone actions and transcript disclosures fit their content.

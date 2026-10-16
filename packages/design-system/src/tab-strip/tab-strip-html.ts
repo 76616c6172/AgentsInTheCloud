@@ -1,6 +1,8 @@
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 import { contentRowHtml, type ContentRowLabel, type ContentRowElement } from "../content-row/content-row-html.ts";
 import { attributesHtml } from "../html.ts";
+import { Icons } from "../icons/icons-html.ts";
+import { popupHtml, type PopupOptions } from "../popup/popup-html.ts";
 
 export interface TabStatus {
   busy?: boolean;
@@ -24,12 +26,20 @@ export function tabHtml(options: {
   primary: ContentRowElement;
   containerAttributesHtml?: string;
   closeHtml?: string;
+  /** Optional touch replacement for the hover-close control. Features supply menu actions. */
+  touchMenu?: Pick<PopupOptions, "id" | "label" | "contentHtml">;
 }): string {
+  const actions = options.touchMenu
+    ? `<span class="tab-strip__pointer-actions">${options.closeHtml ?? ""}</span><span class="tab-strip__touch-actions">${popupHtml({
+      ...options.touchMenu,
+      trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: options.touchMenu.label } },
+    })}</span>`
+    : options.closeHtml;
   return contentRowHtml({
     kind: "compact", width: "fill", label: options.label, leadingHtml: options.iconHtml, trailingHtml: tabStatusHtml(options.status),
     container: { attributesHtml: options.containerAttributesHtml },
     primary: { tag: options.primary.tag, attributesHtml: `role="tab" aria-selected="${options.selected}" tabindex="${options.selected ? 0 : -1}" ${options.primary.attributesHtml ?? ""}` },
-    engagedActionsHtml: options.closeHtml,
+    engagedActionsHtml: actions,
   });
 }
 

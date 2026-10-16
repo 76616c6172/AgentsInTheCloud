@@ -3,6 +3,8 @@ html[data-theme] {
   --panel: var(--bg);
   --elev: var(--bg);
   --panel-inner-glow: none;
+  --panel-rim-reflection: none;
+  --panel-outline: linear-gradient(var(--line), var(--line));
   --panel-background-image: none;
   --transcript-background-image: none;
   --files-background-image: none;
@@ -15,48 +17,69 @@ html[data-theme] {
   --button-inner-glow: none;
 }
 
-/* Desktop geometry stays separate from the mobile keyboard layout. */
-.nox-workspace-rail { display: none; }
+/* Single-pane touch layouts stay edge-to-edge; desktop gets a light window frame. */
+.fixed-shell-app {
+  --panel-border-width: 0px;
+  --panel-radius: 0px;
+}
+.nox-workspace-rail,
+.nox-agent-action { display: none; }
+.fixed-shell-agent-pane .floating-stack :is(.agent-composer-opener, [data-cli-transcript-button]) { display: none; }
+.nox-agent-composer-action { position: relative; flex: none; }
+.nox-agent-composer-action > .agent-composer-draft-dot { display: none; }
+.fixed-workspace-presentation:has(.fixed-shell-surface.is-active .agent-composer-opener[data-draft]) .nox-agent-composer-action > .agent-composer-draft-dot { display: block; }
+
+@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .agent-composer-pane:not(.agent-composer-open) [data-agent-composer-target="opener"]) .fixed-shell-workspace-bar .nox-agent-composer-action,
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active [data-cli-transcript-button="transcript"]) .fixed-shell-workspace-bar .nox-agent-transcript-action,
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-mode) .fixed-shell-workspace-bar .nox-agent-terminal-action,
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-pending) .fixed-shell-workspace-bar .nox-agent-pending-action { display: flex; }
+  .fixed-workspace-presentation:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .fixed-shell-workspace-bar .nox-agent-transcript-action { display: none; }
+}
 
 @media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
   .fixed-shell-app {
     --fixed-workspace-width: 240px;
     --fixed-agent-width: 61.8%;
-    --fixed-shell-gap: 0px;
+    --fixed-shell-gap: 4px;
     --nox-rail-width: 40px;
-    --nox-pane-divider: color-mix(in srgb, var(--line) 45%, transparent);
+    --panel-border-width: 1px;
+    --panel-radius: 8px;
+    --nox-pane-border: color-mix(in srgb, var(--line) 70%, var(--bg));
+    --panel-outline: linear-gradient(var(--nox-pane-border), var(--nox-pane-border));
   }
 
   .fixed-shell-workspace-pane,
   .fixed-shell-agent-pane,
   .fixed-shell-work-pane { transition: none; }
 
-  /* Reveal over the content instead of resizing transcripts and terminals. */
+  /* Hover expansion takes layout space; terminals settle at the new width. */
   .fixed-shell-app > .fixed-shell-workspace-pane {
     z-index: 10;
     transition: none;
-    border-right: 1px solid var(--nox-pane-divider);
   }
-  .fixed-shell-work-pane { border-left: 1px solid var(--nox-pane-divider); }
   .fixed-shell-workspace-scroll { padding: 1px 4px 4px; }
+  /* Match the collapsed rail's pin target exactly, including the panel border. */
+  .workspace-pane-header { margin-inline-start: -2px; }
   .fixed-shell-agent-pane [data-show-workspace-pane] { display: none; }
 
-  .fixed-shell-app > .fixed-shell-app-main,
+  .fixed-shell-app > .fixed-shell-app-main {
+    margin-left: calc(var(--fixed-workspace-width) + var(--fixed-shell-gap));
+  }
   .fixed-shell-app.is-workspace-pane-collapsed > .fixed-shell-app-main {
-    margin-left: var(--nox-rail-width);
+    margin-left: calc(var(--nox-rail-width) + var(--fixed-shell-gap));
   }
 
   .fixed-shell-app > .nox-workspace-rail {
     position: absolute;
     z-index: 1;
-    inset: 0 auto 0 0;
+    inset: var(--fixed-shell-gap) auto var(--fixed-shell-gap) var(--fixed-shell-gap);
     width: var(--nox-rail-width);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: 4px;
-    padding: 6px 4px;
-    border-right: 1px solid var(--nox-pane-divider);
+    padding: 10px 4px;
     background: var(--panel);
   }
 
@@ -74,6 +97,14 @@ html[data-theme] {
   .nox-workspace-rail-entries > * { flex-shrink: 0; }
   .nox-workspace-rail-entries form { margin: 0; }
 
+  /* Desktop view actions share the toolbar. Mobile uses the navbar and More menu.
+     Only Follow latest floats over the content. */
+  .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active [data-cli-transcript-button="transcript"]) .nox-agent-transcript-action,
+  .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active .cli-transcript-mode) .nox-agent-terminal-action,
+  .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active .cli-transcript-pending) .nox-agent-pending-action,
+  .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active .agent-composer-pane:not(.agent-composer-open) [data-agent-composer-target="opener"]) .nox-agent-composer-action { display: flex; }
+  .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .nox-agent-transcript-action { display: none; }
+
   /* Focus changes visibility, never the saved split width or sidebar preference. */
   .fixed-shell-app:has(.workspace-detail-resident.visible .is-work-pane-focused) > :is(.fixed-shell-workspace-pane, .nox-workspace-rail),
   .fixed-workspace-presentation.is-work-pane-focused :is(.fixed-shell-agent-pane, .fixed-shell-work-resizer) {
@@ -86,6 +117,5 @@ html[data-theme] {
     inset: 0;
     width: 100%;
     min-width: 0;
-    border-left: 0;
   }
 }

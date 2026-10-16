@@ -26,7 +26,7 @@ const historyModel = (history: ChangesHistory, snapshot: ChangesSnapshot): Histo
 export function renderChangesTitle(snapshot: ChangesSnapshot): string {
   const additions = snapshot.stats.reduce((sum, file) => sum + file.additions, 0);
   const deletions = snapshot.stats.reduce((sum, file) => sum + file.deletions, 0);
-  return snapshot.index.phase === "ready" ? `Changes +${additions} −${deletions}` : "Changes";
+  return snapshot.index.phase === "ready" && (additions || deletions) ? `Changes +${additions} −${deletions}` : "Changes";
 }
 
 export function renderHistory(snapshot: ChangesSnapshot): string {
@@ -47,11 +47,11 @@ export function renderChanges(workspaceId: string, snapshot: ChangesSnapshot, pi
     width: "fill",
     kind: "compact", label: { kind: "text", text: snapshot.label }, leadingHtml: Icons.Disclosure,
     element: { tag: "button", attributesHtml: `type="button" data-action="changes-diff-endpoints#togglePicker" data-changes-diff-endpoints-target="trigger" aria-expanded="${pickerOpen}" aria-controls="${pickerId}"` },
-  }) : '<strong>Changes</strong>';
+  }) : "";
   const picker = history.phase === "ready" ? `<div id="${pickerId}" class="changes-picker-host" data-changes-diff-endpoints-target="picker" role="region" aria-label="Commit history" ${pickerOpen ? "" : "hidden"}><div class="changes-history-scroll" data-changes-diff-endpoints-target="historyScroll">${renderHistory(snapshot)}</div></div>` : "";
   // History is the permanent shell; live comparisons replace only the Pierre island underneath it.
   return `<section id="${changesBodyId(workspaceId, history.id)}" data-turbo-permanent class="changes-body" data-controller="changes-diff-endpoints" data-changes-diff-endpoints-workspace-id-value="${escapeHtml(workspaceId)}" data-changes-diff-endpoints-history-id-value="${history.id}" data-changes-diff-endpoints-open-value="${pickerOpen}" data-action="changes-edit:refresh->changes-diff-endpoints#refresh live:before-stream-render@document->changes-diff-endpoints#preservePresentation turbo:before-stream-render@document->changes-diff-endpoints#preservePresentation keydown.esc->changes-diff-endpoints#escape">
-    <header class="changes-diff-endpoints-header">${header}${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Refresh, label: "Refresh history and diff" }, attributesHtml: 'data-action="changes-diff-endpoints#refresh" data-changes-diff-endpoints-target="refresh"' })}</header>${picker}${renderComparison(workspaceId, snapshot)}
+    <header class="changes-diff-endpoints-header">${header}${buttonHtml({ type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Refresh, label: "Refresh history and diff" }, attributesHtml: 'data-action="changes-diff-endpoints#refresh" data-changes-diff-endpoints-target="refresh"' })}</header>${picker}${renderComparison(workspaceId, snapshot)}
     <div class="changes-loading" data-changes-diff-endpoints-target="loading" role="status" hidden><span class="changes-spinner" aria-hidden="true"></span><span>Generating comparison…</span></div>${renderError(workspaceId, history.id)}
   </section>`;
 }
@@ -123,7 +123,7 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
   const layoutItem = (layout: "unified" | "split", label: string) => contentRowHtml({ width: "fill", kind: "compact", label: { kind: "text", text: label }, trailingHtml: `<span class="changes-menu-check">${Icons.Check}</span>`, element: { tag: "button", attributesHtml: `type="button" role="menuitemradio" aria-checked="${layout === "unified"}" data-layout="${layout}" data-action="changes#chooseLayout"` } });
   const displayMenu = popupHtml({
     id: domId("changes", workspaceId, snapshot.id, "display"), label: "Display options",
-    trigger: { variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Settings, label: "Display options" } },
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Settings, label: "Display options" } },
     contentHtml: `${layoutItem("unified", "Unified diff")}${layoutItem("split", "Side-by-side diff")}<hr class="popup-menu__separator">${contentRowHtml({ width: "fill", kind: "compact", label: { kind: "text", text: "Wrap long lines" }, trailingHtml: `<span class="changes-menu-check">${Icons.Check}</span>`, element: { tag: "button", attributesHtml: 'type="button" role="menuitemcheckbox" aria-checked="true" data-action="changes#toggleWrap"' } })}`,
   });
   const collapseIcons = `<span class="changes-collapse-icon">${Icons.CollapseAll}</span><span class="changes-expand-icon">${Icons.ExpandAll}</span>`;
@@ -140,8 +140,8 @@ export function renderDiff(workspaceId: string, snapshot: ChangesSnapshot, colla
   const empty = snapshot.index.phase === "not-git" ? "This workspace isn’t a Git repository." : snapshot.endpoints.target === workingTree && snapshot.base === (snapshot.history.head ?? snapshot.history.emptyTree) ? "No uncommitted changes." : snapshot.label === "Unstaged changes" ? "No unstaged changes." : snapshot.label === "Staged changes" ? "No staged changes." : "No changed files in this comparison.";
   // The history-keyed parent protects Pierre’s managed DOM during live shell morphs.
   return `<section id="${domId("changes", snapshot.id, "diff")}" class="changes-diff" data-controller="changes changes-edit" data-action="changes-edit:viewer->changes#shareViewer" data-changes-edit-workspace-id-value="${escapeHtml(workspaceId)}" data-changes-edit-snapshot-id-value="${snapshot.id}" data-changes-workspace-id-value="${escapeHtml(workspaceId)}" data-changes-snapshot-id-value="${snapshot.id}" data-changes-collapsed-value="${collapsed}">
-    <header class="changes-toolbar">
-      <div class="changes-controls"><span class="changes-summary">${files.length} ${files.length === 1 ? "file" : "files"} <span class="changes-additions">+${additions}</span> <span class="changes-deletions">−${deletions}</span></span>${files.length || comments.some(comment => comment.status !== "inline") ? buttonHtml({ type: "button", variant: "secondary", disabled: files.length > 0, content: { kind: "icon-only", iconHtml: collapseIcons, label: collapsed ? "Expand all" : "Collapse all" }, attributesHtml: `data-action="changes#toggleCollapse" data-changes-target="collapseToggle" data-collapsed="${collapsed}"` }) : ""}${displayMenu}</div>
+    <header class="changes-toolbar"${files.length || comments.some(comment => comment.status !== "inline") ? "" : " hidden"}>
+      <div class="changes-controls"><span class="changes-summary">${files.length ? `${files.length} ${files.length === 1 ? "file" : "files"} <span class="changes-additions">+${additions}</span> <span class="changes-deletions">−${deletions}</span>` : ""}</span>${files.length || comments.some(comment => comment.status !== "inline") ? buttonHtml({ type: "button", variant: "quiet", disabled: files.length > 0, content: { kind: "icon-only", iconHtml: collapseIcons, label: collapsed ? "Expand all" : "Collapse all" }, attributesHtml: `data-action="changes#toggleCollapse" data-changes-target="collapseToggle" data-collapsed="${collapsed}"` }) : ""}<span${files.length ? "" : " hidden"}>${displayMenu}</span></div>
     </header>
     ${renderEditFeedback()}
     <div data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(workspaceId)}" data-live-surface-kind-value="review-comments" data-live-surface-key-value="${snapshot.id}" data-live-surface-eager-value="true">${renderCommentsModel(snapshot.id, comments)}</div>

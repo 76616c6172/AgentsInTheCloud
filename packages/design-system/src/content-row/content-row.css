@@ -1,5 +1,5 @@
 /* Orientation-independent primary actions with optional status and auxiliary controls. */
-.content-row { --content-row-reflection: none; position: relative; max-width: 100%; min-width: 0; min-height: 28px; box-sizing: border-box; display: flex; align-items: center; padding-inline: 8px; border-radius: var(--radius-round); color: var(--text); }
+.content-row { --content-row-reflection: none; position: relative; max-width: 100%; min-width: 0; min-height: 28px; box-sizing: border-box; display: flex; align-items: center; padding-inline: 8px; border-radius: var(--radius-control); color: var(--text); }
 .content-row:not(.content-row__primary) > .content-row__primary { padding-inline-end: 8px; }
 .content-row__primary { min-width: 0; min-height: 28px; box-sizing: border-box; display: flex; align-items: center; border: 0; background: transparent; font: inherit; letter-spacing: inherit; text-align: left; text-decoration: none; cursor: pointer; }
 .content-row > .content-row__primary { flex: 1; border-radius: inherit; }

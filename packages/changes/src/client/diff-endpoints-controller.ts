@@ -222,7 +222,7 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
     }
     private measure(): void {
       const toolbar = this.diffTarget.querySelector<HTMLElement>(".changes-toolbar")!;
-      const top = toolbar.getBoundingClientRect().bottom - this.element.getBoundingClientRect().top;
+      const top = this.diffTarget.getBoundingClientRect().top + toolbar.getBoundingClientRect().height - this.element.getBoundingClientRect().top;
       this.element.style.setProperty("--changes-comparison-top", `${top}px`);
     }
     private syncAvailability(): void {

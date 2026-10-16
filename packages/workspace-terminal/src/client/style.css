@@ -2,7 +2,7 @@
 
 .fixed-shell-live-body:has(> .terminal-work-view) { padding: 0; overflow: hidden; background: var(--bg); }
 .terminal-work-view { height: 100%; min-height: 0; }
-.terminal-view { height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 4px; background: var(--bg); color: var(--text); overflow: hidden; }
+.terminal-view { height: 100%; min-height: 0; display: flex; flex-direction: column; padding: 4px 6px; background: var(--bg); color: var(--text); overflow: hidden; }
 /* The terminal frame fixes the host's size; the stage clips it while the key row is up. */
 .terminal-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 /* The key row sits right on the soft keyboard. */
