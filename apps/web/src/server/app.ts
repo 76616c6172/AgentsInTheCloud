@@ -558,7 +558,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     // The selected resident shows what its surface publishes, and its Agent pane what that Agent's channel publishes.
     if (entry && state) {
       residents = placeLiveRegions(residents, surface!.regions(state), workspaceResidentId(entry.id));
-      for (const { pane } of state.kind === "workspace" ? state.presentation.agents : []) if (pane?.live) residents = placeLiveRegions(residents, pane.live.regions, pane.live.subscriberId);
+      for (const { pane } of state.kind === "workspace" ? state.presentation.agents : []) if (pane?.live) residents = placeLiveRegions(residents, pane.live.regions(), pane.live.subscriberId);
     }
     return `<div id="workspace_detail" class="workspace-detail-host" data-controller="workspace-residency" data-workspace-residency-max-resident-value="5">
       <div class="workspace-detail-empty" data-workspace-residency-target="empty"${selectedId ? " hidden" : ""}>${emptyWorkspaceArtworkHtml(pane)}</div>

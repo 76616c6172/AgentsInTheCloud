@@ -18,7 +18,7 @@ const firstEditModel = (html: string): Array<{ name: string; hunks: Array<{ coll
 
 describe("transcript rendering", () => {
   test("server-rendered panes and routes use immutable conversation identity", async () => {
-    const { html } = await renderAgentPane(ctx, agent, { regions: paneRegions() });
+    const { html } = await renderAgentPane(ctx, agent, { regions: paneRegions });
     expect(html).toContain(`data-agent-pane-agent-id-value="${agent.agentId}"`);
     expect(html).toContain(`/agents/${agent.agentId}/messages`);
     expect(html).not.toContain("data-agent-pane-label-value");
@@ -26,10 +26,13 @@ describe("transcript rendering", () => {
 
   test("a pane is a shell; its controller's channel owns the content placed into its mounts", async () => {
     const regions = [{ target: ids.transcript(ctx), html: "<p>Settled prompt</p>" }, ...paneRegions().filter(region => region.target !== ids.transcript(ctx))];
-    const pane = await renderAgentPane(ctx, agent, { regions });
+    let rendered = 0;
+    const pane = await renderAgentPane(ctx, agent, { regions: () => { rendered++; return regions; } });
     expect(pane.html).not.toContain("Settled prompt");
-    expect(pane.live).toEqual({ regions, subscriberId: ids.pane(ctx) });
-    const placed = placeLiveRegions(pane.html, pane.live!.regions, pane.live!.subscriberId);
+    // Only a page render needs the live content.
+    expect(rendered).toBe(0);
+    expect(pane.live!.subscriberId).toBe(ids.pane(ctx));
+    const placed = placeLiveRegions(pane.html, pane.live!.regions(), pane.live!.subscriberId);
     expect(placed).toContain("<p>Settled prompt</p>");
     expect(placed).toContain(`id="${ids.pane(ctx)}"`);
     expect(placed).toContain("data-live-shown=");
