@@ -14,10 +14,10 @@ import { attachWorkspaceTerminal, createWorkspaceTerminal, openWorkspaceTerminal
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
-function terminalWorkViewPresentation(terminal: WorkspaceTerminal): WorkspaceWorkViewPresentation {
+function terminalWorkViewPresentation(terminal: WorkspaceTerminal, viewCount: number): WorkspaceWorkViewPresentation {
   return {
     sourceKey: terminalViewKey(terminal.id),
-    label: terminal.title,
+    label: viewCount === 1 && /^Terminal [1-9]\d*$/.test(terminal.title) ? "Terminal" : terminal.title,
     reference: { type: "terminal", terminalId: terminal.id },
     kind: "resource", iconHtml: Icons.Terminal,
     availability: { phase: "live" },
@@ -180,6 +180,6 @@ export const terminalWorkspaceModule: WorkspaceModule = {
   }],
   async attachToWorkspace({ workspaceId }) {
     const terminals = await listWorkspaceTerminals(workspaceId);
-    return { workViews: terminals.map(terminalWorkViewPresentation), commands: terminalWorkspaceCommands };
+    return { workViews: terminals.map(terminal => terminalWorkViewPresentation(terminal, terminals.length)), commands: terminalWorkspaceCommands };
   },
 };

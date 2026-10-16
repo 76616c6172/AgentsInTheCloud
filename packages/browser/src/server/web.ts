@@ -103,8 +103,9 @@ export const browserWorkspaceModule: WorkspaceModule = {
     }));
   },
   attachToWorkspace({ workspaceId }) {
+    const browsers = listWorkspaceBrowserViews(workspaceId);
     return {
-      workViews: listWorkspaceBrowserViews(workspaceId).map(browserWorkViewPresentation),
+      workViews: browsers.map(view => browserWorkViewPresentation(view, browsers.length)),
       commands: browserWorkspaceCommands,
     };
   },

@@ -5,10 +5,10 @@ import { qrCodeButtonHtml, qrCodeDialogHtml } from "@agents-in-the-cloud/design-
 import { domId, escapeHtml, isWorkspaceLoopbackHost, type WorkspaceWorkViewPresentation } from "@agents-in-the-cloud/shared";
 import { browserFrameId, browserNavigationCount, type WorkspaceBrowserView } from "./state.ts";
 
-export function browserWorkViewPresentation(view: WorkspaceBrowserView): WorkspaceWorkViewPresentation {
+export function browserWorkViewPresentation(view: WorkspaceBrowserView, viewCount: number): WorkspaceWorkViewPresentation {
   return {
     sourceKey: view.key,
-    label: view.label,
+    label: viewCount === 1 && /^Browser [1-9]\d*$/.test(view.label) ? "Browser" : view.label,
     reference: { type: "browser", browserId: view.key },
     kind: "resource", iconHtml: Icons.Browser,
     availability: { phase: "live" },
