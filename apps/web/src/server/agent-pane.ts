@@ -92,6 +92,26 @@ function agentTypeOptions(presentation: WorkspacePresentation, menu: boolean): s
   });
 }
 
+/** Agent types for the phone header's More menu, with their own form IDs. */
+export function renderPhoneAgentTypeOptions(presentation: WorkspacePresentation): string {
+  const formId = (agentTypeId: string) => domId("create_agent", presentation.workspace.id, "phone", agentTypeId);
+  const forms = presentation.agentTypes.map(agentType => `<form id="${formId(agentType.id)}" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/commands/agent.create.${encodeURIComponent(agentType.id)}" data-turbo="true" hidden></form>`).join("");
+  return forms + renderAgentTypePicker(presentation.agentTypes, { attributes: agentType => `type="submit" form="${formId(agentType.id)}" role="menuitem"` });
+}
+
+/** Park and delete for the phone header, with their own IDs. */
+export function renderPhoneWorkspaceActions(presentation: WorkspacePresentation): string {
+  const id = encodeURIComponent(presentation.workspace.id);
+  const park = buttonHtml({ type: "submit", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Park, label: "Park workspace" } });
+  const deleteConfirmation = destructiveConfirmationHtml({
+    id: domId("phone_delete_workspace", presentation.workspace.id),
+    trigger: { type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Trash, label: "Delete workspace" } },
+    confirmCaption: "Yes, delete",
+    cancelCaption: "Oops",
+  });
+  return `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${id}/park" data-action="submit->workspace-navigation#parkWorkspace">${park}</form><form class="fixed-shell-delete-workspace" data-turbo="true" method="post" action="/workspaces/${id}/delete">${deleteConfirmation}</form>`;
+}
+
 export function renderAgentNavigation(presentation: WorkspacePresentation): string {
   const agents = presentation.agents.length
     ? tabStripHtml({

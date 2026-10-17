@@ -24,6 +24,7 @@ html[data-theme] {
 }
 .nox-workspace-rail,
 .nox-agent-action,
+.nox-phone-header,
 .nox-workspace-group,
 .nox-workspace-scrim { display: none; }
 .fixed-shell-agent-pane .floating-stack :is(.agent-composer-opener, [data-cli-transcript-button]) { display: none; }
@@ -32,11 +33,11 @@ html[data-theme] {
 .fixed-workspace-presentation:has(.fixed-shell-surface.is-active .agent-composer-opener[data-draft]) .nox-agent-composer-action > .agent-composer-draft-dot { display: block; }
 
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .agent-composer-pane:not(.agent-composer-open) [data-agent-composer-target="opener"]) .fixed-shell-workspace-bar .nox-agent-composer-action,
-  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active [data-cli-transcript-button="transcript"]) .fixed-shell-workspace-bar .nox-agent-transcript-action,
-  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-mode) .fixed-shell-workspace-bar .nox-agent-terminal-action,
-  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-pending) .fixed-shell-workspace-bar .nox-agent-pending-action { display: flex; }
-  .fixed-workspace-presentation:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .fixed-shell-workspace-bar .nox-agent-transcript-action { display: none; }
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .agent-composer-pane:not(.agent-composer-open) [data-agent-composer-target="opener"]) .nox-phone-header .nox-agent-composer-action,
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active [data-cli-transcript-button="transcript"]) .nox-phone-header .nox-agent-transcript-action,
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-mode) .nox-phone-header .nox-agent-terminal-action,
+  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-pending) .nox-phone-header .nox-agent-pending-action { display: flex; }
+  .fixed-workspace-presentation:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .nox-phone-header .nox-agent-transcript-action { display: none; }
 
   /* Keep horizontal sidebar gestures with the app; native vertical scrolling stays available. */
   .fixed-shell-workspace-pane { touch-action: pan-y pinch-zoom; }
@@ -49,8 +50,6 @@ html[data-theme] {
   .agents-in-the-cloud-fullscreen-open .fixed-shell-app-main { container-type: inline-size; }
   .agents-in-the-cloud-fullscreen-open .fixed-shell-main { container-type: normal; isolation: auto; }
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .fixed-shell-agents-in-the-cloud-bar { display: none; }
-  /* The previewed workspace keeps its bar; the tap target above it returns to the workspace. */
-  .fixed-shell-app.is-mobile-workspace-pane-open .workspace-detail-resident.visible .fixed-shell-workspace-bar { visibility: visible; }
 
   /* With a workspace open, the list is revealed rather than overlaid: the workspace steps
    * aside into a live preview on the right, uncovering the list card beneath it. A swipe sets
@@ -66,7 +65,7 @@ html[data-theme] {
     position: absolute; grid-area: 1 / 1 / -1 / -1; z-index: 0;
     inset: calc(env(safe-area-inset-top, 0px) + var(--nox-drawer-gap)) auto calc(env(safe-area-inset-bottom, 0px) + var(--nox-drawer-gap)) var(--nox-drawer-gap);
     width: var(--nox-drawer-width); height: auto;
-    border: 1px solid var(--line-strong); border-radius: var(--radius-overlay); overflow: hidden;
+    border: 0; border-radius: var(--radius-overlay); overflow: hidden;
     background: var(--panel);
     opacity: calc(0.4 + var(--nox-drawer-progress, 0) * 0.6);
     transform: translateX(calc((var(--nox-drawer-progress, 0) - 1) * 8%));
@@ -97,6 +96,8 @@ html[data-theme] {
   .fixed-shell-app[data-nox-drawer-drag] > :is(.fixed-shell-workspace-pane, .fixed-shell-app-main, .nox-workspace-scrim) { transition: none; }
   .fixed-shell-app[data-nox-drawer-drag] > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) { visibility: visible; }
 
+  /* The card has no outline; a rule under its title would be the only line left, so drop it too. */
+  .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .fixed-shell-workspace-pane .panel__header { border-bottom: 0; }
   /* New workspace and Settings sit at the bottom of the card. */
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) .workspace-pane-footer { border-top: 1px solid var(--line); }
 
@@ -121,12 +122,30 @@ html[data-theme] {
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.status-spinner, .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
 
-  /* Four equal cells keep the quiet anchors symmetrical at every width.
-   * Status occupies an absolute slot; activity never nudges an icon. */
-  .nox-mobile-four-stops { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); justify-items: center; gap: 0; }
-  .nox-mobile-nav-status { position: absolute; inset-block-start: 0; inset-inline-end: 0; width: 18px; height: 18px; display: grid; place-items: center; pointer-events: none; }
-  /* Working stays ambient so attention is the only signal that stands out. */
-  .nox-mobile-nav-status .status-dot.running { color: color-mix(in srgb, var(--text-muted) 70%, transparent); border-width: 1.25px; animation-duration: 1100ms; }
+  /* Phone chrome lives at the top: a slim title row with More, and tabs for every view.
+   * Swipes and tabs replace the bottom bar, which stays in the markup for its status slots. */
+  .fixed-workspace-presentation:has(> .nox-phone-header) { grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); }
+  /* Without the bar, the content itself clears the home indicator. */
+  .fixed-workspace-presentation:has(> .nox-phone-header) > .fixed-shell-main { grid-area: 2 / 1; margin-bottom: env(safe-area-inset-bottom, 0px); }
+  .fixed-workspace-presentation:has(> .nox-phone-header) > .fixed-shell-workspace-bar,
+  .fixed-shell-agent-pane > .panel > .panel__header { display: none; }
+  .nox-phone-header { grid-area: 1 / 1; display: grid; padding-top: env(safe-area-inset-top, 0px); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: var(--bg); }
+  .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 0; }
+  .nox-phone-header__row > form { display: flex; margin: 0; }
+  .nox-phone-header__title { flex: 1; min-width: 0; padding-inline: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-weight: 400; font-size: 15px; }
+  .nox-phone-header > .tab-strip { padding: 0 8px 6px; }
+  .nox-phone-header .tab-strip__tabs { scrollbar-width: none; }
+  /* Tabs size to their labels, like Amp's, instead of filling the strip. */
+  .nox-phone-header .tab-strip__tabs > .content-row { flex: none; width: auto; min-width: 0; min-height: 36px; border-radius: var(--radius-control); }
+  .nox-phone-header .tab-strip__tabs > .content-row > .content-row__primary { min-height: 36px; padding-inline: 4px 10px; }
+  .nox-phone-header .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: var(--accent-soft); }
+  /* Tabs already list every Work view, so More only keeps actions. */
+  .nox-phone-header [data-more-work-key] { display: none; }
+
+  /* Another workspace needing attention puts a dot on the sidebar button; the tabs carry
+   * attention for this workspace's own Agent and Work views. */
+  .nox-phone-header__attention { display: none; position: absolute; top: 7px; right: 7px; }
+  .fixed-shell-app:has(.fixed-shell-workspace-scroll [data-workspace-attention-at]:not([aria-current="page"])) .nox-phone-header__attention { display: block; }
 }
 
 @media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
@@ -212,23 +231,34 @@ html[data-theme] {
   }
 }
 
-/* Nox mobile swipes reuse Page slide's lifecycle and timing. Only its content
- * snapshots overlap; shared motion and the live workspace layout stay unchanged. */
+/* Depth swap between the Agent (progress 0) and Work (1): the Agent sinks back while Work
+ * rises in from the right as a rounded live card. A drag sets --nox-pane-progress on the
+ * presentation; [data-nox-pane-motion] keeps both panes visible until navigation commits. */
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  /* Let the named snapshots provide the motion, not the live panes underneath. */
-  .fixed-shell-app[data-mobile-swipe] :is(.fixed-shell-agent-pane, .fixed-shell-work-pane) { transition: none; }
-
-  /* Do not snapshot the whole document: the live shell must keep receiving touches. */
-  :root:has(.fixed-shell-app[data-mobile-swipe]) { view-transition-name: none; }
-  :root[data-page-slide="left"]:has(.fixed-shell-app[data-mobile-swipe]) { --page-slide-out: -20%; }
-  :root[data-page-slide="right"]:has(.fixed-shell-app[data-mobile-swipe]) { --page-slide-in: -20%; }
-
-  :root[data-page-slide="left"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-old(page-slide),
-  :root[data-page-slide="right"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-new(page-slide) { z-index: 1; }
-
-  :root[data-page-slide="left"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-new(page-slide),
-  :root[data-page-slide="right"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-old(page-slide) {
-    z-index: 2;
-    filter: drop-shadow(-10px 0 16px rgb(0 0 0 / 18%));
+  .fixed-workspace-presentation { --nox-pane-progress: 0; }
+  .fixed-workspace-presentation[data-phone-destination^="work:"] { --nox-pane-progress: 1; }
+  /* Outside a swipe, panes switch in place; the motion is the depth swap's alone. */
+  .fixed-workspace-presentation :is(.fixed-shell-agent-pane, .fixed-shell-work-pane) { transition: none; }
+  .fixed-workspace-presentation[data-nox-pane-motion] :is(.fixed-shell-agent-pane, .fixed-shell-work-pane) {
+    opacity: 1; visibility: visible; pointer-events: none; overflow: clip;
+    transition: transform var(--motion-enter) var(--motion-ease-out), border-radius var(--motion-enter) var(--motion-ease-out);
   }
+  .fixed-workspace-presentation[data-nox-pane-motion] .fixed-shell-agent-pane {
+    z-index: 0; transform-origin: 0 50%;
+    transform: translateX(calc(var(--nox-pane-progress) * -4%)) scale(calc(1 - var(--nox-pane-progress) * 0.1));
+    border-radius: calc(var(--nox-pane-progress) * var(--radius-overlay));
+  }
+  .fixed-workspace-presentation[data-nox-pane-motion] .fixed-shell-agent-pane::after {
+    content: ""; position: absolute; z-index: 10; inset: 0; background: #000; pointer-events: none;
+    opacity: calc(var(--nox-pane-progress) * 0.45);
+    transition: opacity var(--motion-enter) var(--motion-ease-out);
+  }
+  .fixed-workspace-presentation[data-nox-pane-motion] .fixed-shell-work-pane {
+    z-index: 1; transform-origin: 100% 50%;
+    transform: translateX(calc((1 - var(--nox-pane-progress)) * 104%)) scale(calc(0.9 + var(--nox-pane-progress) * 0.1));
+    border-radius: calc((1 - var(--nox-pane-progress)) * var(--radius-overlay));
+    box-shadow: 0 0 0 1px var(--line-strong), var(--shadow);
+  }
+  .fixed-workspace-presentation[data-nox-pane-drag] :is(.fixed-shell-agent-pane, .fixed-shell-work-pane),
+  .fixed-workspace-presentation[data-nox-pane-drag] .fixed-shell-agent-pane::after { transition: none; }
 }

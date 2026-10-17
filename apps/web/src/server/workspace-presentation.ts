@@ -12,7 +12,7 @@ import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
 import { tabHtml, tabStripHtml } from "@agents-in-the-cloud/design-system/tab-strip";
 import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@agents-in-the-cloud/shared";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
-import { renderAgentComposerAction, renderAgentViewSwitch, renderAgentPane, renderMobileAgentAttention, type AgentPaneContribution } from "./agent-pane.ts";
+import { renderAgentComposerAction, renderAgentViewSwitch, renderAgentPane, renderMobileAgentAttention, renderPhoneAgentTypeOptions, renderPhoneWorkspaceActions, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
 import type { WorkspaceDeletionState } from "./workspace-registry.ts";
 import type { WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
@@ -412,14 +412,14 @@ function renderMobileWorkViewCloser(view: WorkPaneContribution): string {
 interface MobileWorkspaceBarOptions {
   agentHtml?: string;
   workHtml?: string;
-  moreMenuHtml?: string;
   inert?: boolean;
 }
 
-export function renderMobileWorkspaceBar({ agentHtml = "", workHtml = "", moreMenuHtml = "", inert = false }: MobileWorkspaceBarOptions = {}): string {
+/* With a phone header, this bar is hidden; its stops still carry the pane status slots. */
+export function renderMobileWorkspaceBar({ agentHtml = "", workHtml = "", inert = false }: MobileWorkspaceBarOptions = {}): string {
   const workspace = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", Icons.Workspace, "data-show-workspace-list");
-  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar${moreMenuHtml ? " nox-mobile-four-stops" : ""}" aria-label="Workspace panes"${inert ? " inert" : ""}>
-    ${workspace}${agentHtml}${workHtml}${moreMenuHtml}
+  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar" aria-label="Workspace panes"${inert ? " inert" : ""}>
+    ${workspace}${agentHtml}${workHtml}
   </nav>`;
 }
 
@@ -428,19 +428,49 @@ function renderWorkspaceBar(presentation: WorkspacePresentation, inert = false):
   const workStatusId = workViewDomId(presentation.workspace.id, "mobile_work_attention");
   const workStatus = busyAttentionIndicator({ requestingAttention: presentation.workViews.some((view) => view.attentionSequence !== undefined) });
   const workDestination = barButton("Work", "click->workspace-presentation#selectMobileWork", `${Icons.Panel}<span id="${workStatusId}" class="nox-mobile-nav-status">${workStatus}</span>`, `data-mobile-work aria-describedby="${workStatusId}"`);
+  return renderMobileWorkspaceBar({ agentHtml: agentsDestination, workHtml: workDestination, inert });
+}
+
+function renderMobileMoreMenu(presentation: WorkspacePresentation): string {
   const workViews = renderMobileWorkViews(presentation.workViews);
   const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher").map((command) => renderWorkLauncherCommand(command, presentation.workspace.id, "submit->workspace-presentation#closeMore")).join("");
   const closers = presentation.workViews.map(renderMobileWorkViewCloser).join("");
   const moreMenuId = workViewDomId(presentation.workspace.id, "mobile_more_menu");
-  const moreMenu = popupHtml({
-    id: moreMenuId, label: "More", placement: "above",
+  return popupHtml({
+    id: moreMenuId, label: "More", placement: "below",
     trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-mobile-more" },
     menuAttributesHtml: 'data-workspace-presentation-target="moreMenu" data-action="toggle->workspace-presentation#syncMore"',
     contentHtml: `${renderAgentComposerAction(true)}${renderAgentViewSwitch(true)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
-      ${launchers ? `<hr class="popup-menu__separator"${presentation.workViews.length ? "" : " hidden"}>${launchers}` : ""}
+      ${launchers}
+      ${presentation.agentTypes.length ? `<hr class="popup-menu__separator">${renderPhoneAgentTypeOptions(presentation)}` : ""}
       <div id="${workViewDomId(presentation.workspace.id, "mobile_closers")}" class="fixed-shell-more-close-section">${closers}</div>`,
   });
-  return renderMobileWorkspaceBar({ agentHtml: agentsDestination, workHtml: workDestination, moreMenuHtml: moreMenu, inert });
+}
+
+/* Nox phone chrome: a slim header that stays put while the Agent and Work panes swap beneath
+ * it. Tabs select by the visible pane (see syncMobileNavigationSelection), not by the desktop selection. */
+function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean): string {
+  const workspaceId = presentation.workspace.id;
+  const agentTabs = presentation.agents.map((agent) => tabHtml({
+    selected: false,
+    label: { kind: "text", text: agent.title },
+    iconHtml: agent.iconHtml,
+    status: { busy: agent.busy, requestingAttention: agent.requestingAttention },
+    primary: { tag: "button", attributesHtml: `type="button" data-nox-phone-tab="agents" data-agent-id="${escapeHtml(agent.id)}" data-action="click->workspace-presentation#selectAgent"` },
+  }));
+  const workTabs = presentation.workViews.map((view) => tabHtml({
+    selected: false,
+    label: { kind: "text", text: view.label },
+    iconHtml: view.iconHtml ?? Icons.Plus,
+    status: { requestingAttention: view.attentionSequence !== undefined },
+    primary: { tag: "button", attributesHtml: `type="button" data-nox-phone-tab="work:${escapeHtml(view.key)}" data-work-view-key="${escapeHtml(view.key)}" data-work-view-kind="${view.kind}" data-action="click->workspace-presentation#selectWorkView"` },
+  }));
+  // The dot shows (in CSS) when another workspace needs attention.
+  const sidebar = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", `${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i>`, "data-show-workspace-list");
+  return `<header class="nox-phone-header" aria-label="Workspace"${inert ? " inert" : ""}>
+    <div class="nox-phone-header__row">${sidebar}<strong class="nox-phone-header__title">${escapeHtml(presentation.workspace.title)}</strong>${renderPhoneWorkspaceActions(presentation)}${renderMobileMoreMenu(presentation)}</div>
+    ${tabStripHtml({ id: domId("phone_tabs", workspaceId), label: "Views", tabsHtml: [...agentTabs, ...workTabs].join("") })}
+  </header>`;
 }
 
 export function renderWorkspaceDeletionPresentation(workspaceId: string, deletion: WorkspaceDeletionState, evidenceHtml = ""): string {
@@ -471,6 +501,7 @@ export function renderWorkspacePresentation(presentation: WorkspacePresentation)
   const id = workspacePresentationDomId(presentation.workspace.id);
   const trustPending = presentation.overlayHtml?.some(html => html.includes('class="workspace-ssh-trust-overlay"')) ?? false;
   return `<div id="${id}" class="fixed-workspace-presentation${presentation.initialSelection?.workView ? " is-work-pane-open" : ""}" data-controller="workspace-presentation" data-phone-destination="${presentation.initialSelection?.workView ? `work:${escapeHtml(presentation.initialSelection.workView)}` : "agents"}" data-workspace-initial-agent="${escapeHtml(presentation.initialSelection?.agent ?? "")}" data-workspace-initial-work="${escapeHtml(presentation.initialSelection?.workView ?? "")}" data-workspace-presentation-work-intent-value="${escapeHtml(JSON.stringify(presentation.workPresentationIntent ?? {}))}" data-workspace-presentation-workspace-id-value="${escapeHtml(presentation.workspace.id)}" data-workspace-id="${escapeHtml(presentation.workspace.id)}" data-workspace-commands="${escapeHtml(JSON.stringify(presentation.commands ?? []))}">
+    ${renderPhoneHeader(presentation, trustPending)}
     <div class="fixed-shell-main"${trustPending ? " inert" : ""}>${renderAgentPane(presentation)}${renderWorkPane(presentation)}</div>
     ${renderWorkspaceBar(presentation, trustPending)}
     ${(presentation.overlayHtml ?? []).join("")}
