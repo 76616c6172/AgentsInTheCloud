@@ -54,6 +54,8 @@ html[data-theme] {
    * Status occupies an absolute slot; activity never nudges an icon. */
   .nox-mobile-four-stops { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); justify-items: center; gap: 0; }
   .nox-mobile-nav-status { position: absolute; inset-block-start: 0; inset-inline-end: 0; width: 18px; height: 18px; display: grid; place-items: center; pointer-events: none; }
+  /* Working stays ambient so attention is the only signal that stands out. */
+  .nox-mobile-nav-status .status-dot.running { color: color-mix(in srgb, var(--text-muted) 70%, transparent); border-width: 1.25px; animation-duration: 1100ms; }
 }
 
 @media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
