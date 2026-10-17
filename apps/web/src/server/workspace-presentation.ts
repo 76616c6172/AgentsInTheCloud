@@ -141,8 +141,13 @@ function renderWorkspaceRows(presentation: WorkspacePanePresentation): string {
     summary: { kind: "compact", width: "fill", attributesHtml: "data-workspace-parked", label: { kind: "text", text: "Parked" } },
     bodyHtml: parked.map(renderWorkspaceRow).join(""),
   }) : "";
-  return `${active.map(renderWorkspaceRow).join("")}${parkedGroup}`;
+  return `${active.map(renderWorkspaceRow).join("")}${parkedGroup}${noxPhoneWorkspaceGroups}`;
 }
+
+/* Phone-only status headings. They follow the rows so CSS counters can total each
+ * group, and CSS orders them visually; browser-owned row arrangement is unaffected. */
+const noxPhoneWorkspaceGroups = [["attention", "Needs you"], ["busy", "Working"], ["idle", "Idle"]]
+  .map(([group, label]) => `<div class="nox-workspace-group" data-nox-workspace-group="${group}" aria-hidden="true">${label}</div>`).join("");
 
 function renderNewWorkspaceRow(presentation: WorkspacePanePresentation): string {
   const guide = presentation.workspaces.length ? "" : ' data-first-workspace-destination="new-workspace"';
@@ -229,7 +234,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
   return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane" data-action="${revealActions}"><div class="fixed-shell-workspace-main">${panelHtml({
     element: { tag: "aside",  attributesHtml: 'aria-label="Workspaces"' },
     chrome: "outlined",
-    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Sidebar, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">${Icons.Cloud}Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}` })}</div>
+    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Sidebar, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">${Icons.Cloud}Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}` })}<span class="nox-phone-new-workspace">${buttonHtml({ type: "button", variant: "primary", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "New workspace" }, attributesHtml: 'data-action="workspace-pane#openPicker"' })}</span></div>
       <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New workspace</span></div>`,
     bodyHtml: `<div class="workspace-pane-viewport" data-workspace-pane-target="body"><div class="workspace-pane-slides">
       <section class="workspace-pane-slide" data-workspace-pane-target="workspaces" aria-label="Workspaces">
@@ -241,7 +246,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
       </section>
       <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New workspace" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
     </div></div>`,
-  })}</div></div><nav class="nox-workspace-rail" aria-label="Workspace status" data-action="${revealActions}">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Sidebar, 'data-show-workspace-pane aria-pressed="false"', "quiet")}<div id="${workspaceRailEntriesDomId}" class="nox-workspace-rail-entries">${renderWorkspaceRailEntries(presentation)}</div>${barButton("New workspace", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"', "quiet")}${settings}</nav>`;
+  })}</div></div><nav class="nox-workspace-rail" aria-label="Workspace status" data-action="${revealActions}">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Sidebar, 'data-show-workspace-pane aria-pressed="false"', "quiet")}<div id="${workspaceRailEntriesDomId}" class="nox-workspace-rail-entries">${renderWorkspaceRailEntries(presentation)}</div>${barButton("New workspace", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"', "quiet")}${settings}</nav><div class="nox-workspace-scrim" aria-hidden="true" data-action="click->workspace-navigation#closeWorkspacePane"></div>`;
 }
 
 const agentsInTheCloudNextAttentionDomId = "fixed_shell_agents-in-the-cloud_next_attention";

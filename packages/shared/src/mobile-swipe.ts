@@ -6,16 +6,30 @@ export type MobileSwipeDirection = -1 | 1;
 const swipeIntentDistance = 8;
 const swipeNavigationDistance = 16;
 const swipeAxisBias = 1.25;
+const flickReleaseWindow = 100;
+
+/** A claimed swipe that follows the finger instead of navigating at a threshold. */
+export interface MobileSwipeDrag {
+  /** Signed horizontal distance from where the touch started, in CSS pixels. */
+  move(distance: number): void;
+  /** Velocity is the latest horizontal speed in CSS pixels per millisecond. */
+  end(distance: number, velocity: number): void;
+  cancel(): void;
+}
 
 /** Shared recognizer; its owning Stimulus controller supplies visibility and navigation. */
 export function observeMobileSwipe(
   root: HTMLElement,
   navigationFor: (direction: MobileSwipeDirection) => (() => void) | undefined,
+  dragFor?: (direction: MobileSwipeDirection) => MobileSwipeDrag | undefined,
 ): () => void {
   const view = root.ownerDocument.defaultView!;
-  let gesture: { id: number; x: number; y: number; claimed: boolean; navigated: boolean } | undefined;
+  let gesture: { id: number; x: number; y: number; claimed: boolean; navigated: boolean; drag?: MobileSwipeDrag; sample: { x: number; t: number }; velocity: number } | undefined;
   let suppressClickUntil = 0;
-  const cancel = (): void => { gesture = undefined; };
+  const cancel = (): void => {
+    gesture?.drag?.cancel();
+    gesture = undefined;
+  };
   const start = (event: TouchEvent): void => {
     cancel();
     if (event.touches.length !== 1 || !(event.target instanceof Node) || !root.contains(event.target)) return;
@@ -23,7 +37,7 @@ export function observeMobileSwipe(
     suppressClickUntil = 0;
     if (!navigationFor(-1) && !navigationFor(1)) return;
     const touch = event.touches[0]!;
-    gesture = { id: touch.identifier, x: touch.screenX, y: touch.screenY, claimed: false, navigated: false };
+    gesture = { id: touch.identifier, x: touch.screenX, y: touch.screenY, claimed: false, navigated: false, sample: { x: touch.screenX, t: event.timeStamp }, velocity: 0 };
   };
   const advance = (event: TouchEvent, touch: Touch | undefined): void => {
     const current = gesture;
@@ -38,10 +52,20 @@ export function observeMobileSwipe(
       if (horizontal <= vertical * swipeAxisBias) return;
       if (!navigationFor(dx < 0 ? 1 : -1) || !event.cancelable) { cancel(); return; }
       current.claimed = true;
+      current.drag = dragFor?.(dx < 0 ? 1 : -1);
     }
     if (event.cancelable) event.preventDefault();
     event.stopImmediatePropagation();
     suppressClickUntil = Date.now() + 400;
+    // Only movement updates the speed: touchend usually repeats the last position.
+    if (touch.screenX !== current.sample.x && event.timeStamp > current.sample.t) {
+      current.velocity = (touch.screenX - current.sample.x) / (event.timeStamp - current.sample.t);
+      current.sample = { x: touch.screenX, t: event.timeStamp };
+    }
+    if (current.drag) {
+      current.drag.move(dx);
+      return;
+    }
     if (!current.navigated && horizontal >= swipeNavigationDistance && horizontal > vertical * swipeAxisBias) {
       const navigate = navigationFor(dx < 0 ? 1 : -1);
       if (navigate) {
@@ -58,6 +82,15 @@ export function observeMobileSwipe(
   const finish = (event: TouchEvent): void => {
     // A quick flick's last movement can arrive with touchend instead of touchmove.
     if (event.touches.length === 0) advance(event, event.changedTouches[0]);
+    const drag = event.touches.length === 0 ? gesture?.drag : undefined;
+    if (drag) {
+      const current = gesture!;
+      gesture = undefined;
+      // Lifting after a pause is a release, not a flick.
+      const velocity = event.timeStamp - current.sample.t > flickReleaseWindow ? 0 : current.velocity;
+      drag.end(event.changedTouches[0]!.screenX - current.x, velocity);
+      return;
+    }
     cancel();
   };
   const click = (event: MouseEvent): void => {
