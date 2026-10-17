@@ -15,6 +15,7 @@
     "@agents-in-the-cloud/shared": "workspace:*",
     "@agents-in-the-cloud/workspace-image": "workspace:*",
     "typebox": "^1.0.57",
-    "@agents-in-the-cloud/design-system": "workspace:*"
+    "@agents-in-the-cloud/design-system": "workspace:*",
+    "@agents-in-the-cloud/git-hosting": "workspace:*"
   }
 }

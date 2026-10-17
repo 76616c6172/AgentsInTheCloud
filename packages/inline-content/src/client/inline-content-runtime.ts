@@ -30,9 +30,14 @@ class RuntimeController extends Controller {
   private resize = new ResizeObserver(() => this.report());
   private mutations = new MutationObserver(() => this.observe());
   private scheduled = 0;
+  private touchY?: number;
   connect(): void {
     window.addEventListener("message", this.handshake);
     document.addEventListener("click", this.link);
+    window.addEventListener("wheel", this.wheel, { passive: true });
+    window.addEventListener("touchstart", this.touchStart, { passive: true });
+    window.addEventListener("touchmove", this.touchMove, { passive: true });
+    window.addEventListener("keydown", this.keydown);
     window.addEventListener("error", this.error);
     window.addEventListener("unhandledrejection", this.rejection);
     document.addEventListener("inline-content:interaction-error", this.sendError);
@@ -43,6 +48,10 @@ class RuntimeController extends Controller {
   disconnect(): void {
     window.removeEventListener("message", this.handshake);
     document.removeEventListener("click", this.link);
+    window.removeEventListener("wheel", this.wheel);
+    window.removeEventListener("touchstart", this.touchStart);
+    window.removeEventListener("touchmove", this.touchMove);
+    window.removeEventListener("keydown", this.keydown);
     window.removeEventListener("error", this.error);
     window.removeEventListener("unhandledrejection", this.rejection);
     document.removeEventListener("inline-content:interaction-error", this.sendError);
@@ -83,6 +92,30 @@ class RuntimeController extends Controller {
     if (href.startsWith("#")) return;
     event.preventDefault();
     if (event.isTrusted && /^https?:\/\//i.test(href)) this.port?.postMessage({ type: "link", href });
+  };
+  // Scrolling and keys over the frame never reach the host. It needs upward
+  // scrolling to stop following the transcript, and keys for its shortcuts.
+  private wheel = (event: WheelEvent): void => {
+    // Ctrl+wheel is pinch zoom.
+    if (event.deltaY !== 0 && !event.ctrlKey) this.port?.postMessage({ type: "scroll", deltaY: event.deltaY });
+  };
+  // Screen coordinates: the frame moves under the finger while the host scrolls.
+  private touchStart = (event: TouchEvent): void => { this.touchY = event.touches.length === 1 ? event.touches[0]!.screenY : undefined; };
+  private touchMove = (event: TouchEvent): void => {
+    if (this.touchY === undefined || event.touches.length !== 1) { this.touchY = undefined; return; }
+    const y = event.touches[0]!.screenY;
+    if (Math.abs(y - this.touchY) < 4) return;
+    this.port?.postMessage({ type: "scroll", deltaY: this.touchY - y });
+    this.touchY = y;
+  };
+  // Keys the visual handled or typed into its fields stay here. Lone modifiers
+  // too: the host would hold its shortcut overlay open without their keyup.
+  private keydown = (event: KeyboardEvent): void => {
+    const target = event.target;
+    if (event.defaultPrevented || ["Alt", "Control", "Meta", "Shift"].includes(event.key)) return;
+    if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select"))) return;
+    const { key, code, altKey, ctrlKey, metaKey, shiftKey, repeat } = event;
+    this.port?.postMessage({ type: "keydown", key, code, altKey, ctrlKey, metaKey, shiftKey, repeat });
   };
   private sendError = (): void => {
     if (pendingError) this.port?.postMessage({ type: "error", message: pendingError });

@@ -14,10 +14,14 @@ class LiveSurfaceController extends Controller<HTMLElement> {
   declare workValue: string;
   private subscription?: CableSubscription;
   private pending?: ReturnType<typeof Promise.withResolvers<void>>;
+  private selectedAgent = "";
+  private selectedWork = "";
   ready = false;
 
   connect(): void {
     mounts.set(this.element, this);
+    this.selectedAgent = this.agentValue;
+    this.selectedWork = this.workValue;
     if (this.eagerValue) void this.ensureReady();
   }
 
@@ -40,9 +44,20 @@ class LiveSurfaceController extends Controller<HTMLElement> {
   }
 
   select(agent: string, work: string): void {
-    if (this.kindValue !== "workspace" || (this.agentValue === agent && this.workValue === work)) return;
+    if (this.kindValue !== "workspace" || (this.selectedAgent === agent && this.selectedWork === work)) return;
+    // An empty value subscribes to the workspace's default, which may already be the choice.
+    const presentation = this.element.querySelector<HTMLElement>("[data-workspace-initial-agent]");
+    const continues = (value: string, initial: string | undefined, chosen: string) => value === chosen || (value === "" && initial === chosen);
+    if (this.subscription && continues(this.agentValue, presentation?.dataset.workspaceInitialAgent, agent)
+      && continues(this.workValue, presentation?.dataset.workspaceInitialWork, work)) {
+      this.selectedAgent = agent;
+      this.selectedWork = work;
+      return;
+    }
     this.agentValue = agent;
     this.workValue = work;
+    this.selectedAgent = agent;
+    this.selectedWork = work;
     if (!this.subscription) return;
     this.stop();
     void this.ensureReady();
@@ -57,6 +72,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
       ? CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue, agent: this.agentValue, work: this.workValue })
       : CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue });
     this.subscription = window.AgentsInTheCloudCable!.subscribe(identifier, {
+      shownIn: this.element,
       onReady: () => {
         this.ready = true;
         this.pending?.resolve();
@@ -70,8 +86,15 @@ class LiveSurfaceController extends Controller<HTMLElement> {
         this.pending = undefined;
         this.subscription = undefined;
         this.ready = false;
-        pending?.reject(new Error(reason));
         subscription?.unsubscribe();
+        if (this.kindValue === "workspace" && /^workspace (?:not found|not in registry):/.test(reason)) {
+          const workspaceId = this.workspaceValue;
+          pending?.resolve();
+          this.element.remove();
+          document.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-removed", { detail: { workspaceId } }));
+          return;
+        }
+        pending?.reject(new Error(reason));
       },
     });
     return pending.promise;

@@ -48,10 +48,10 @@ export async function copyTextToClipboard(text: string): Promise<void> {
 }
 
 export function looksLikeWorkspaceTemplateSpec(value: string): boolean {
-  return /^(https?:\/\/|git@|ssh:\/\/|\/|\.\/|\.\.\/|[A-Za-z]:\\|github\.com\/)/i.test(value.trim());
+  return /^(https?:\/\/|git@|ssh:\/\/|\/|\.\/|\.\.\/|[A-Za-z]:\\|(github\.com|gitlab\.com|bitbucket\.org)\/)/i.test(value.trim());
 }
 
-export function shouldSearchGitHubRepositories(query: string): boolean {
+export function shouldSearchRepositories(query: string): boolean {
   const trimmed = query.trim();
   return trimmed.length >= 2 && !looksLikeWorkspaceTemplateSpec(trimmed);
 }
@@ -86,10 +86,18 @@ export interface WorkspaceAgentTabSummary {
   untitled?: boolean;
 }
 
+/** An Agent's pane. The workspace publishes only its shell; the Agent's own live
+ * presentation publishes the content, which a page places into the shell's mounts.
+ * Regions render on demand: only a page render needs them. */
+export interface WorkspaceAgentPane {
+  html: string;
+  live?: { regions(): readonly import("./live-presentation.ts").LiveRegion[]; subscriberId: string };
+}
+
 /** Durable Agent-tab seam: cheap shell metadata plus on-demand body rendering. */
 export interface WorkspaceAgentTabProvider {
   list(context: { workspaceId: string }): Promise<readonly WorkspaceAgentTabSummary[]>;
-  render(context: { workspaceId: string; agentId: string }): Promise<string>;
+  render(context: { workspaceId: string; agentId: string }): Promise<WorkspaceAgentPane>;
   close(context: { workspaceId: string; agentId: string }): Promise<void>;
 }
 
@@ -390,6 +398,11 @@ export const mobileComposerMediaQuery = "(max-width: 700px)";
 export const agentComposerSendPromptEvent = "agent-composer:send-prompt";
 export interface AgentComposerSendPromptDetail { text: string }
 
+/** Scrolling over an embedded frame, which never reaches this document. A
+ * synthetic wheel event would do, but iOS Chrome scrolls for those. */
+export const frameScrollEvent = "agents-in-the-cloud:frame-scroll";
+export interface FrameScrollDetail { deltaY: number }
+
 /** Enter inserts a newline everywhere; only ⌘↩ (Ctrl+↩ on Windows and Linux) sends. */
 export function composerSubmitKey(event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey">): boolean {
   return event.key === "Enter" && (event.metaKey || event.ctrlKey);
@@ -541,4 +554,4 @@ export interface WorkspaceAgentType {
   launch: WorkspaceAgentLaunch;
 }
 
-export { createLivePresentation, createPublishedRefresh, liveCollection, type LiveRegion, type LiveSubscription } from "./live-presentation.ts";
+export { createLivePresentation, createPublishedRefresh, liveCollection, liveRegionDigestsSchema, liveShownAttribute, placeLiveRegions, type LiveRegion, type LiveRegionDigests, type LiveSubscription } from "./live-presentation.ts";

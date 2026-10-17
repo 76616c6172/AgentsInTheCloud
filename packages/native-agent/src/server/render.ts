@@ -1,5 +1,5 @@
 import { parseModelRef } from "@agents-in-the-cloud/llm/server";
-import { renderTranscript } from "@agents-in-the-cloud/agent/server/render-transcript";
+import { renderLazyTranscriptEntry, renderTranscript } from "@agents-in-the-cloud/agent/server/render-transcript";
 import { ids, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
 import type { TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderAgentPane, renderAgentPaneComposerFooter, renderPromptActions, type AgentStatsView } from "@agents-in-the-cloud/builtin-agent/server/render-composer";
@@ -15,7 +15,7 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
   stats(runtime: Runtime): AgentStatsView;
 }) {
   function renderContext(runtime: Runtime): AgentRenderContext {
-    return { workspaceId: runtime.workspaceId, agentId: runtime.agentId, inlineWorkingItems: true, model: runtime.record.model ? parseModelRef(runtime.record.model) : undefined, transcriptBasePath: `/workspaces/${encodeURIComponent(runtime.workspaceId)}/${options.routeSegment}/${encodeURIComponent(runtime.agentId)}` };
+    return { workspaceId: runtime.workspaceId, agentId: runtime.agentId, inlineWorkingItems: true, lazyCompletedWorkingItems: true, model: runtime.record.model ? parseModelRef(runtime.record.model) : undefined, transcriptBasePath: `/workspaces/${encodeURIComponent(runtime.workspaceId)}/${options.routeSegment}/${encodeURIComponent(runtime.agentId)}` };
   }
   function transcriptItems(runtime: Runtime): TranscriptItem[] {
     return [
@@ -25,7 +25,9 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
     ];
   }
   function transcriptHtml(runtime: Runtime) {
-    return renderTranscript(renderContext(runtime), transcriptItems(runtime), { systemPrompt: runtime.instructions, tools: [] });
+    const ctx = renderContext(runtime);
+    // A harness may still be connecting; its prompt loads when the entry opens, so connecting doesn't change the transcript.
+    return renderLazyTranscriptEntry(ctx, "system-prompt", "System prompt") + renderTranscript(ctx, transcriptItems(runtime), { systemPrompt: "", tools: [] });
   }
   function liveRegions(runtime: Runtime): LiveRegion[] {
     const ctx = renderContext(runtime);
@@ -38,8 +40,7 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
   }
   async function paneHtml(runtime: Runtime) {
     await runtime.refreshCompletionCatalog();
-    const ctx = renderContext(runtime);
-    return renderAgentPane(ctx, { agentId: runtime.agentId }, { transcriptHtml: transcriptHtml(runtime), busy: runtime.isBusy, stats: options.stats(runtime) }, runtime.completionCatalog, { moduleChannel: options.channelName, notifications: false, subagents: false, initialPromptDraft: false });
+    return renderAgentPane(renderContext(runtime), { agentId: runtime.agentId }, { regions: () => liveRegions(runtime) }, { moduleChannel: options.channelName, notifications: false, subagents: false, initialPromptDraft: false });
   }
   return { channelName: options.channelName, routeSegment: options.routeSegment, renderContext, transcriptItems, liveRegions, paneHtml };
 }

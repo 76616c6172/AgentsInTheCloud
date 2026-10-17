@@ -4,7 +4,8 @@ import { createHash } from "node:crypto";
 import { chmod, mkdir, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { clearGitHubToken, createAgentsInTheCloudEventBus, setGitHubToken } from "@agents-in-the-cloud/core";
+import { createAgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { clearGitHostingCredential, gitHostingProvider, gitHostingProviders, saveGitHostingCredential } from "@agents-in-the-cloud/git-hosting";
 import { addWorkspaceTemplate, createWorkspaceTemplateSshKey, deleteWorkspaceTemplateSshKey, setWorkspaceTemplateSeedConfigEnabled, setWorkspaceTemplatePrivileged, type GitWorkspaceTemplateInitInstruction } from "@agents-in-the-cloud/workspace-templates";
 import { prepareWorkspaceSource, registerWorkspaceTemplateWorkspaceInitEvents } from "../src/workspace-source.ts";
 import type { WorkspaceDockerPlan } from "@agents-in-the-cloud/workspace";
@@ -68,7 +69,7 @@ describe("workspace source preparation", () => {
 
   afterEach(async () => {
     await stopWorkspaceTemplateSshAgents();
-    clearGitHubToken();
+    for (const provider of gitHostingProviders) clearGitHostingCredential(provider);
     if (previousDataDir === undefined) delete process.env.ATELIER_DATA_DIR;
     else process.env.ATELIER_DATA_DIR = previousDataDir;
     if (previousGitHubToken === undefined) delete process.env.GH_TOKEN;
@@ -171,7 +172,7 @@ describe("workspace source preparation", () => {
     expect(await Bun.file(join(source.worktreePath, ".git", "objects", "info", "alternates")).exists()).toBe(false);
   });
 
-  test("applies the stored GitHub token to host-side git commands before container creation", async () => {
+  test("applies stored git hosting tokens to host-side git commands before container creation", async () => {
     const fixture = await createRemote();
     tempRoots.push(fixture.root);
     const realGit = (await run(["which", "git"])).stdout.trim();
@@ -179,11 +180,13 @@ describe("workspace source preparation", () => {
     tempRoots.push(fakeBin);
     const tokenLog = join(fakeBin, "tokens.log");
     const fakeGit = join(fakeBin, "git");
-    await writeFile(fakeGit, `#!/bin/sh\nprintf '%s\\n' "\${GH_TOKEN-}" >> ${JSON.stringify(tokenLog)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
+    await writeFile(fakeGit, `#!/bin/sh\nprintf '%s\\n' "\${GH_TOKEN-} \${GITLAB_TOKEN-} \${BITBUCKET_API_TOKEN-}" >> ${JSON.stringify(tokenLog)}\nexec ${JSON.stringify(realGit)} "$@"\n`);
     await chmod(fakeGit, 0o755);
     const previousPath = process.env.PATH;
     process.env.PATH = `${fakeBin}:${previousPath ?? ""}`;
-    setGitHubToken("stored-token");
+    saveGitHostingCredential(gitHostingProvider("github"), { token: "github-token" });
+    saveGitHostingCredential(gitHostingProvider("gitlab"), { token: "gitlab-token" });
+    saveGitHostingCredential(gitHostingProvider("bitbucket"), { token: "bitbucket-token", account: "me@example.com" });
     try {
       await prepareWorkspaceSource({ workspaceId: "ws-token", gitUrl: fixture.remote, branch: "main" });
     } finally {
@@ -193,7 +196,7 @@ describe("workspace source preparation", () => {
 
     const tokens = (await Bun.file(tokenLog).text()).trim().split("\n");
     expect(tokens.length).toBeGreaterThan(0);
-    expect(tokens.every((token) => token === "stored-token")).toBe(true);
+    expect(tokens.every((token) => token === "github-token gitlab-token bitbucket-token")).toBe(true);
   });
 
   test("initializes nested submodules recursively in the reusable template and workspace", async () => {

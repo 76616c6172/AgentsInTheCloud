@@ -31,6 +31,7 @@
         "@agents-in-the-cloud/design-system": "workspace:*",
         "@agents-in-the-cloud/desktop": "workspace:*",
         "@agents-in-the-cloud/files": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/host": "workspace:*",
         "@agents-in-the-cloud/inline-content": "workspace:*",
         "@agents-in-the-cloud/llm": "workspace:*",
@@ -83,6 +84,13 @@
         "@agents-in-the-cloud/shared": "workspace:*",
       },
     },
+    "packages/bitbucket": {
+      "name": "@agents-in-the-cloud/bitbucket",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
     "packages/browser": {
       "name": "@agents-in-the-cloud/browser",
       "dependencies": {
@@ -111,6 +119,7 @@
         "@agents-in-the-cloud/workspace-templates": "workspace:*",
         "@earendil-works/chord": "catalog:",
         "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-codemode": "catalog:",
         "@earendil-works/pi-coding-agent": "catalog:",
         "@earendil-works/pi-durable": "catalog:",
         "proper-lockfile": "4.1.2",
@@ -264,6 +273,29 @@
         "typebox": "^1.0.57",
       },
     },
+    "packages/git-hosting": {
+      "name": "@agents-in-the-cloud/git-hosting",
+      "dependencies": {
+        "@agents-in-the-cloud/bitbucket": "workspace:*",
+        "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/github": "workspace:*",
+        "@agents-in-the-cloud/gitlab": "workspace:*",
+      },
+    },
+    "packages/github": {
+      "name": "@agents-in-the-cloud/github",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/gitlab": {
+      "name": "@agents-in-the-cloud/gitlab",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
     "packages/host": {
       "name": "@agents-in-the-cloud/host",
       "dependencies": {
@@ -379,6 +411,7 @@
       "name": "@agents-in-the-cloud/proxy-egress",
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/host": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
@@ -464,6 +497,7 @@
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
         "@agents-in-the-cloud/design-system": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/observable-terminal": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace-image": "workspace:*",
@@ -483,6 +517,7 @@
       "name": "@agents-in-the-cloud/workspace-templates",
       "dependencies": {
         "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/git-hosting": "workspace:*",
         "@agents-in-the-cloud/observable-terminal": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
@@ -508,6 +543,7 @@
   "catalog": {
     "@earendil-works/chord": "1.2.0",
     "@earendil-works/pi-ai": "1.2.0",
+    "@earendil-works/pi-codemode": "1.2.0",
     "@earendil-works/pi-coding-agent": "1.2.0",
     "@earendil-works/pi-durable": "1.2.0",
     "@gespenst/core": "0.1.1",
@@ -516,6 +552,8 @@
     "@agents-in-the-cloud/agent": ["@agents-in-the-cloud/agent@workspace:packages/agent"],
 
     "@agents-in-the-cloud/artifact-preview": ["@agents-in-the-cloud/artifact-preview@workspace:packages/artifact-preview"],
+
+    "@agents-in-the-cloud/bitbucket": ["@agents-in-the-cloud/bitbucket@workspace:packages/bitbucket"],
 
     "@agents-in-the-cloud/browser": ["@agents-in-the-cloud/browser@workspace:packages/browser"],
 
@@ -540,6 +578,12 @@
     "@agents-in-the-cloud/desktop": ["@agents-in-the-cloud/desktop@workspace:packages/desktop"],
 
     "@agents-in-the-cloud/files": ["@agents-in-the-cloud/files@workspace:packages/files"],
+
+    "@agents-in-the-cloud/git-hosting": ["@agents-in-the-cloud/git-hosting@workspace:packages/git-hosting"],
+
+    "@agents-in-the-cloud/github": ["@agents-in-the-cloud/github@workspace:packages/github"],
+
+    "@agents-in-the-cloud/gitlab": ["@agents-in-the-cloud/gitlab@workspace:packages/gitlab"],
 
     "@agents-in-the-cloud/host": ["@agents-in-the-cloud/host@workspace:packages/host"],
 

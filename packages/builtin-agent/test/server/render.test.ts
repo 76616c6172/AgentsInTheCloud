@@ -1,12 +1,14 @@
 import { describe, expect, test } from "bun:test";
+import { placeLiveRegions } from "@agents-in-the-cloud/shared";
 import { renderAgentPane, renderPromptActions } from "../../src/server/render-composer.ts";
 import { renderTranscript, renderTranscriptItem, renderTranscriptItemDetailFrame } from "@agents-in-the-cloud/agent/server/render-transcript";
-import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
+import { ids, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
 import type { ToolView, TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 
 const ctx: AgentRenderContext = { workspaceId: "ws", agentId: "00000000-0000-4000-8000-000000000001" };
 const agent = { workspaceId: "ws", agentId: "00000000-0000-4000-8000-000000000001", label: "agent", title: "Agent", path: "/tmp/agent.jsonl" };
 const ctxPrefix = `ag_ws_${agent.agentId}`;
+const paneRegions = () => [ids.transcript(ctx), ids.actions(ctx), ids.stats(ctx), ids.completionCatalog(ctx)].map(target => ({ target, html: "" }));
 const tool = (overrides: Partial<ToolView>): ToolView => ({ callId: "call", name: "read", args: {}, status: "ok", ...overrides });
 const renderBash = (command: string, overrides: Partial<ToolView> = {}): string => renderTranscriptItemDetailFrame(ctx, { type: "tool", key: "bash", tool: tool({ name: "bash", args: { command }, ...overrides }) });
 const firstEditModel = (html: string): Array<{ name: string; hunks: Array<{ collapsedBefore?: number; additionLines: number; deletionLines: number; hunkContent: Array<{ type: string; lines?: number }> }> }> => {
@@ -16,11 +18,24 @@ const firstEditModel = (html: string): Array<{ name: string; hunks: Array<{ coll
 
 describe("transcript rendering", () => {
   test("server-rendered panes and routes use immutable conversation identity", async () => {
-    const stats = { contextPercent: null, compactAvailable: false, inputTokens: 0, outputTokens: 0, cost: 0, modelName: undefined, thinkingLevel: "off", thinkingLevels: [], models: [] };
-    const html = await renderAgentPane(ctx, agent, { transcriptHtml: "", busy: false, stats });
+    const { html } = await renderAgentPane(ctx, agent, { regions: paneRegions });
     expect(html).toContain(`data-agent-pane-agent-id-value="${agent.agentId}"`);
     expect(html).toContain(`/agents/${agent.agentId}/messages`);
     expect(html).not.toContain("data-agent-pane-label-value");
+  });
+
+  test("a pane is a shell; its controller's channel owns the content placed into its mounts", async () => {
+    const regions = [{ target: ids.transcript(ctx), html: "<p>Settled prompt</p>" }, ...paneRegions().filter(region => region.target !== ids.transcript(ctx))];
+    let rendered = 0;
+    const pane = await renderAgentPane(ctx, agent, { regions: () => { rendered++; return regions; } });
+    expect(pane.html).not.toContain("Settled prompt");
+    // Only a page render needs the live content.
+    expect(rendered).toBe(0);
+    expect(pane.live!.subscriberId).toBe(ids.pane(ctx));
+    const placed = placeLiveRegions(pane.html, pane.live!.regions(), pane.live!.subscriberId);
+    expect(placed).toContain("<p>Settled prompt</p>");
+    expect(placed).toContain(`id="${ids.pane(ctx)}"`);
+    expect(placed).toContain("data-live-shown=");
   });
 
   test("busy composers expose an actionable indeterminate stop button", () => {
@@ -47,6 +62,20 @@ describe("transcript rendering", () => {
   test("completed activity with no items is omitted", () => {
     const html = renderTranscriptItem(ctx, { type: "working", key: "worked", startedAt: 1000, completedAt: 3500, items: [] });
     expect(html).toBe("");
+  });
+
+  test("native completed activity loads its details only when opened", () => {
+    const nativeCtx: AgentRenderContext = { ...ctx, inlineWorkingItems: true, lazyCompletedWorkingItems: true, transcriptBasePath: "/workspaces/ws/codex-agents/agent" };
+    const item: TranscriptItem = { type: "working", key: "worked", startedAt: 1000, completedAt: 3500, items: [{ type: "thinking", key: "thought", text: "large historical detail" }] };
+    const html = renderTranscriptItem(nativeCtx, item);
+    expect(html).toContain('data-controller="agent-lazy-detail"');
+    expect(html).toContain('data-agent-lazy-detail-target="frame"');
+    expect(html).toContain('data-src="/workspaces/ws/codex-agents/agent/transcript-items/worked"');
+    expect(html).not.toContain("large historical detail");
+
+    const active = renderTranscriptItem(nativeCtx, { ...item, completedAt: undefined });
+    expect(active).toContain("large historical detail");
+    expect(active).not.toContain('data-controller="agent-lazy-detail"');
   });
 
   test("live assistant text uses stable and mutable server-rendered Markdown targets", () => {

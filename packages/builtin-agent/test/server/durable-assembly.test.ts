@@ -27,7 +27,7 @@ const resources = {
   thinking: async () => ({ levels: ["off" as const, "medium" as const, "high" as const], selected: "medium" as const }),
 };
 
-test("native registry includes registered controls and receipt tasks, but no live delegation", () => {
+test("native registry includes registered controls, code mode, and receipt tasks, but no live delegation", () => {
   const unregister = registerWorkspaceAgentTool("assembly-control", () => defineWorkspaceTool({
     name: "assembly-control", label: "Control", description: "Test control", parameters: Type.Object({}),
     async execute() { return { content: [{ type: "text", text: "done" }], details: undefined }; },
@@ -35,7 +35,7 @@ test("native registry includes registered controls and receipt tasks, but no liv
   try {
     const registry = createDurableWorkspaceRegistry("assembly-workspace", createModels());
     const tools = registry.snapshot().tools().map(({ tool }) => tool);
-    expect(tools.map((tool) => tool.name).sort()).toEqual(["assembly-control", "bash", "edit", "read", "write"]);
+    expect(tools.map((tool) => tool.name).sort()).toEqual(["assembly-control", "bash", "codemode", "edit", "pi.codemode.models.classify", "pi.codemode.models.generateImages", "read", "write"]);
     expect(tools.find((tool) => tool.name === "read")?.replay).toBe("safe");
     expect(tools.find((tool) => tool.name === "assembly-control")?.replay).toBe("unsafe");
     expect(registry.snapshot().task("agents-in-the-cloud.bash-operation")).toBeDefined();

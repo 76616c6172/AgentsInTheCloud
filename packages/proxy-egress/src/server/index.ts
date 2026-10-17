@@ -18,11 +18,7 @@ export {
   registerWorkspaceSubscriptionSecrets,
   registerWorkspaceRequestTransform,
   registerWorkspaceResponseTransform,
-  clearGitHubToken,
   createWorkspaceSecretContext,
-  discoverGitHubToken,
-  hasGitHubToken,
-  setGitHubToken,
 } from "../secrets/workspace-secrets.ts";
 export { HttpRequestBlockedError } from "../secrets/errors.ts";
 

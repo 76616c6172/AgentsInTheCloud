@@ -67,7 +67,7 @@ const workspaceStartupOperations = {
   imageOutdated: (id: string) => workspaceImageOutdated(id, undefined, agentsInTheCloudEvents),
   get provisioning() { return app.provisioning; },
 };
-const cableServer = createCableServer({ registry, channels: [...workspaceModules.flatMap((module) => module.cableChannels ?? []), { name: "surface", subscribe: (identifier, listener) => app.subscribeSurface(identifier, listener) }, { name: "shell", subscribe: (_identifier, listener) => app.subscribeShell(listener) }], events: agentsInTheCloudEvents });
+const cableServer = createCableServer({ registry, channels: [...workspaceModules.flatMap((module) => module.cableChannels ?? []), { name: "surface", subscribe: (identifier, listener, _events, shown) => app.subscribeSurface(identifier, listener, shown) }, { name: "shell", subscribe: (_identifier, listener) => app.subscribeShell(listener) }], events: agentsInTheCloudEvents });
 
 app = createWebApp({
   registry,
@@ -341,6 +341,7 @@ const server = Bun.serve<SocketData>({
     return await compressDynamicResponse(request, await app.fetch(request));
   },
   websocket: {
+    perMessageDeflate: true,
     open(ws) {
       if (ws.data.kind === "cable") cableServer.open(ws, ws.data);
       else if (ws.data.kind === "provision-term") openProvisionTermSocket(ws, ws.data);

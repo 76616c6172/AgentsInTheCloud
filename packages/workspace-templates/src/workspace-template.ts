@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 import { acquireFileLock, AgentsInTheCloudCoreError, getAgentsInTheCloudRuntimeContext, isNotFoundError, writeJsonAtomic } from "@agents-in-the-cloud/core";
+import { gitHostingShorthandUrl } from "@agents-in-the-cloud/git-hosting";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import type { WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
@@ -157,7 +158,7 @@ export function parseWorkspaceTemplateSpec(spec: string): { gitUrl: string; bran
   const trimmed = spec.trim();
   if (!trimmed) throw new AgentsInTheCloudCoreError("invalid_git_url", "git url is required");
 
-  const normalized = /^github\.com\//i.test(trimmed) ? `https://${trimmed}` : trimmed;
+  const normalized = gitHostingShorthandUrl(trimmed) ?? trimmed;
   const [gitUrl, branch] = normalized.split(/#(.+)/, 2).map((part) => part.trim());
   return gitUrl && branch ? { gitUrl, branch } : { gitUrl: normalized, branch: null };
 }

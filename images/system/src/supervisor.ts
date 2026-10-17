@@ -9,7 +9,7 @@ import { PullProgress } from "./pull-progress.ts";
 import { prepareChannelUpdate } from "./channel-update.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { installWorkspaceFirewall, resolverAddresses, setPrivateNetworkAccess } from "./firewall.ts";
+import { installWorkspaceFirewall, resolverAddresses, setPrivateNetworkAccess, tailscaleResolvers } from "./firewall.ts";
 import { assertAppCompatible } from "./app-compatibility.ts";
 import { systemVersion } from "../../../packages/shared/src/system-version.ts";
 import { appRepository } from "../../../packages/shared/src/publishing.ts";
@@ -684,7 +684,7 @@ async function initialize() {
   resources = await initializeResources();
   await startHostService({ root: dirname(dirname(resources.commandsCgroup)), effectiveMemory: resources.effectiveMemory, privateNetworkAccess: setPrivateNetworkAccess });
   await chown(hostSocketPath, 1000, 1000);
-  await installWorkspaceFirewall(resources.buildClientsCgroupParent, resolverAddresses(await readFile("/etc/resolv.conf", "utf8")));
+  await installWorkspaceFirewall(resources.buildClientsCgroupParent, [...resolverAddresses(await readFile("/etc/resolv.conf", "utf8")), ...tailscaleResolvers]);
   // Privileged containers only copy device nodes the host /dev already has; some
   // VMs lack loop-control until first use. Opening it autoloads the loop driver.
   if (!existsSync("/dev/loop-control")) await command(["mknod", "-m", "0660", "/dev/loop-control", "c", "10", "237"]);

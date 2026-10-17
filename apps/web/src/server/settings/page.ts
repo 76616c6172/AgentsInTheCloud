@@ -8,7 +8,7 @@ import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { createPiModelRuntime, modelsDialogId, popularProviderIds, setEnabledModels } from "@agents-in-the-cloud/llm/server";
 import { invalidArguments } from "@agents-in-the-cloud/core";
 import { errorMessage, escapeHtml, providerBadgeHtml } from "@agents-in-the-cloud/shared";
-import { clearGitHubToken } from "@agents-in-the-cloud/proxy-egress";
+import { clearGitHostingCredential, gitHostingProviders } from "@agents-in-the-cloud/git-hosting";
 import { agentsInTheCloudUrl } from "@agents-in-the-cloud/proxy-ingress";
 import { clearCommitIdentity, getStoredCommitIdentity, setCommitIdentity } from "@agents-in-the-cloud/workspace-templates";
 import { agentsInTheCloudUrlHtml } from "../agents-in-the-cloud-url.ts";
@@ -75,7 +75,7 @@ function renderResetSettings(): string {
   return `<div class="developer-tools-action">
     <div class="developer-tools-copy">
       <div>Stored settings</div>
-      <p>Delete the Commit identity, GitHub token, and model provider credentials stored by AgentsInTheCloud.</p>
+      <p>Delete the Commit identity, git hosting tokens, and model provider credentials stored by AgentsInTheCloud.</p>
     </div>
     <div class="developer-tools-control"><form method="post" action="/settings/reset" data-turbo="true">${confirmation}</form></div>
   </div>`;
@@ -127,7 +127,7 @@ export async function renderSettingsFrame(request: Request, sectionId?: string):
     bodyHtml: `<turbo-frame class="app-settings-section-frame" id="${sectionFrameId(id)}" src="/settings/sections/${id}" loading="lazy"><span role="status">Loading…</span></turbo-frame>`,
   });
   const content = `<div class="app-settings-overview">
-    ${take("theme", "commit-identity", "github", "update-channel", "update", "access")}
+    ${take("theme", "commit-identity", "git-hosting", "update-channel", "update", "access")}
     ${connectionModeManaged() ? "" : `<section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>AgentsInTheCloud URL</h2>${agentsInTheCloudUrlHtml(agentsInTheCloudUrl(request), "settings_agents_in_the_cloud_url_qr")}</section>`}
     ${take(...inline.keys())}
     <div class="app-settings-disclosures">${disclosure("models", "Models")}${disclosure(globalWorkspaceSettingsSectionId, "Global workspace settings that apply to all new workspaces")}${disclosure("host", "Host")}${disclosure("developer-tools", "Developer tools")}</div>
@@ -146,7 +146,7 @@ export async function renderDeveloperToolsSettings(request: Request): Promise<st
 
 async function deleteAllStoredSettings(): Promise<void> {
   await resetOnboarding();
-  clearGitHubToken();
+  for (const provider of gitHostingProviders) clearGitHostingCredential(provider);
   await clearCommitIdentity();
   await setEnabledModels([]);
   const runtime = await createPiModelRuntime();
