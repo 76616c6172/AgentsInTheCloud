@@ -2,8 +2,9 @@
 
 import type { TerminalBufferRow, TerminalTheme } from "@gespenst/core";
 import { copyTextToClipboard, errorMessage } from "@agents-in-the-cloud/shared";
-import { encodeObservableTerminalMessage, terminalSessionMissingCloseCode } from "../shared/index.ts";
+import { encodeObservableTerminalMessage } from "../shared/index.ts";
 import { terminalLinkAt, type TerminalLink } from "./links.ts";
+import { createTerminalConnection, type TerminalConnectionState } from "./connection.ts";
 
 declare const ATELIER_GHOSTTY_WASM_URL: string;
 declare const ATELIER_GHOSTTY_CALLBACKS_WASM_URL: string;
@@ -115,8 +116,6 @@ export interface ObservableTerminalViewer {
   setTheme(theme: ObservableTerminalTheme): void;
 }
 
-type TerminalConnectionState = "connecting" | "connected" | "reconnecting" | "unavailable" | "ended";
-
 /** Update the server-rendered status for any interactive terminal pane. */
 function setTerminalConnectionStatus(status: HTMLElement, state: TerminalConnectionState): void {
   status.hidden = state === "connected";
@@ -130,6 +129,8 @@ interface ObservableTerminalViewerOptions {
   host: HTMLElement;
   websocketUrl: string;
   mode: "interactive" | "fixed-readonly";
+  /** Attach while the renderer starts, only when the host's initial size is settled. */
+  connectBeforeRender?: boolean;
   cols?: number;
   rows?: number;
   fontSize?: number;
@@ -171,6 +172,7 @@ export function createObservableTerminalViewer(options: ObservableTerminalViewer
   let viewer: ObservableTerminalViewer | undefined;
   let disposed = false;
   let initializing = false;
+  let initialization: AbortController | undefined;
   let focusRequested = false;
   let historyCursorHidden = false;
   let theme = options.theme;
@@ -187,7 +189,8 @@ export function createObservableTerminalViewer(options: ObservableTerminalViewer
     mount.textContent = "";
     mount.classList.remove("observable-terminal-painted");
     const initialTheme = theme;
-    void initializeTerminalViewer({ ...options, theme: initialTheme, onConnectionStateChange: reportConnection }, mount, () => disposed).then((initialized) => {
+    initialization = new AbortController();
+    void initializeTerminalViewer({ ...options, theme: initialTheme, onConnectionStateChange: reportConnection }, mount, initialization.signal).then((initialized) => {
       if (disposed) { initialized?.dispose(); return; }
       viewer = initialized!;
       if (historyCursorHidden) viewer.setHistoryCursorHidden(true);
@@ -197,6 +200,7 @@ export function createObservableTerminalViewer(options: ObservableTerminalViewer
     // Browser/worker initialization can reject with arbitrary external values.
     // oxlint-disable-next-line anti-slop/no-unknown-parameters -- This is the final rendering boundary for browser initialization failures.
     }).catch((error: unknown) => {
+      initialization?.abort();
       viewer?.dispose();
       viewer = undefined;
       console.error("Terminal initialization failed", error);
@@ -221,19 +225,56 @@ export function createObservableTerminalViewer(options: ObservableTerminalViewer
     paste: (text) => viewer?.paste(text),
     pressEnter: () => viewer?.pressEnter(),
     setTheme: (value) => { theme = value; viewer?.setTheme(value); },
-    dispose: () => { disposed = true; viewer?.dispose(); viewer = undefined; mount.remove(); },
+    dispose: () => { disposed = true; initialization?.abort(); viewer?.dispose(); viewer = undefined; mount.remove(); },
   };
 }
 
-async function initializeTerminalViewer(options: ObservableTerminalViewerOptions, mount: HTMLElement, isDisposed: () => boolean): Promise<ObservableTerminalViewer | undefined> {
+async function initializeTerminalViewer(options: ObservableTerminalViewerOptions, mount: HTMLElement, signal: AbortSignal): Promise<ObservableTerminalViewer | undefined> {
   let theme = options.theme ?? DEFAULT_OBSERVABLE_TERMINAL_THEME;
   // Validate external configuration before acquiring a terminal/worker.
   const websocketUrl = new URL(options.websocketUrl);
   const fontSize = options.fontSize ?? (options.mode === "fixed-readonly" ? 11 : 13);
   const fontFamily = options.fontFamily ?? "JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace";
 
-  const { createTerminal, KeyModifiers, resolveTerminalTheme } = await import("@gespenst/core");
-  if (isDisposed()) return;
+  const { createTerminal, KeyModifiers, resolveTerminalTheme, preloadGhostty } = await import("@gespenst/core");
+  const size = { cols: options.cols ?? 80, rows: options.rows ?? 24 };
+  if (options.connectBeforeRender) {
+    await document.fonts.load(`400 ${fontSize}px ${fontFamily}`);
+    // Match Gespenst's default font geometry before starting its worker. Passing
+    // this grid to both sides avoids an initial 80×24 attach followed by a resize.
+    const scale = Math.max(1, globalThis.devicePixelRatio || 1);
+    const measure = document.createElement("canvas").getContext("2d")!;
+    measure.font = `400 ${fontSize}px ${fontFamily}`;
+    const cellWidth = Math.max(1, Math.round(measure.measureText("M").width * scale)) / scale;
+    const cellHeight = Math.max(1, Math.round(fontSize * 1.25 * scale)) / scale;
+    size.cols = Math.max(1, options.cols ?? Math.floor((mount.clientWidth || 80 * cellWidth) / cellWidth));
+    size.rows = Math.max(1, options.rows ?? Math.floor((mount.clientHeight || 24 * cellHeight) / cellHeight));
+  }
+  if (signal.aborted) return;
+  const pendingOutput: (string | Uint8Array)[] = [];
+  let receiveOutput = (data: string | Uint8Array): void => { pendingOutput.push(data); };
+  let applyEnded = (): void => {};
+  let rendererReady = false;
+  const connection = createTerminalConnection({
+    url: websocketUrl, interactive: options.mode === "interactive", size,
+    output: data => receiveOutput(data), onOutput: options.onOutput,
+    disconnectedMessage: options.disconnectedMessage, errorMessage: options.errorMessage,
+    state: state => {
+      if (state === "ended") applyEnded();
+      // Callers use "connected" to enable input; the renderer must be ready too.
+      if (state !== "connected" || rendererReady) options.onConnectionStateChange?.(state);
+    },
+  });
+  signal.addEventListener("abort", connection.dispose, { once: true });
+  if (options.connectBeforeRender) connection.reconnect();
+  // Work-view terminals reuse compiled code, never a live terminal or connection.
+  // Other callers retain renderer-first startup: their layout can still change
+  // as the renderer mounts (notably CLI agents switching transcript modes).
+  const [wasm, callbacksWasm] = options.connectBeforeRender ? await Promise.all([
+    preloadGhostty(ATELIER_GHOSTTY_WASM_URL),
+    preloadGhostty(ATELIER_GHOSTTY_CALLBACKS_WASM_URL),
+  ]) : [ATELIER_GHOSTTY_WASM_URL, ATELIER_GHOSTTY_CALLBACKS_WASM_URL];
+  if (signal.aborted) return;
   const term = await createTerminal({
     container: mount,
     fontSizePx: fontSize,
@@ -243,12 +284,12 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
     accessibility: "basic",
     worker: "dedicated",
     defaultCursorBlink: options.mode === "interactive",
-    wasm: ATELIER_GHOSTTY_WASM_URL,
-    callbacksWasm: ATELIER_GHOSTTY_CALLBACKS_WASM_URL,
-    cols: options.cols,
-    rows: options.rows,
+    wasm,
+    callbacksWasm,
+    cols: options.connectBeforeRender ? size.cols : options.cols,
+    rows: options.connectBeforeRender ? size.rows : options.rows,
   });
-  if (isDisposed()) { term.dispose(); return undefined; }
+  if (signal.aborted) { term.dispose(); return undefined; }
   try {
     const terminalInput = term.element.querySelector<HTMLTextAreaElement>(".gespenst__input");
     if (terminalInput && options.mode === "fixed-readonly") terminalInput.readOnly = true;
@@ -262,33 +303,11 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
       options.host.style.height = `${term.geometry.heightPx / devicePixelRatio}px`;
     }
 
-    let ws: WebSocket | undefined;
-    const disconnect = (): void => {
-      if (!ws) return;
-      ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
-      ws.close();
-      ws = undefined;
-    };
-    const sendInput = (data: string): void => {
-      if (ws?.readyState === WebSocket.OPEN) ws.send(data);
-    };
-    // Gespenst is patched to preserve its grid when a hidden host measures 0×0.
-    // Only measurable panes can change the PTY size: workspace selection itself
-    // must not resize tmux or make TUIs like Pi redraw their whole history.
-    let ptySize = { cols: term.geometry.cols, rows: term.geometry.rows };
-    // The size the server already has: the attach URL's, or the last one sent.
-    let sentSize = ptySize;
-    const measurePtySize = (): boolean => {
-      const { width, height } = term.element.getBoundingClientRect();
-      if (width && height) ptySize = { cols: term.geometry.cols, rows: term.geometry.rows };
-      return width > 0 && height > 0;
-    };
-    // Resizing makes tmux and its TUI redraw everything; only send real changes.
+    const sendInput = connection.send;
+    // Hidden hosts must not resize tmux or make TUIs redraw their history.
     const sendSize = (): void => {
-      if (!measurePtySize() || ws?.readyState !== WebSocket.OPEN) return;
-      if (ptySize.cols === sentSize.cols && ptySize.rows === sentSize.rows) return;
-      sentSize = ptySize;
-      ws.send(encodeObservableTerminalMessage({ type: "resize", ...ptySize }));
+      const { width, height } = term.element.getBoundingClientRect();
+      if (width && height) connection.resize({ cols: term.geometry.cols, rows: term.geometry.rows });
     };
     let awaitingFirstOutput = true;
     let disposed = false;
@@ -379,98 +398,13 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
         reportFailure("paint initial terminal output", error);
       });
     };
+    applyEnded = (): void => {
+      if (terminalInput) { terminalInput.readOnly = true; terminalInput.blur(); }
+      historyCursorHidden = true;
+      updateCursorVisibility();
+    };
+    if (connection.state === "ended") applyEnded();
     const inputDecoder = new TextDecoder();
-    const retryDelays = [100, 250, 500, 1000, 2000, 5000, 5000, 5000];
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-    let retryAttempts = 0;
-    let ended = false;
-    const interactive = options.mode === "interactive";
-    let suspended = interactive && document.hidden;
-    let hasConnected = false;
-    let openedAt = 0;
-    const status = (state: TerminalConnectionState): void => options.onConnectionStateChange?.(state);
-    const cancelRetry = (): void => { clearTimeout(retryTimer); retryTimer = undefined; };
-    const connect = (force = false): void => {
-      if (disposed || ended || (interactive && (suspended || document.hidden))) return;
-      if (!force && ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-      cancelRetry();
-      disconnect();
-      if (interactive) {
-        status(hasConnected || retryAttempts > 0 ? "reconnecting" : "connecting");
-        measurePtySize();
-        sentSize = ptySize;
-        websocketUrl.searchParams.set("cols", String(ptySize.cols));
-        websocketUrl.searchParams.set("rows", String(ptySize.rows));
-      }
-      openedAt = 0;
-      const socket = ws = new WebSocket(websocketUrl);
-      socket.binaryType = "arraybuffer";
-      const outputDecoder = new TextDecoder();
-      socket.onopen = () => {
-        openedAt = Date.now();
-        hasConnected = true;
-        if (interactive) sendSize();
-        status("connected");
-      };
-      socket.onmessage = (event: MessageEvent<string | ArrayBuffer>) => {
-        const data = event.data instanceof ArrayBuffer ? new Uint8Array(event.data) : event.data;
-        options.onOutput?.(data instanceof Uint8Array ? outputDecoder.decode(data, { stream: true }) : data);
-        writeOutput(data);
-      };
-      socket.onclose = (event) => {
-        if (ws !== socket || disposed) return;
-        ws = undefined;
-        if (event.code === terminalSessionMissingCloseCode) {
-          ended = true;
-          cancelRetry();
-          if (terminalInput) { terminalInput.readOnly = true; terminalInput.blur(); }
-          historyCursorHidden = true;
-          updateCursorVisibility();
-          status("ended");
-          return;
-        }
-        if (interactive) {
-          if (suspended || document.hidden) return;
-          // A failed attach can open and immediately close; do not count it as recovery.
-          if (openedAt && Date.now() - openedAt >= 10_000) retryAttempts = 0;
-          if (retryAttempts >= retryDelays.length) { status("unavailable"); return; }
-          status("reconnecting");
-          const delay = retryDelays[retryAttempts++]!;
-          retryTimer = setTimeout(() => { retryTimer = undefined; connect(); }, delay);
-        } else {
-          if (options.disconnectedMessage) writeOutput(options.disconnectedMessage);
-          status("unavailable");
-        }
-      };
-      socket.onerror = () => {
-        if (!interactive && options.errorMessage) writeOutput(options.errorMessage);
-      };
-    };
-    const suspend = (): void => {
-      if (!interactive || disposed || ended) return;
-      suspended = true;
-      cancelRetry();
-      disconnect();
-      status("reconnecting");
-    };
-    const resume = (): void => {
-      if (!interactive || disposed || document.hidden || !suspended) return;
-      suspended = false;
-      retryAttempts = 0;
-      connect(true);
-    };
-    const visibilityChanged = (): void => { if (document.hidden) suspend(); else resume(); };
-    const networkRestored = (): void => {
-      if (!interactive || disposed || document.hidden || suspended) return;
-      retryAttempts = 0;
-      connect(true);
-    };
-    if (interactive) {
-      document.addEventListener("visibilitychange", visibilityChanged);
-      window.addEventListener("pagehide", suspend);
-      window.addEventListener("pageshow", resume);
-      window.addEventListener("online", networkRestored);
-    }
     term.on("error", (error) => console.error("Gespenst terminal error", error));
     if (options.mode === "interactive") {
       term.on("clipboardWrite", ({ location, contents }) => {
@@ -551,9 +485,7 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
 
     if (options.mode === "interactive") {
       term.on("progress", ({ state, progress }) => {
-        if (ws?.readyState === WebSocket.OPEN) {
-          ws.send(encodeObservableTerminalMessage({ type: "progress", state: terminalProgressState[state], value: progress ?? undefined }));
-        }
+        connection.send(encodeObservableTerminalMessage({ type: "progress", state: terminalProgressState[state], value: progress ?? undefined }));
       });
       term.on("resize", sendSize);
       term.on("input", ({ data }) => {
@@ -562,10 +494,18 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
       });
     }
 
-    connect();
+    if (!options.connectBeforeRender) {
+      connection.resize({ cols: term.geometry.cols, rows: term.geometry.rows });
+      connection.reconnect();
+    }
+    receiveOutput = writeOutput;
+    for (const data of pendingOutput) writeOutput(data);
+    pendingOutput.length = 0;
+    rendererReady = true;
+    if (connection.state === "connected") options.onConnectionStateChange?.("connected");
     return {
-      reconnect: () => { retryAttempts = 0; connect(true); },
-      focus: () => { if (!ended) term.focus(); },
+      reconnect: connection.reconnect,
+      focus: () => { if (connection.state !== "ended") term.focus(); },
       refresh: () => {
         term.fit();
         if (options.mode === "interactive") sendSize();
@@ -613,18 +553,12 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
       setTheme: (nextTheme) => { theme = nextTheme; void updateTheme(); },
       dispose: () => {
         disposed = true;
-        cancelRetry();
-        if (interactive) {
-          document.removeEventListener("visibilitychange", visibilityChanged);
-          window.removeEventListener("pagehide", suspend);
-          window.removeEventListener("pageshow", resume);
-          window.removeEventListener("online", networkRestored);
-        }
-        disconnect();
+        connection.dispose();
         term.dispose();
       },
     };
   } catch (error) {
+    connection.dispose();
     term.dispose();
     throw error;
   }
