@@ -24,6 +24,22 @@ const other = workspace.workViews.find(view => view.reference.type !== "terminal
 if (!terminal || !other) throw new Error("Stage a Terminal and another Work view first");
 await mkdir(args.out, { recursive: true });
 const page = await ChromePage.open(args.cdp);
+await page.cdp.send("Page.bringToFront");
+// Observe output delivery without changing transport or renderer scheduling.
+// Track only this Terminal view, not terminals embedded in the Agent pane.
+await page.cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+  const NativeSocket = window.WebSocket;
+  window.WebSocket = class extends NativeSocket {
+    constructor(...args) {
+      super(...args);
+      if (!new URL(args[0], location.href).pathname.endsWith(${JSON.stringify(`/views/${encodeURIComponent(terminal.key)}/ws`)})) return;
+      const firstPaint = window.__terminalFirstPaint;
+      this.addEventListener('message', (event) => {
+        if (typeof event.data !== 'string' && firstPaint && firstPaint.firstOutputAt === undefined) firstPaint.firstOutputAt = performance.now();
+      });
+    }
+  };
+})();` });
 const results = [];
 try {
   for (const layout of ["desktop", "mobile"] as const) {
@@ -35,8 +51,9 @@ try {
       await page.evaluate(`document.querySelector('button[data-work-view-key=${JSON.stringify(other.key)}]').click()`);
       await Bun.sleep(200);
       const resizesBefore = page.resizes.length;
-      const sample = await page.evaluate<{ paintedMs: number; connectedMs?: number }>(`new Promise((resolve, reject) => {
+      const sample = await page.evaluate<{ paintedMs: number; connectedMs?: number; outputToPaintedMs?: number }>(`new Promise((resolve, reject) => {
         const pane = document.querySelector('[data-workspace-pane-role="work"][data-workspace-pane-id=${JSON.stringify(terminal.key)}]');
+        const firstPaint = window.__terminalFirstPaint = {};
         const started = performance.now();
         let connectedMs;
         const timeout = setTimeout(() => { observer.disconnect(); reject(new Error("Terminal did not paint within 10s")); }, 10000);
@@ -46,7 +63,7 @@ try {
           observer.disconnect();
           requestAnimationFrame(() => {
             clearTimeout(timeout);
-            resolve({ paintedMs: performance.now() - started, connectedMs });
+            resolve({ paintedMs: performance.now() - started, connectedMs, outputToPaintedMs: firstPaint.firstOutputAt === undefined ? undefined : performance.now() - firstPaint.firstOutputAt });
           });
         });
         observer.observe(pane, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'data-state'] });
@@ -57,7 +74,8 @@ try {
     }
     const reopen = samples.slice(1).map(sample => sample.paintedMs).sort((a, b) => a - b);
     const medianMs = (reopen[Math.floor((reopen.length - 1) / 2)]! + reopen[Math.floor(reopen.length / 2)]!) / 2;
-    results.push({ layout, first: samples[0], medianMs, p95Ms: reopen[Math.ceil(reopen.length * 0.95) - 1], samples });
+    const viewport = await page.evaluate<{ width: number; height: number; devicePixelRatio: number }>(`({ width: innerWidth, height: innerHeight, devicePixelRatio })`);
+    results.push({ layout, viewport, first: samples[0], medianMs, p95Ms: reopen[Math.ceil(reopen.length * 0.95) - 1], samples });
     await Bun.write(`${args.out}/${layout}.png`, await page.screenshot());
   }
   await Bun.write(`${args.out}/results.json`, JSON.stringify(results, null, 2));
