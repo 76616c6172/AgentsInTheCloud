@@ -372,16 +372,6 @@ function renderWorkPane(presentation: WorkspacePresentation): string {
   })}<div class="fixed-shell-work-resizer" role="separator" aria-label="Resize Work pane" aria-orientation="vertical" tabindex="0" data-action="pointerdown->workspace-presentation#beginWorkResize keydown->workspace-presentation#resizeWorkWithKeyboard"></div></div>`;
 }
 
-function renderMobileDestination(label: string, destination: string, iconHtml: string, attention = false, workKey?: string): string {
-  const attentionHtml = attention ? '<i class="status-dot attention" aria-label="Attention"></i>' : "";
-  const workKeyAttribute = workKey === undefined ? "" : ` data-mobile-work-key="${escapeHtml(workKey)}"`;
-  return buttonHtml({
-    type: "button", variant: "quiet",
-    content: { kind: "icon-only", iconHtml: `${iconHtml}${attentionHtml}`, label },
-    attributesHtml: `${workKeyAttribute} data-mobile-destination="${escapeHtml(destination)}" data-action="click->workspace-presentation#selectMobileDestination"`,
-  });
-}
-
 function mobileNavigationPriority(view: WorkPaneContribution): number {
   const type = workViewType(view);
   if (type === "browser") return 0;
@@ -391,7 +381,6 @@ function mobileNavigationPriority(view: WorkPaneContribution): number {
 function renderMobileWorkViews(views: readonly WorkPaneContribution[]) {
   const ordered = [...views].sort((left, right) => mobileNavigationPriority(left) - mobileNavigationPriority(right));
   return {
-    destinations: ordered.map((view) => renderMobileDestination(view.label, `work:${view.key}`, view.iconHtml ?? Icons.Plus, view.attentionSequence !== undefined, view.key)).join(""),
     overflowItems: ordered.map((view) => {
 
       const attention = view.attentionSequence === undefined ? "" : '<i class="status-dot attention content-row__status" aria-label="Attention"></i>';
@@ -401,7 +390,7 @@ function renderMobileWorkViews(views: readonly WorkPaneContribution[]) {
         label: { kind: "text", text: view.label },
         leadingHtml: view.iconHtml ?? Icons.Plus,
         trailingHtml: attention,
-        element: { tag: "button", attributesHtml: `type="button" role="menuitemradio" aria-checked="false" hidden data-more-work-key="${escapeHtml(view.key)}" data-more-work-kind="${view.kind}" data-action="click->workspace-presentation#selectMoreWorkView"` },
+        element: { tag: "button", attributesHtml: `type="button" role="menuitemradio" aria-checked="false" data-more-work-key="${escapeHtml(view.key)}" data-more-work-kind="${view.kind}" data-action="click->workspace-presentation#selectMoreWorkView"` },
       });
     }).join(""),
   };
@@ -416,41 +405,38 @@ function renderMobileWorkViewCloser(view: WorkPaneContribution): string {
   return view.close ? renderMobileCloser(`work:${view.key}`, view.close) : "";
 }
 
-const mobileMoreAttentionHtml = '<i class="status-dot attention" aria-label="Hidden Attention" data-mobile-overflow-attention hidden></i>';
-
 interface MobileWorkspaceBarOptions {
   agentHtml?: string;
-  workViewsHtml?: string;
+  workHtml?: string;
   moreMenuHtml?: string;
   inert?: boolean;
 }
 
-export function renderMobileWorkspaceBar({ agentHtml = "", workViewsHtml = "", moreMenuHtml = "", inert = false }: MobileWorkspaceBarOptions = {}): string {
+export function renderMobileWorkspaceBar({ agentHtml = "", workHtml = "", moreMenuHtml = "", inert = false }: MobileWorkspaceBarOptions = {}): string {
   const workspace = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", Icons.Workspace, "data-show-workspace-list");
-  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar" aria-label="Workspace panes"${inert ? " inert" : ""}>
-    ${workspace}
-    ${agentHtml}
-    ${moreMenuHtml ? `<div class="nox-mobile-work-pane" role="group" aria-label="Work views">
-      <div class="fixed-shell-mobile-scroll" data-mobile-overflow-container>${workViewsHtml}</div>${moreMenuHtml}
-    </div>` : ""}
+  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar${moreMenuHtml ? " nox-mobile-four-stops" : ""}" aria-label="Workspace panes"${inert ? " inert" : ""}>
+    ${workspace}${agentHtml}${workHtml}${moreMenuHtml}
   </nav>`;
 }
 
 function renderWorkspaceBar(presentation: WorkspacePresentation, inert = false): string {
-  const agentsDestination = renderMobileDestination("Agent", "agents", `${Icons.Agent}${renderMobileAgentAttention(presentation.workspace.id, presentation.agents)}`);
+  const agentsDestination = barButton("Agent", "click->workspace-presentation#selectMobileDestination", `${Icons.Agent}${renderMobileAgentAttention(presentation.workspace.id, presentation.agents)}`, `data-mobile-destination="agents" aria-describedby="${domId("mobile_agent_attention", presentation.workspace.id)}"`);
+  const workStatusId = workViewDomId(presentation.workspace.id, "mobile_work_attention");
+  const workStatus = busyAttentionIndicator({ requestingAttention: presentation.workViews.some((view) => view.attentionSequence !== undefined) });
+  const workDestination = barButton("Work", "click->workspace-presentation#selectMobileWork", `${Icons.Panel}<span id="${workStatusId}" class="nox-mobile-nav-status">${workStatus}</span>`, `data-mobile-work aria-describedby="${workStatusId}"`);
   const workViews = renderMobileWorkViews(presentation.workViews);
   const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher").map((command) => renderWorkLauncherCommand(command, presentation.workspace.id, "submit->workspace-presentation#closeMore")).join("");
   const closers = presentation.workViews.map(renderMobileWorkViewCloser).join("");
   const moreMenuId = workViewDomId(presentation.workspace.id, "mobile_more_menu");
   const moreMenu = popupHtml({
     id: moreMenuId, label: "More", placement: "above",
-    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: `${Icons.More}<span id="${workViewDomId(presentation.workspace.id, "mobile_more_attention")}">${mobileMoreAttentionHtml}</span>`, label: "More" }, attributesHtml: "data-mobile-more" },
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-mobile-more" },
     menuAttributesHtml: 'data-workspace-presentation-target="moreMenu" data-action="toggle->workspace-presentation#syncMore"',
     contentHtml: `${renderAgentComposerAction(true)}${renderAgentViewSwitch(true)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
-      ${launchers ? `<hr class="popup-menu__separator" data-mobile-overflow-separator hidden>${launchers}` : ""}
+      ${launchers ? `<hr class="popup-menu__separator"${presentation.workViews.length ? "" : " hidden"}>${launchers}` : ""}
       <div id="${workViewDomId(presentation.workspace.id, "mobile_closers")}" class="fixed-shell-more-close-section">${closers}</div>`,
   });
-  return renderMobileWorkspaceBar({ agentHtml: agentsDestination, workViewsHtml: `<span id="${workViewDomId(presentation.workspace.id, "mobile_destinations")}" class="contents">${workViews.destinations}</span>`, moreMenuHtml: moreMenu, inert });
+  return renderMobileWorkspaceBar({ agentHtml: agentsDestination, workHtml: workDestination, moreMenuHtml: moreMenu, inert });
 }
 
 export function renderWorkspaceDeletionPresentation(workspaceId: string, deletion: WorkspaceDeletionState, evidenceHtml = ""): string {

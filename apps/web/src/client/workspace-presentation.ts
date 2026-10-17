@@ -108,13 +108,15 @@ export function createWorkspacePresentationController(
       this.element.addEventListener("agents-in-the-cloud:workspace-residency-hidden", this.residencyHidden);
       this.element.addEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.addEventListener("visibilitychange", this.documentVisibilityChanged);
+      document.addEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncMobileNavigationSelection);
+      document.addEventListener("agents-in-the-cloud:workspace-pane-visible", this.syncMobileNavigationSelection);
       this.restorePreferences();
       this.sizeObserver = new ResizeObserver(() => {
         this.restorePreferences();
         this.scheduleMobileNavigationLayout();
       });
       this.sizeObserver.observe(this.element);
-      this.sizeObserver.observe(this.element.querySelector(".fixed-shell-mobile-scroll")!);
+      this.sizeObserver.observe(this.element.querySelector(".fixed-shell-workspace-bar")!, { box: "border-box" });
       this.acceptWorkIntent();
       this.normalizeState();
       this.applyDeepLink(initialUrl);
@@ -128,6 +130,8 @@ export function createWorkspacePresentationController(
       this.element.removeEventListener("agents-in-the-cloud:workspace-residency-hidden", this.residencyHidden);
       this.element.removeEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.removeEventListener("visibilitychange", this.documentVisibilityChanged);
+      document.removeEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncMobileNavigationSelection);
+      document.removeEventListener("agents-in-the-cloud:workspace-pane-visible", this.syncMobileNavigationSelection);
       this.sizeObserver?.disconnect();
       if (this.mobileNavigationLayoutFrame !== undefined) cancelAnimationFrame(this.mobileNavigationLayoutFrame);
       this.visiblePanes().forEach((pane) => this.emitHidden(pane));
@@ -238,20 +242,31 @@ export function createWorkspacePresentationController(
       // Swipe between panes, not Work tabs. Keep the existing Work selection.
       let destination: PhoneDestination | undefined;
       if (this.state.phoneDestination === "agents") {
-        if (direction === 1 && this.state.activeWorkViewKey) destination = `work:${this.state.activeWorkViewKey}`;
+        if (direction === 1) return () => this.selectMobileWork();
       } else if (direction === -1) destination = "agents";
       if (!destination) return;
       return () => {
         this.selectResidentMobileDestination();
-        if (destination.startsWith("work:")) {
-          const key = destination.slice(5);
-          const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)!;
-          this.selectWorkViewState(key, selector.dataset.workViewKind === "contextual");
-        } else this.state.phoneDestination = destination;
+        this.state.phoneDestination = destination;
         this.moreOpen = false;
         // Navigation must not focus a composer or terminal and open the keyboard.
         this.persistAndApply();
       };
+    }
+
+    selectMobileWork(): void {
+      this.selectResidentMobileDestination();
+      const key = this.state.activeWorkViewKey;
+      if (key) {
+        const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)!;
+        this.selectWorkViewState(key, selector.dataset.workViewKind === "contextual");
+      } else {
+        // The existing Work destination also represents its empty launcher pane.
+        this.state.phoneDestination = "work:";
+        this.state.workPaneVisible = true;
+      }
+      this.moreOpen = false;
+      this.persistAndApply();
     }
 
     selectMobileDestination(event: Event): void {
@@ -379,7 +394,7 @@ export function createWorkspacePresentationController(
         this.selectWorkViewState(intent.work, selector?.dataset.workViewKind === "contextual");
         if (workViews.includes(intent.work)) delete intent.work;
       } else if (!this.state.activeWorkViewKey || !workViews.includes(this.state.activeWorkViewKey)) this.state.activeWorkViewKey = workViews[0];
-      if (!intent?.work && this.state.phoneDestination.startsWith("work:") && !workViews.includes(this.state.phoneDestination.slice(5))) this.state.phoneDestination = "agents";
+      if (!intent?.work && this.state.phoneDestination.startsWith("work:") && !workViews.includes(this.state.phoneDestination.slice(5))) this.state.phoneDestination = `work:${this.state.activeWorkViewKey ?? ""}`;
       this.persist();
     }
 
@@ -462,10 +477,7 @@ export function createWorkspacePresentationController(
         selector.setAttribute("aria-selected", String(active));
       });
       this.element.querySelectorAll<PresentationPane>("[data-workspace-pane-role='work']").forEach((pane) => pane.classList.toggle("is-active", pane.dataset.workspacePaneId === this.state.activeWorkViewKey));
-      this.element.querySelectorAll<HTMLElement>("[data-mobile-destination]").forEach((destination) => {
-        const selected = destination.dataset.mobileDestination === this.state.phoneDestination;
-        destination.setAttribute("aria-current", selected ? "page" : "false");
-      });
+      this.syncMobileNavigationSelection();
       this.element.querySelectorAll<HTMLElement>("[data-more-work-key]").forEach((item) => {
         item.setAttribute("aria-checked", String(`work:${item.dataset.moreWorkKey}` === this.state.phoneDestination));
       });
@@ -498,6 +510,19 @@ export function createWorkspacePresentationController(
       this.element.dispatchEvent(new Event("agents-in-the-cloud:presentation-changed"));
     }
 
+    private readonly syncMobileNavigationSelection = (): void => {
+      const sidebarOpen = this.element.closest(".is-mobile-workspace-pane-open") !== null;
+      const workspace = this.element.querySelector<HTMLElement>("[data-show-workspace-list]")!;
+      workspace.setAttribute("aria-current", sidebarOpen ? "page" : "false");
+      workspace.setAttribute("aria-expanded", String(sidebarOpen));
+      const destinations = [...this.element.querySelectorAll<HTMLElement>("[data-mobile-destination]")];
+      destinations.forEach((destination) => {
+        const selected = !sidebarOpen && destination.dataset.mobileDestination === this.state.phoneDestination;
+        destination.setAttribute("aria-current", selected ? "page" : "false");
+      });
+      this.element.querySelector<HTMLElement>("[data-mobile-work]")!.setAttribute("aria-current", !sidebarOpen && this.state.phoneDestination.startsWith("work:") ? "page" : "false");
+    };
+
     private scheduleMobileNavigationLayout(): void {
       if (this.mobileNavigationLayoutFrame !== undefined) cancelAnimationFrame(this.mobileNavigationLayoutFrame);
       this.mobileNavigationLayoutFrame = requestAnimationFrame(() => {
@@ -508,32 +533,11 @@ export function createWorkspacePresentationController(
 
     private layoutMobileNavigation(): void {
       if (!this.isPhone) return;
-      const container = this.element.querySelector<HTMLElement>("[data-mobile-overflow-container]");
-      if (!container) return;
-      const destinations = [...container.querySelectorAll<HTMLElement>("[data-mobile-work-key]")];
-      const overflowItems = new Map([...this.element.querySelectorAll<HTMLElement>("[data-more-work-key]")].map((item) => [item.dataset.moreWorkKey!, item]));
-      destinations.forEach((destination) => { destination.hidden = false; });
-      overflowItems.forEach((item) => { item.hidden = true; });
-
-      // Try roomy spacing first, then compact before moving views into More.
-      container.classList.remove("is-compact");
-      container.classList.toggle("is-compact", container.scrollWidth > container.clientWidth);
-
-      const overflowed: HTMLElement[] = [];
-      for (let index = destinations.length - 1; container.scrollWidth > container.clientWidth && index >= 0; index -= 1) {
-        const destination = destinations[index]!;
-        destination.hidden = true;
-        overflowed.push(destination);
-        overflowItems.get(destination.dataset.mobileWorkKey!)!.hidden = false;
+      if (this.element.closest(".workspace-detail-resident.visible")) {
+        // Share the actual footer track, including its safe area and margin, with the sidebar.
+        const footerHeight = this.element.getBoundingClientRect().bottom - this.element.querySelector(".fixed-shell-main")!.getBoundingClientRect().bottom;
+        this.element.closest<HTMLElement>(".fixed-shell-app")!.style.setProperty("--mobile-workspace-bar-height", `${footerHeight}px`);
       }
-
-      const separator = this.element.querySelector<HTMLElement>("[data-mobile-overflow-separator]");
-      if (separator) separator.hidden = overflowed.length === 0;
-      const attention = this.element.querySelector<HTMLElement>("[data-mobile-overflow-attention]");
-      if (attention) attention.hidden = !overflowed.some((destination) => destination.querySelector(".status-dot.attention"));
-      const selectedDestination = destinations.find((destination) => destination.dataset.mobileDestination === this.state.phoneDestination);
-      const secondarySelected = selectedDestination?.hidden === true;
-      this.element.querySelector<HTMLElement>("[data-mobile-more]")?.setAttribute("aria-current", secondarySelected ? "page" : "false");
     }
 
     private visiblePanes(): PresentationPane[] {

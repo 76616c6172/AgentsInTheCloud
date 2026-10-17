@@ -52,12 +52,12 @@ export function agentContentId(workspaceId: string, agentId: string): string {
   return domId("agent_content", workspaceId, agentId);
 }
 
-function mobileAgentAttentionHtml(agents: readonly AgentPaneContribution[]): string {
-  return agents.some((agent) => agent.requestingAttention) ? '<i class="status-dot attention" aria-label="Agent requesting attention"></i>' : "";
-}
-
 export function renderMobileAgentAttention(workspaceId: string, agents: readonly AgentPaneContribution[]): string {
-  return `<span id="${domId("mobile_agent_attention", workspaceId)}">${mobileAgentAttentionHtml(agents)}</span>`;
+  const busy = agents.some((agent) => agent.busy);
+  const attention = agents.some((agent) => agent.requestingAttention);
+  const label = [busy && "Busy", attention && "Requesting attention"].filter(Boolean).join("; ");
+  const status = `<span class="status-indicator"${label ? ` role="img" aria-label="${label}"` : ""}>${busy ? '<i class="status-dot running" aria-hidden="true"></i>' : ""}${attention ? '<i class="status-dot attention" aria-hidden="true"></i>' : ""}</span>`;
+  return `<span id="${domId("mobile_agent_attention", workspaceId)}" class="nox-mobile-nav-status">${status}</span>`;
 }
 
 function renderAgentTab(workspaceId: string, agent: AgentPaneContribution): string {
