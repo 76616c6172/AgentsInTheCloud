@@ -253,7 +253,7 @@ function renderAgentsInTheCloudNextAttentionButton(): string {
 
 export function renderAgentsInTheCloudBar(): string {
   const close = barButton("Close workspace list", "click->workspace-navigation#closeWorkspacePane", Icons.Close, "data-close-workspace-pane disabled");
-  return `<nav class="fixed-shell-mobile-nav fixed-shell-agents-in-the-cloud-bar" data-popular-button aria-label="AgentsInTheCloud">${close}${renderAgentsInTheCloudNextAttentionButton()}</nav>`;
+  return `<nav class="fixed-shell-mobile-nav fixed-shell-agents-in-the-cloud-bar" aria-label="AgentsInTheCloud">${close}${renderAgentsInTheCloudNextAttentionButton()}</nav>`;
 }
 
 export function workspacePresentationDomId(workspaceId: string): string {
@@ -376,7 +376,7 @@ function renderMobileDestination(label: string, destination: string, iconHtml: s
   const attentionHtml = attention ? '<i class="status-dot attention" aria-label="Attention"></i>' : "";
   const workKeyAttribute = workKey === undefined ? "" : ` data-mobile-work-key="${escapeHtml(workKey)}"`;
   return buttonHtml({
-    type: "button", variant: "secondary",
+    type: "button", variant: "quiet",
     content: { kind: "icon-only", iconHtml: `${iconHtml}${attentionHtml}`, label },
     attributesHtml: `${workKeyAttribute} data-mobile-destination="${escapeHtml(destination)}" data-action="click->workspace-presentation#selectMobileDestination"`,
   });
@@ -418,29 +418,39 @@ function renderMobileWorkViewCloser(view: WorkPaneContribution): string {
 
 const mobileMoreAttentionHtml = '<i class="status-dot attention" aria-label="Hidden Attention" data-mobile-overflow-attention hidden></i>';
 
-export function renderMobileWorkspaceBar(destinationsHtml = "", moreMenuHtml = "", inert = false): string {
+interface MobileWorkspaceBarOptions {
+  agentHtml?: string;
+  workViewsHtml?: string;
+  moreMenuHtml?: string;
+  inert?: boolean;
+}
+
+export function renderMobileWorkspaceBar({ agentHtml = "", workViewsHtml = "", moreMenuHtml = "", inert = false }: MobileWorkspaceBarOptions = {}): string {
   const workspace = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", Icons.Workspace, "data-show-workspace-list");
-  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar" data-popular-button aria-label="Current Workspace destinations"${inert ? " inert" : ""}>
-    <div class="fixed-shell-mobile-scroll" data-mobile-overflow-container>${workspace}${destinationsHtml}</div>
-    ${moreMenuHtml ? renderAgentComposerAction() : ""}${moreMenuHtml}
+  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar" aria-label="Workspace panes"${inert ? " inert" : ""}>
+    ${workspace}
+    ${agentHtml}
+    ${moreMenuHtml ? `<div class="nox-mobile-work-pane" role="group" aria-label="Work views">
+      <div class="fixed-shell-mobile-scroll" data-mobile-overflow-container>${workViewsHtml}</div>${moreMenuHtml}
+    </div>` : ""}
   </nav>`;
 }
 
 function renderWorkspaceBar(presentation: WorkspacePresentation, inert = false): string {
-  const agentsDestination = renderMobileDestination("Agents", "agents", `${Icons.Agent}${renderMobileAgentAttention(presentation.workspace.id, presentation.agents)}`);
+  const agentsDestination = renderMobileDestination("Agent", "agents", `${Icons.Agent}${renderMobileAgentAttention(presentation.workspace.id, presentation.agents)}`);
   const workViews = renderMobileWorkViews(presentation.workViews);
   const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher").map((command) => renderWorkLauncherCommand(command, presentation.workspace.id, "submit->workspace-presentation#closeMore")).join("");
   const closers = presentation.workViews.map(renderMobileWorkViewCloser).join("");
   const moreMenuId = workViewDomId(presentation.workspace.id, "mobile_more_menu");
   const moreMenu = popupHtml({
     id: moreMenuId, label: "More", placement: "above",
-    trigger: { variant: "secondary", content: { kind: "icon-only", iconHtml: `${Icons.More}<span id="${workViewDomId(presentation.workspace.id, "mobile_more_attention")}">${mobileMoreAttentionHtml}</span>`, label: "More" }, attributesHtml: "data-mobile-more" },
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: `${Icons.More}<span id="${workViewDomId(presentation.workspace.id, "mobile_more_attention")}">${mobileMoreAttentionHtml}</span>`, label: "More" }, attributesHtml: "data-mobile-more" },
     menuAttributesHtml: 'data-workspace-presentation-target="moreMenu" data-action="toggle->workspace-presentation#syncMore"',
-    contentHtml: `${renderAgentViewSwitch(true)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
+    contentHtml: `${renderAgentComposerAction(true)}${renderAgentViewSwitch(true)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
       ${launchers ? `<hr class="popup-menu__separator" data-mobile-overflow-separator hidden>${launchers}` : ""}
       <div id="${workViewDomId(presentation.workspace.id, "mobile_closers")}" class="fixed-shell-more-close-section">${closers}</div>`,
   });
-  return renderMobileWorkspaceBar(`${agentsDestination}<span id="${workViewDomId(presentation.workspace.id, "mobile_destinations")}" class="contents">${workViews.destinations}</span>`, moreMenu, inert);
+  return renderMobileWorkspaceBar({ agentHtml: agentsDestination, workViewsHtml: `<span id="${workViewDomId(presentation.workspace.id, "mobile_destinations")}" class="contents">${workViews.destinations}</span>`, moreMenuHtml: moreMenu, inert });
 }
 
 export function renderWorkspaceDeletionPresentation(workspaceId: string, deletion: WorkspaceDeletionState, evidenceHtml = ""): string {
@@ -470,7 +480,7 @@ export function renderWorkspaceDeletionPresentation(workspaceId: string, deletio
 export function renderWorkspacePresentation(presentation: WorkspacePresentation): string {
   const id = workspacePresentationDomId(presentation.workspace.id);
   const trustPending = presentation.overlayHtml?.some(html => html.includes('class="workspace-ssh-trust-overlay"')) ?? false;
-  return `<div id="${id}" class="fixed-workspace-presentation${presentation.initialSelection?.workView ? " is-work-pane-open" : ""}" data-controller="workspace-presentation mobile-swipe" data-phone-destination="${presentation.initialSelection?.workView ? `work:${escapeHtml(presentation.initialSelection.workView)}` : "agents"}" data-workspace-presentation-work-intent-value="${escapeHtml(JSON.stringify(presentation.workPresentationIntent ?? {}))}" data-workspace-presentation-workspace-id-value="${escapeHtml(presentation.workspace.id)}" data-workspace-id="${escapeHtml(presentation.workspace.id)}" data-workspace-commands="${escapeHtml(JSON.stringify(presentation.commands ?? []))}">
+  return `<div id="${id}" class="fixed-workspace-presentation${presentation.initialSelection?.workView ? " is-work-pane-open" : ""}" data-controller="workspace-presentation" data-phone-destination="${presentation.initialSelection?.workView ? `work:${escapeHtml(presentation.initialSelection.workView)}` : "agents"}" data-workspace-presentation-work-intent-value="${escapeHtml(JSON.stringify(presentation.workPresentationIntent ?? {}))}" data-workspace-presentation-workspace-id-value="${escapeHtml(presentation.workspace.id)}" data-workspace-id="${escapeHtml(presentation.workspace.id)}" data-workspace-commands="${escapeHtml(JSON.stringify(presentation.commands ?? []))}">
     <div class="fixed-shell-main"${trustPending ? " inert" : ""}>${renderAgentPane(presentation)}${renderWorkPane(presentation)}</div>
     ${renderWorkspaceBar(presentation, trustPending)}
     ${(presentation.overlayHtml ?? []).join("")}

@@ -6,8 +6,7 @@ export type MobileSwipeDirection = -1 | 1;
 /** Shared recognizer; its owning Stimulus controller supplies visibility and navigation. */
 export function observeMobileSwipe(
   root: HTMLElement,
-  canSwipe: (direction: MobileSwipeDirection) => boolean,
-  navigate: (direction: MobileSwipeDirection) => void,
+  navigationFor: (direction: MobileSwipeDirection) => (() => void) | undefined,
 ): () => void {
   const view = root.ownerDocument.defaultView!;
   let gesture: { id: number; x: number; y: number; time: number; direction?: MobileSwipeDirection } | undefined;
@@ -16,7 +15,7 @@ export function observeMobileSwipe(
   const start = (event: TouchEvent): void => {
     cancel();
     if (event.touches.length !== 1 || !(event.target instanceof Node) || !root.contains(event.target)) return;
-    if (!canSwipe(-1) && !canSwipe(1)) return;
+    if (!navigationFor(-1) && !navigationFor(1)) return;
     const touch = event.touches[0]!;
     gesture = { id: touch.identifier, x: touch.screenX, y: touch.screenY, time: event.timeStamp };
   };
@@ -29,7 +28,7 @@ export function observeMobileSwipe(
       if (Math.hypot(dx, dy) < 12) return;
       const direction = dx < 0 ? 1 : -1;
       // Decide once: a vertical scroll or long press never turns into navigation.
-      if (Math.abs(dx) < Math.abs(dy) * 1.5 || event.timeStamp - gesture.time > 350 || !canSwipe(direction) || !event.cancelable) { cancel(); return; }
+      if (Math.abs(dx) < Math.abs(dy) * 1.5 || event.timeStamp - gesture.time > 350 || !navigationFor(direction) || !event.cancelable) { cancel(); return; }
       gesture.direction = direction;
     }
     event.preventDefault();
@@ -48,7 +47,7 @@ export function observeMobileSwipe(
     const dy = touch.screenY - current.y;
     if (event.touches.length === 0 && event.timeStamp - current.time < 1000
       && Math.abs(dx) >= 64 && Math.abs(dx) > Math.abs(dy) * 1.5
-      && (dx < 0 ? 1 : -1) === current.direction && canSwipe(current.direction)) navigate(current.direction);
+      && (dx < 0 ? 1 : -1) === current.direction) navigationFor(current.direction)?.();
   };
   const click = (event: MouseEvent): void => {
     if (Date.now() >= suppressClickUntil || !(event.target instanceof Node) || !root.contains(event.target)) return;

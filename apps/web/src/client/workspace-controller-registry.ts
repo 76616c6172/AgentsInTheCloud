@@ -4,6 +4,7 @@ interface WorkspaceNavigationControllerSurface {
   selectWorkspaceById(workspaceId: string): Promise<void>;
   setActiveWorkspace(workspaceId?: string): void;
   showWorkspacePane(): void;
+  closeWorkspacePane(): void;
 }
 
 interface WorkspaceResidencyControllerSurface {

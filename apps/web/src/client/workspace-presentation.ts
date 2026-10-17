@@ -233,26 +233,25 @@ export function createWorkspacePresentationController(
       this.applyState({ emit: false });
     }
 
-    mobileSwipeDestination(direction: MobileSwipeDirection): PhoneDestination | undefined {
-      const destinations = [...this.element.querySelectorAll<HTMLElement>("[data-mobile-destination]")]
-        .map(item => Value.Parse(phoneDestinationSchema, item.dataset.mobileDestination));
-      const index = destinations.indexOf(this.state.phoneDestination);
-      return index < 0 ? undefined : destinations[index + direction];
-    }
-
-    navigateMobileSwipe(direction: MobileSwipeDirection): void {
+    mobileSwipeNavigation(direction: MobileSwipeDirection): (() => void) | undefined {
       if (!this.isPhone) return;
-      const destination = this.mobileSwipeDestination(direction);
+      // Swipe between panes, not Work tabs. Keep the existing Work selection.
+      let destination: PhoneDestination | undefined;
+      if (this.state.phoneDestination === "agents") {
+        if (direction === 1 && this.state.activeWorkViewKey) destination = `work:${this.state.activeWorkViewKey}`;
+      } else if (direction === -1) destination = "agents";
       if (!destination) return;
-      this.selectResidentMobileDestination();
-      if (destination.startsWith("work:")) {
-        const key = destination.slice(5);
-        const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)!;
-        this.selectWorkViewState(key, selector.dataset.workViewKind === "contextual");
-      } else this.state.phoneDestination = destination;
-      this.moreOpen = false;
-      // Navigation must not focus a composer or terminal and open the keyboard.
-      this.persistAndApply();
+      return () => {
+        this.selectResidentMobileDestination();
+        if (destination.startsWith("work:")) {
+          const key = destination.slice(5);
+          const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)!;
+          this.selectWorkViewState(key, selector.dataset.workViewKind === "contextual");
+        } else this.state.phoneDestination = destination;
+        this.moreOpen = false;
+        // Navigation must not focus a composer or terminal and open the keyboard.
+        this.persistAndApply();
+      };
     }
 
     selectMobileDestination(event: Event): void {

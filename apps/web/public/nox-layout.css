@@ -35,6 +35,11 @@ html[data-theme] {
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-mode) .fixed-shell-workspace-bar .nox-agent-terminal-action,
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-pending) .fixed-shell-workspace-bar .nox-agent-pending-action { display: flex; }
   .fixed-workspace-presentation:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .fixed-shell-workspace-bar .nox-agent-transcript-action { display: none; }
+
+  /* Quiet, flat navigation: spacing and one divider distinguish Work choices. */
+  .fixed-shell-workspace-bar { gap: 8px; }
+  .nox-mobile-work-pane { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; margin-inline-start: 4px; padding-inline-start: 8px; }
+  .nox-mobile-work-pane::before { content: ""; position: absolute; inset-inline-start: 0; top: 50%; width: 1px; height: 18px; transform: translateY(-50%); background: var(--line); pointer-events: none; }
 }
 
 @media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
@@ -117,5 +122,26 @@ html[data-theme] {
     inset: 0;
     width: 100%;
     min-width: 0;
+  }
+}
+
+/* Nox mobile swipes reuse Page slide's lifecycle and timing. Only its content
+ * snapshots overlap; shared motion and the live workspace layout stay unchanged. */
+@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
+  /* Capture the final pane opacity, and omit the covered workspace from the
+   * stationary root snapshot when the sidebar is the incoming surface. */
+  .fixed-shell-app[data-mobile-swipe] :is(.fixed-shell-workspace-pane, .fixed-shell-agent-pane, .fixed-shell-work-pane) { transition: none; }
+  .fixed-shell-app[data-mobile-swipe].is-mobile-workspace-pane-open > .fixed-shell-app-main { opacity: 0; }
+
+  :root[data-page-slide="left"]:has(.fixed-shell-app[data-mobile-swipe]) { --page-slide-out: -20%; }
+  :root[data-page-slide="right"]:has(.fixed-shell-app[data-mobile-swipe]) { --page-slide-in: -20%; }
+
+  :root[data-page-slide="left"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-old(page-slide),
+  :root[data-page-slide="right"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-new(page-slide) { z-index: 1; }
+
+  :root[data-page-slide="left"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-new(page-slide),
+  :root[data-page-slide="right"]:has(.fixed-shell-app[data-mobile-swipe])::view-transition-old(page-slide) {
+    z-index: 2;
+    filter: drop-shadow(-10px 0 16px rgb(0 0 0 / 18%));
   }
 }

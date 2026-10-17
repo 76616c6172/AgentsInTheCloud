@@ -121,11 +121,28 @@ async function scrollPartway(): Promise<void> {
   await Bun.sleep(900);
 }
 
-async function openComposer(): Promise<void> {
-  if (await page.visible(sel.opener)) {
-    await page.tap(sel.opener);
-    await Bun.sleep(400);
+async function revealComposerAction(): Promise<void> {
+  if (!desktopActions && !await page.visible(sel.opener)) {
+    await page.tap(".fixed-shell-workspace-bar [data-mobile-more]");
+    await Bun.sleep(250);
   }
+}
+
+async function openComposer(): Promise<void> {
+  if (await page.visible(sel.close)) return;
+  await revealComposerAction();
+  await page.tap(sel.opener);
+  await Bun.sleep(400);
+}
+
+async function composerDraftVisible(): Promise<boolean> {
+  await revealComposerAction();
+  const visible = await page.visible(sel.draftDot);
+  if (!desktopActions) {
+    await page.tap(".fixed-shell-workspace-bar [data-mobile-more]");
+    await Bun.sleep(250);
+  }
+  return visible;
 }
 
 async function closeComposer(): Promise<void> {
@@ -149,11 +166,12 @@ function floatingStackChecks(frame: Frame, composerOpen: boolean, surface: Box =
   const lowest = frame.floating[floatingLabel.followLatest] ?? null;
   const results = [
     check("Only Follow latest floats over the content", shown.every(([label]) => label === floatingLabel.followLatest), JSON.stringify(frame.floating)),
-    check("Open composer is available only while the composer is closed", Boolean(opener) === !composerOpen, JSON.stringify(opener)),
   ];
-  if (!desktopActions && !composerOpen) {
-    const workspace = frame.navbar["Show workspaces"], more = frame.navbar["More"];
-    results.push(check("Mobile: composer shares the bottom navigation row", Boolean(opener && workspace && more) && close(opener![1] + opener![3] / 2, workspace![1] + workspace![3] / 2, 1) && close(opener![1] + opener![3] / 2, more![1] + more![3] / 2, 1), JSON.stringify(frame.navbar)));
+  if (!desktopActions) {
+    results.push(
+      check("Mobile: composer stays out of the persistent navbar", !opener, JSON.stringify(frame.navbar)),
+      check("Mobile: More remains available", Boolean(frame.navbar["More"]), JSON.stringify(frame.navbar)),
+    );
   }
   if (desktopActions) {
     const headerOpener = frame.toolbar[floatingLabel.opener];
@@ -201,7 +219,7 @@ await scenario("mobile-D1-selection", "D1/G1: selecting a workspace on mobile sh
   recorder.add(
     check("D1: composer closed", frame.composer === null, JSON.stringify(frame.composer)),
     check("D1: text field not focused", !frame.focus.includes("composer-input"), `focus: ${frame.focus || "body"}`),
-    check("D1: draft dot on open-composer", await page.visible(sel.draftDot), "status dot inside open-composer"),
+    check("D1: draft dot on open-composer in More", await composerDraftVisible(), "status dot inside the menu action"),
     check("G1: transcript readable straight away", frame.transcript !== null && frame.transcript[3] > 852 * 0.6, `transcript box ${JSON.stringify(frame.transcript)}`),
   );
   await recorder.file("selected.png", await page.screenshot());
@@ -211,6 +229,7 @@ await scenario("mobile-D1-selection", "D1/G1: selecting a workspace on mobile sh
 
 await scenario("mobile-G2-D10-pinned", "G2/D10: with the transcript pinned to the bottom, opening and closing the composer pushes the transcript in one step.", async (recorder) => {
   await pinToBottom();
+  await revealComposerAction();
   const opened = await transition(recorder, "open composer", () => page.tap(sel.opener));
   const after = opened.after;
   recorder.add(
@@ -230,6 +249,7 @@ await scenario("mobile-G2-D10-pinned", "G2/D10: with the transcript pinned to th
 await scenario("mobile-G2-D10-partway", "G2/D10: scrolled partway up, opening and closing the composer pushes the transcript up and back without the reading position jumping.", async (recorder) => {
   await scrollPartway();
   for (const [label, control] of [["open composer", sel.opener], ["close composer", sel.close]] as const) {
+    if (control === sel.opener) await revealComposerAction();
     const { before, after } = await transition(recorder, label, () => page.tap(control));
     const keptBottom = before.scrollTop! + before.transcript![3];
     const nowBottom = after.scrollTop! + after.transcript![3];
@@ -361,15 +381,15 @@ await scenario("mobile-D14-terminal-focus", "D14: focusing the Pi terminal colla
     check("D14: terminal has focus", after.focus.includes("gespenst__input"), `focus: ${after.focus}`),
     check("D19: terminal size unchanged (moved, not resized)", before.terminal !== null && after.terminal !== null && before.terminal[2] === after.terminal[2] && before.terminal[3] === after.terminal[3], `${JSON.stringify(before.terminal)} → ${JSON.stringify(after.terminal)}`),
     check("D3: draft kept", await page.evaluate<string>(`[...document.querySelectorAll(".cli-agent-body .composer-input")].find((e) => e.closest(".cli-agent-body").checkVisibility()).value`) === "Draft that must survive", "composer text unchanged"),
-    check("D1: draft dot on open-composer", await page.visible(sel.draftDot), "status dot inside open-composer"),
+    check("D1: draft dot on open-composer in More", await composerDraftVisible(), "status dot inside the menu action"),
   );
 });
 
-await scenario("mobile-D21-pi-floating", "Mobile: composer lives in the navbar, the view switch in More, and only Follow latest floats while reading the transcript.", async (recorder) => {
+await scenario("mobile-D21-pi-floating", "Mobile: composer and view switch live in More; only Follow latest floats while reading the transcript.", async (recorder) => {
   await page.evaluate<boolean>("(document.activeElement.blur(), true)");
   const terminal = await transition(recorder, "terminal", async () => {}, { waitMs: 200, expectChange: false });
   recorder.add(
-    check("Mobile: composer and More available beside workspace destinations", Boolean(terminal.after.navbar["Open composer"] && terminal.after.navbar["More"]), JSON.stringify(terminal.after.navbar)),
+    check("Mobile: More is available without a persistent composer button", Boolean(terminal.after.navbar["More"]) && !terminal.after.navbar["Open composer"], JSON.stringify(terminal.after.navbar)),
     ...floatingStackChecks(terminal.after, false, terminal.after.terminal),
   );
   await switchAgentView(sel.viewTranscript);
@@ -422,7 +442,7 @@ await scenario("mobile-terminal-tab", "D19: focusing a Terminal view and switchi
 
 await page.navigate(builtinUrl, sel.transcript);
 
-await scenario("mobile-D21-D22-floating", "Mobile: only Follow latest floats; composer sits in the navbar and hides while open.", async (recorder) => {
+await scenario("mobile-D21-D22-floating", "Mobile: only Follow latest floats; the composer opens from More.", async (recorder) => {
   await closeComposer();
   await scrollPartway();
   const reading = await transition(recorder, "reading, scrolled up", async () => {}, { waitMs: 200, expectChange: false });
@@ -431,6 +451,7 @@ await scenario("mobile-D21-D22-floating", "Mobile: only Follow latest floats; co
   await Bun.sleep(1800);
   const atBottom = await transition(recorder, "at the bottom", async () => {}, { waitMs: 200, expectChange: false });
   recorder.add(check("D21: follow latest hidden at the bottom", !atBottom.after.floating[floatingLabel.followLatest], JSON.stringify(atBottom.after.floating)));
+  await revealComposerAction();
   await transition(recorder, "open composer", () => page.tap(sel.opener));
   await scrollPartway();
   const open = await transition(recorder, "composer open, scrolled up", async () => {}, { waitMs: 200, expectChange: false });

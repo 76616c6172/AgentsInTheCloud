@@ -1,11 +1,11 @@
 import { Controller } from "@hotwired/stimulus";
+import { slidePageChange } from "@agents-in-the-cloud/design-system/page-slide/client";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
 import { isMobileSwipeMessage, mobileSwipeMessage, observeMobileSwipe, type MobileSwipeDirection } from "@agents-in-the-cloud/shared/mobile-swipe";
-import { controllerForElement } from "./workspace-controller-registry.ts";
+import { controllerForElement, workspaceNavigationController } from "./workspace-controller-registry.ts";
 
 interface SwipePresentation {
-  mobileSwipeDestination(direction: MobileSwipeDirection): string | undefined;
-  navigateMobileSwipe(direction: MobileSwipeDirection): void;
+  mobileSwipeNavigation(direction: MobileSwipeDirection): (() => void) | undefined;
 }
 
 export class MobileSwipeController extends Controller<HTMLElement> {
@@ -15,10 +15,11 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   private lastNavigation = -Infinity;
 
   connect(): void {
-    this.stopObserving = observeMobileSwipe(this.element, this.canSwipe, this.navigate);
+    this.stopObserving = observeMobileSwipe(this.element, this.navigationFor);
     window.addEventListener("message", this.receive);
     this.element.addEventListener("load", this.frameLoaded, true);
-    this.element.addEventListener("agents-in-the-cloud:presentation-changed", this.syncFrames);
+    this.element.addEventListener("agents-in-the-cloud:presentation-changed", this.syncFrames, true);
+    document.addEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncFrames);
     this.media.addEventListener("change", this.syncFrames);
     this.syncFrames();
   }
@@ -27,30 +28,54 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.stopObserving!();
     window.removeEventListener("message", this.receive);
     this.element.removeEventListener("load", this.frameLoaded, true);
-    this.element.removeEventListener("agents-in-the-cloud:presentation-changed", this.syncFrames);
+    this.element.removeEventListener("agents-in-the-cloud:presentation-changed", this.syncFrames, true);
+    document.removeEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncFrames);
     this.media.removeEventListener("change", this.syncFrames);
   }
 
-  private get presentation(): SwipePresentation {
-    return controllerForElement<SwipePresentation>(this.element, "workspace-presentation")!;
+  private get presentation(): SwipePresentation | null {
+    const element = this.element.querySelector(".workspace-detail-resident.visible [data-controller~=workspace-presentation]");
+    return element && !element.closest("[inert]") ? controllerForElement<SwipePresentation>(element, "workspace-presentation") : null;
   }
 
-  private readonly canSwipe = (direction: MobileSwipeDirection): boolean => {
-    return this.media.matches && !this.element.closest("[inert]")
-      && this.element.closest(".workspace-detail-resident.visible") !== null
-      && !this.element.closest(".is-mobile-workspace-pane-open")
-      && !document.querySelector("dialog[open], :popover-open, .workspace-ssh-trust-overlay")
-      && this.presentation.mobileSwipeDestination(direction) !== undefined;
-  };
+  private get sidebarOpen(): boolean {
+    return this.element.classList.contains("is-mobile-workspace-pane-open");
+  }
 
-  private readonly navigate = (direction: MobileSwipeDirection): void => {
-    if (!this.canSwipe(direction) || performance.now() - this.lastNavigation < 350) return;
-    this.lastNavigation = performance.now();
-    this.presentation.navigateMobileSwipe(direction);
+  // Snapshot only the content region; each destination keeps its bottom bar live.
+  private readonly slideBody = (): HTMLElement => this.element.querySelector<HTMLElement>(this.sidebarOpen
+    ? ":scope > .fixed-shell-workspace-pane"
+    : ".workspace-detail-resident.visible .fixed-shell-main")!;
+
+  private readonly navigationFor = (direction: MobileSwipeDirection): (() => void) | undefined => {
+    const presentation = this.presentation;
+    if (!this.media.matches || this.element.closest("[inert]") || !presentation
+      || document.querySelector("dialog[open], :popover-open, .workspace-ssh-trust-overlay")) return;
+    let navigate: (() => void) | undefined;
+    if (this.sidebarOpen) {
+      if (direction === 1) navigate = () => workspaceNavigationController()!.closeWorkspacePane();
+    } else {
+      navigate = presentation.mobileSwipeNavigation(direction);
+      // The sidebar sits before the first content destination; never wrap at the end.
+      if (!navigate && direction === -1) navigate = () => workspaceNavigationController()!.showWorkspacePane();
+    }
+    if (!navigate) return;
+    const action = navigate;
+    return () => {
+      if (this.element.hasAttribute("data-mobile-swipe") || performance.now() - this.lastNavigation < 350) return;
+      this.lastNavigation = performance.now();
+      this.element.setAttribute("data-mobile-swipe", "");
+      void slidePageChange(this.slideBody, () => {
+        action();
+        return this.slideBody();
+      }, direction === 1 ? "forward" : "back")
+        .finally(() => this.element.removeAttribute("data-mobile-swipe"));
+    };
   };
 
   private visibleFrame(frame: HTMLIFrameElement): boolean {
-    return frame.closest("[data-workspace-logically-visible='true']") !== null
+    return !this.sidebarOpen && frame.closest(".workspace-detail-resident.visible") !== null
+      && frame.closest("[data-workspace-logically-visible='true']") !== null
       && !frame.closest("[inert]") && frame.getClientRects().length > 0;
   }
 
@@ -62,10 +87,10 @@ export class MobileSwipeController extends Controller<HTMLElement> {
       this.frameOrigins.set(frame.contentWindow!, event.origin);
       frame.contentWindow!.postMessage({
         type: mobileSwipeMessage, action: "configure",
-        previous: this.canSwipe(-1), next: this.canSwipe(1),
+        previous: this.navigationFor(-1) !== undefined, next: this.navigationFor(1) !== undefined,
       }, event.origin);
     } else if (event.data.action === "navigate" && this.frameOrigins.get(frame.contentWindow!) === event.origin) {
-      this.navigate(event.data.direction);
+      this.navigationFor(event.data.direction)?.();
     }
   };
 

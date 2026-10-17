@@ -529,7 +529,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const inner = `${renderWorkspaceProvisioning(entry.id, snapshot, { failed, error: entry.phase.error, recovery })}${sourceFailure ? "" : recoveryActions}${deleteAction}`;
     const trustPanel = hostTrustPanels.get(entry.id);
     const overlay = trustPanel ? sshTrustPanel(entry.id, trustPanel.records, trustPanel.host, trustPanel.port, changedHost, `/workspaces/${encodeURIComponent(entry.id)}/ssh-trust`) : "";
-    return `<div class="workspace-boot"><div class="main"${trustPanel ? " inert" : ""}><div class="body"><div class="workspace-boot-progress"><div class="workspace-boot-content">${inner}</div></div>${provisioningLaunchPanels.get(entry.id) ?? ""}</div></div>${renderMobileWorkspaceBar("", "", !!trustPanel)}${overlay}</div>`;
+    return `<div class="workspace-boot"><div class="main"${trustPanel ? " inert" : ""}><div class="body"><div class="workspace-boot-progress"><div class="workspace-boot-content">${inner}</div></div>${provisioningLaunchPanels.get(entry.id) ?? ""}</div></div>${renderMobileWorkspaceBar({ inert: !!trustPanel })}${overlay}</div>`;
   }
 
   function emptyWorkspaceArtworkHtml(pane: WorkspacePanePresentation): string {
@@ -580,7 +580,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const launchComposer = surface?.kind === "new-workspace"
       ? await renderLaunchComposerFrame(surface.workspaceTemplate)
       : `<turbo-frame id="${launchComposerFrameId}"></turbo-frame>`;
-    return `<div class="app fixed-shell-app" data-controller="agents-in-the-cloud-shortcuts workspace-navigation">
+    return `<div class="app fixed-shell-app" data-controller="agents-in-the-cloud-shortcuts workspace-navigation mobile-swipe">
     ${renderWorkspacePane(pane, renderGlobalSidebarContributions(), workspaceModules.map((module) => module.renderWorkspacePaneActions?.() ?? "").join(""), launchComposerCommand.binding)}
     <main class="fixed-shell-app-main">${await workspaceDetailHostHtml(pane, selectedId, initialSelection)}${surface?.kind === "template-settings" ? surface.html : `<div id="${templateSettingsHostId}"></div>`}<div id="app_settings_host">${surface?.kind === "settings" ? settings : ""}</div></main>
     ${renderAgentsInTheCloudBar()}

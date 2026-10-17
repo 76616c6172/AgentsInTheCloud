@@ -11,9 +11,7 @@ class FrameSwipeController extends Controller<HTMLElement> {
   private readonly media = matchMedia(phoneLayoutMediaQuery);
 
   connect(): void {
-    this.stopObserving = observeMobileSwipe(this.element, this.canSwipe, direction => {
-      window.parent.postMessage({ type: mobileSwipeMessage, action: "navigate", direction }, this.parentOrigin!);
-    });
+    this.stopObserving = observeMobileSwipe(this.element, this.navigationFor);
     window.addEventListener("message", this.receive);
     this.ready();
   }
@@ -23,10 +21,12 @@ class FrameSwipeController extends Controller<HTMLElement> {
     window.removeEventListener("message", this.receive);
   }
 
-  private readonly canSwipe = (direction: MobileSwipeDirection): boolean => {
-    return this.media.matches && this.parentOrigin !== undefined
-      && !document.querySelector("dialog[open], :popover-open")
-      && (direction === -1 ? this.previous : this.next);
+  private readonly navigationFor = (direction: MobileSwipeDirection): (() => void) | undefined => {
+    const parentOrigin = this.parentOrigin;
+    if (!this.media.matches || parentOrigin === undefined
+      || document.querySelector("dialog[open], :popover-open")
+      || !(direction === -1 ? this.previous : this.next)) return;
+    return () => window.parent.postMessage({ type: mobileSwipeMessage, action: "navigate", direction }, parentOrigin);
   };
 
   private ready(): void {
