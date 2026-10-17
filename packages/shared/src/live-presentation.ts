@@ -1,5 +1,5 @@
 import { Type, type Static } from "typebox";
-import { escapeHtml, turboStream } from "./index.ts";
+import { escapeHtml, turboStream } from "./html.ts";
 
 /** A region owns its markup; nested independently-owned islands use data-turbo-permanent. */
 export interface LiveRegion {
