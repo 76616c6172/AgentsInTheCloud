@@ -36,6 +36,9 @@ html[data-theme] {
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-pending) .fixed-shell-workspace-bar .nox-agent-pending-action { display: flex; }
   .fixed-workspace-presentation:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .fixed-shell-workspace-bar .nox-agent-transcript-action { display: none; }
 
+  /* Keep horizontal sidebar gestures with the app; native vertical scrolling stays available. */
+  .fixed-shell-workspace-pane { touch-action: pan-y pinch-zoom; }
+
   /* Quiet, flat navigation: spacing and one divider distinguish Work choices. */
   .fixed-shell-workspace-bar { gap: 8px; }
   .nox-mobile-work-pane { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; margin-inline-start: 4px; padding-inline-start: 8px; }
@@ -128,11 +131,14 @@ html[data-theme] {
 /* Nox mobile swipes reuse Page slide's lifecycle and timing. Only its content
  * snapshots overlap; shared motion and the live workspace layout stay unchanged. */
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  /* Capture the final pane opacity, and omit the covered workspace from the
-   * stationary root snapshot when the sidebar is the incoming surface. */
+  /* Let the named snapshots provide the motion, not the live panes underneath. */
   .fixed-shell-app[data-mobile-swipe] :is(.fixed-shell-workspace-pane, .fixed-shell-agent-pane, .fixed-shell-work-pane) { transition: none; }
   .fixed-shell-app[data-mobile-swipe].is-mobile-workspace-pane-open > .fixed-shell-app-main { opacity: 0; }
+  /* The captured sidebar must not let taps fall through to the covered Agent. */
+  .fixed-shell-app[data-mobile-swipe].is-mobile-workspace-pane-open::before { content: ""; position: absolute; inset: 0; z-index: 1; }
 
+  /* Do not snapshot the whole document: the live shell must keep receiving touches. */
+  :root:has(.fixed-shell-app[data-mobile-swipe]) { view-transition-name: none; }
   :root[data-page-slide="left"]:has(.fixed-shell-app[data-mobile-swipe]) { --page-slide-out: -20%; }
   :root[data-page-slide="right"]:has(.fixed-shell-app[data-mobile-swipe]) { --page-slide-in: -20%; }
 

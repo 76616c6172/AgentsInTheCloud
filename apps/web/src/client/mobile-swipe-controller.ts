@@ -12,7 +12,7 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   private stopObserving?: () => void;
   private readonly media = matchMedia(phoneLayoutMediaQuery);
   private readonly frameOrigins = new WeakMap<Window, string>();
-  private lastNavigation = -Infinity;
+  private navigationVersion = 0;
 
   connect(): void {
     this.stopObserving = observeMobileSwipe(this.element, this.navigationFor);
@@ -47,7 +47,7 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     ? ":scope > .fixed-shell-workspace-pane"
     : ".workspace-detail-resident.visible .fixed-shell-main")!;
 
-  private readonly navigationFor = (direction: MobileSwipeDirection): (() => void) | undefined => {
+  private resolveNavigation(direction: MobileSwipeDirection): (() => void) | undefined {
     const presentation = this.presentation;
     if (!this.media.matches || this.element.closest("[inert]") || !presentation
       || document.querySelector("dialog[open], :popover-open, .workspace-ssh-trust-overlay")) return;
@@ -59,17 +59,22 @@ export class MobileSwipeController extends Controller<HTMLElement> {
       // The sidebar sits before the first content destination; never wrap at the end.
       if (!navigate && direction === -1) navigate = () => workspaceNavigationController()!.showWorkspacePane();
     }
-    if (!navigate) return;
-    const action = navigate;
+    return navigate;
+  }
+
+  private readonly navigationFor = (direction: MobileSwipeDirection): (() => void) | undefined => {
+    if (!this.resolveNavigation(direction)) return;
     return () => {
-      if (this.element.hasAttribute("data-mobile-swipe") || performance.now() - this.lastNavigation < 350) return;
-      this.lastNavigation = performance.now();
+      const version = ++this.navigationVersion;
       this.element.setAttribute("data-mobile-swipe", "");
       void slidePageChange(this.slideBody, () => {
-        action();
+        // An interrupted slide commits first; resolve against that current pane.
+        this.resolveNavigation(direction)?.();
         return this.slideBody();
-      }, direction === 1 ? "forward" : "back")
-        .finally(() => this.element.removeAttribute("data-mobile-swipe"));
+      }, direction === 1 ? "forward" : "back").finally(() => {
+        // Only the latest slide owns the temporary styling.
+        if (this.navigationVersion === version) this.element.removeAttribute("data-mobile-swipe");
+      });
     };
   };
 
