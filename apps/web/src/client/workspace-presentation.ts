@@ -268,6 +268,24 @@ export function createWorkspacePresentationController(
       };
     }
 
+    /** Lets a finger-tracked swipe show the incoming pane live before navigation commits. */
+    previewMobileSwipe(): void {
+      const role = this.state.phoneDestination === "agents" ? "work" : "agent";
+      this.element.querySelectorAll<PresentationPane>(`[data-workspace-pane-role='${role}'].is-active`).forEach((pane) => this.emitVisible(pane));
+    }
+
+    /** Puts a phone tab's view in its pane, without leaving the current one, so a swipe can preview it. */
+    prepareMobileTab(tab: HTMLElement): void {
+      if (tab.dataset.agentId) this.state.activeAgentId = tab.dataset.agentId;
+      else this.state.activeWorkViewKey = tab.dataset.workViewKey;
+      this.applyState({ emit: false });
+    }
+
+    /** A swipe that didn't commit hides its preview again. */
+    endMobileSwipePreview(): void {
+      this.applyState({ emit: true });
+    }
+
     selectMobileWork(): void {
       this.selectResidentMobileDestination();
       const key = this.state.activeWorkViewKey;
@@ -535,6 +553,12 @@ export function createWorkspacePresentationController(
         destination.setAttribute("aria-current", selected ? "page" : "false");
       });
       this.element.querySelector<HTMLElement>("[data-mobile-work]")!.setAttribute("aria-current", !sidebarOpen && this.state.phoneDestination.startsWith("work:") ? "page" : "false");
+      // Phone tabs show the visible pane, not the desktop split's selection.
+      this.element.querySelectorAll<HTMLElement>("[data-nox-phone-tab]").forEach((tab) => {
+        const selected = tab.dataset.noxPhoneTab === this.state.phoneDestination && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+      });
     };
 
     private scheduleMobileNavigationLayout(): void {
