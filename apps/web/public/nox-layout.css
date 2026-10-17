@@ -17,6 +17,12 @@ html[data-theme] {
   --button-inner-glow: none;
 }
 
+/* The Builtin robot is drawn in the text color like the other agent marks: the colored
+ * image is hidden and its monochrome mask paints currentColor in its place. */
+.builtin-agent-icon { object-position: -9999px 0; background: currentColor; mask: url("/builtin-agent-mono.png") center / contain no-repeat; }
+/* Pi is the one brand mark with colored paths; draw it in the text color like the rest. */
+svg.brand-icon path[fill] { fill: currentColor; }
+
 /* Single-pane touch layouts stay edge-to-edge; desktop gets a light window frame. */
 .fixed-shell-app {
   --panel-border-width: 0px;
@@ -141,6 +147,16 @@ html[data-theme] {
   .nox-phone-header .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: var(--accent-soft); }
   /* Tabs already list every Work view, so More only keeps actions. */
   .nox-phone-header [data-more-work-key] { display: none; }
+  /* More reads like Amp's menu: a wider panel with larger type and icons, tight rows instead of
+   * the 50px touch rows, and full-bleed rules between groups. */
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] { width: min(280px, calc(100dvw - 16px)); padding-block: 4px; font-size: 17px; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] :is(.content-row, .content-row__primary) { min-height: 36px; gap: 12px; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .content-row__icon :is(.popup-menu__icon, svg, img) { width: 20px; height: 20px; object-fit: contain; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .popup-menu__separator { margin: 4px -6px; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .fixed-shell-more-close-section:has([data-more-close-destination]:not([hidden])) { margin-inline: -6px; padding-inline: 6px; }
+  /* Agent types join the list as plain items. */
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] :is(.agent-type-picker, .agent-type-choice) { border: 0; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .agent-type-picker .content-row { padding-block: 0; }
 
   /* Another workspace needing attention puts a dot on the sidebar button; the tabs carry
    * attention for this workspace's own Agent and Work views. */

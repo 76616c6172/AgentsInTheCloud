@@ -33,6 +33,7 @@ export const fingerprintedStaticFiles: StaticFileRegistry = {
   "/service-worker.js": { url: new URL("../client/service-worker.js", import.meta.url), contentType: "text/javascript; charset=utf-8" },
   "/style.css": { url: new URL("../../public/style.css", import.meta.url), contentType: "text/css; charset=utf-8" },
   "/nox-layout.css": { url: new URL("../../public/nox-layout.css", import.meta.url), contentType: "text/css; charset=utf-8" },
+  "/builtin-agent-mono.png": { url: new URL("../../public/builtin-agent-mono.png", import.meta.url), contentType: "image/png" },
   ...designSystemStaticFiles,
   ...workspaceProvisioningStaticFiles,
   ...workspaceModuleStaticFiles(),
