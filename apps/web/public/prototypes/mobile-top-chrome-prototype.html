@@ -1,0 +1,489 @@
+<!doctype html>
+<!-- THROWAWAY PROTOTYPE — not product code.
+     Question: with swipes doing navigation, how do we drop the phone's bottom bar and put only
+     what's still needed (⋯ with the composer and hidden view options) in a slim, Amp-clean top? -->
+<html lang="en" data-theme="nox-oscura">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Prototype · Mobile top chrome</title>
+<link rel="stylesheet" href="/design-system.css">
+<link rel="stylesheet" href="/button.css">
+<link rel="stylesheet" href="/button-group.css">
+<link rel="stylesheet" href="/content-row.css">
+<link rel="stylesheet" href="/popup.css">
+<link rel="stylesheet" href="/tab-strip.css">
+<link rel="stylesheet" href="/nox-layout.css">
+<style>
+  /* Prototype-only composition. Colors, radii, type and shadows come from tokens. */
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: var(--text-body)/var(--leading-standard) var(--font-sans); }
+  * { box-sizing: border-box; }
+
+  /* ---------- Prototype tooling ---------- */
+  .proto-bar { position: sticky; top: 0; z-index: 100; display: grid; gap: 8px; padding: 10px 16px; border-bottom: 1px dashed var(--line-strong); background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); }
+  .proto-bar__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .proto-tag { padding: 1px 8px; border: 1px dashed var(--warning); border-radius: var(--radius-round); color: var(--warning); font: 11px/1.6 var(--font-mono); text-transform: uppercase; letter-spacing: .06em; }
+  .proto-bar h1 { margin: 0; color: var(--text-bright); font-size: var(--text-title); font-weight: var(--weight-medium); }
+  .proto-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .proto-question { margin: 0; max-width: 1000px; }
+  .proto-question b { color: var(--text-bright); font-weight: var(--weight-medium); }
+  .proto-bar select { padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: var(--radius-control); background: var(--bg); color: var(--text-bright); font: inherit; }
+  .proto-spacer { flex: 1; }
+  .proto-main { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 28px; padding: 20px 16px 48px; align-items: start; }
+  @media (max-width: 980px) { .proto-main { grid-template-columns: minmax(0, 1fr); } }
+  .proto-live { display: grid; gap: 8px; justify-items: center; position: sticky; top: 150px; }
+  @media (max-width: 980px) { .proto-live { position: static; } }
+  .proto-live__hint { margin: 0; max-width: 390px; color: var(--text-muted); font-size: 12px; text-align: center; }
+  .proto-state { font: 12px/1.5 var(--font-mono); color: var(--text-muted); }
+  .proto-state b { color: var(--accent); font-weight: 400; }
+  .proto-side { display: grid; gap: 22px; min-width: 0; }
+  .proto-variant-title { margin: 0; color: var(--text-bright); font-size: 20px; font-weight: var(--weight-medium); }
+  .proto-variant-title span { color: var(--accent); margin-right: 8px; font-family: var(--font-mono); }
+  .proto-rationale { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .proto-card { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius-surface); }
+  .proto-card h3 { margin: 0 0 6px; color: var(--text-bright); font-size: 13px; font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: .05em; }
+  .proto-card ul { margin: 0; padding-left: 18px; }
+  .proto-card li + li { margin-top: 4px; }
+  .proto-card code { font: 12px var(--font-mono); color: var(--text-bright); }
+  .risk { display: inline-block; padding: 0 8px; border-radius: var(--radius-round); font-size: 12px; }
+  .risk.low { background: var(--success-soft); color: var(--success); }
+  .risk.med { background: var(--warning-soft); color: var(--warning); }
+  .storyboard { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; }
+  .frame { --frame-scale: .5; flex: none; display: grid; align-content: start; gap: 8px; width: calc(390px * var(--frame-scale)); margin: 0; }
+  .frame__stage { width: calc(390px * var(--frame-scale)); height: calc(844px * var(--frame-scale)); }
+  .frame__stage > .phone { transform: scale(var(--frame-scale)); transform-origin: 0 0; pointer-events: none; }
+  .frame__caption { margin: 0; font-size: 12px; line-height: 1.45; }
+  .frame__caption b { display: block; color: var(--text-bright); font-weight: var(--weight-medium); }
+  .frame__step { color: var(--accent); font-family: var(--font-mono); margin-right: 4px; }
+
+  /* ---------- Simulated phone ---------- */
+  .phone {
+    --gap: 8px; --card-w: min(calc(390px - 88px), 400px); --status-h: 44px; --home-h: 22px;
+    position: relative; width: 390px; height: 844px; overflow: hidden; flex: none;
+    border: 1px solid var(--line-strong); border-radius: 46px; background: var(--bg);
+    user-select: none; -webkit-user-select: none; touch-action: none;
+  }
+  .phone .content-row, .phone .content-row__primary { min-height: 50px; }
+  .phone .button.icon-only { width: 42.5px; height: 42.5px; }
+  .phone .button.icon-only svg { width: 21px; height: 21px; }
+  .statusbar { position: absolute; z-index: 50; inset: 0 0 auto; height: var(--status-h); display: flex; align-items: center; justify-content: space-between; padding: 6px 30px 0; color: var(--text-bright); font: 600 14px var(--font-sans); pointer-events: none; }
+  .statusbar i { font-style: normal; font-weight: 400; color: var(--text); font-size: 12px; letter-spacing: .1em; }
+  .homebar { position: absolute; z-index: 50; left: 50%; bottom: 7px; width: 132px; height: 4px; margin-left: -66px; border-radius: var(--radius-round); background: var(--text-bright); opacity: .7; pointer-events: none; }
+  .phone.is-animating :is(.ws-card, .main, .main-tap, .agent, .work, .agent-dim, .pill-thumb, .tab-thumb, .chrome, .hairline i, .menu) { transition: transform var(--motion-enter) var(--motion-ease-out), opacity var(--motion-enter) var(--motion-ease-out), border-radius var(--motion-enter) var(--motion-ease-out), left var(--motion-enter) var(--motion-ease-out), width var(--motion-enter) var(--motion-ease-out); }
+
+  /* Shipped workspace reveal (held constant): --l is 0..1. */
+  .ws-card { position: absolute; z-index: 0; top: calc(var(--status-h) + var(--gap)); bottom: var(--gap); left: var(--gap); width: var(--card-w); display: flex; flex-direction: column; border: 1px solid var(--line-strong); border-radius: var(--radius-overlay); background: var(--panel); overflow: hidden;
+    opacity: calc(.4 + var(--l) * .6); transform: translateX(calc((var(--l) - 1) * 8%)); visibility: var(--l-vis); }
+  .main { position: absolute; z-index: 1; inset: 0; display: grid; grid-template-rows: var(--status-h) auto minmax(0, 1fr) var(--home-h); background: var(--bg); overflow: hidden; transform-origin: 0 50%;
+    transform: translateX(calc(var(--l) * (var(--card-w) + 2 * var(--gap)))) scale(calc(1 - var(--l) * .1)); border-radius: calc(var(--l) * var(--radius-overlay)); }
+  .phone[data-l-open] .main { box-shadow: 0 0 0 1px var(--line-strong), var(--shadow); }
+  .main-tap { position: absolute; z-index: 30; inset: 0; transform-origin: 0 50%; transform: translateX(calc(var(--l) * (var(--card-w) + 2 * var(--gap)))) scale(calc(1 - var(--l) * .1)); border-radius: var(--radius-overlay); background: rgb(0 0 0 / 30%); opacity: var(--l); visibility: var(--l-vis); }
+
+  /* The chrome row lives in the shell, above both panes, so it stays put during the depth swap. */
+  .chrome { grid-row: 2; position: relative; z-index: 4; display: flex; align-items: center; gap: 2px; min-height: 48px; padding: 0 4px 0 6px; }
+  .chrome__title { flex: 1; min-width: 0; display: grid; line-height: 1.25; padding-left: 2px; }
+  .chrome__title strong { color: var(--text-bright); font-weight: 400; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chrome__title small { position: relative; height: 16px; color: var(--text-muted); font-size: 12px; overflow: hidden; }
+  .chrome__title small span { position: absolute; inset: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stage { grid-row: 3; position: relative; min-height: 0; overflow: hidden; isolation: isolate; }
+
+  /* Depth swap (chosen direction B): --w is 0 (Agent) to 1 (Work). */
+  .agent, .work { position: absolute; inset: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: var(--bg); overflow: hidden; }
+  .agent { z-index: 0; transform-origin: 0 50%; transform: translateX(calc(var(--w) * -4%)) scale(calc(1 - var(--w) * .1)); border-radius: calc(var(--w) * var(--radius-overlay)); }
+  .agent-dim { position: absolute; inset: 0; background: #000; opacity: calc(var(--w) * .45); pointer-events: none; }
+  .work { z-index: 1; grid-template-rows: minmax(0, 1fr); transform-origin: 100% 50%; transform: translateX(calc((1 - var(--w)) * 104%)) scale(calc(.9 + var(--w) * .1)); border-radius: calc((1 - var(--w)) * var(--radius-overlay)); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow); }
+  .phone[data-w="0"] .work { box-shadow: none; }
+  .edge { position: absolute; z-index: 5; top: 50%; right: 0; width: 4px; height: 56px; margin-top: -28px; border-radius: var(--radius-round) 0 0 var(--radius-round); background: var(--warning); box-shadow: 0 0 12px 2px color-mix(in srgb, var(--warning) 55%, transparent); opacity: calc(1 - var(--w) * 4); pointer-events: none; }
+
+  .transcript { overflow: hidden; padding: 12px 16px; display: grid; align-content: start; gap: 12px; font-size: 13.5px; }
+  .msg-user { justify-self: end; max-width: 80%; padding: 8px 12px; border-radius: var(--radius-surface); background: var(--accent-soft); color: var(--text-bright); }
+  .msg-agent p { margin: 0 0 6px; }
+  .msg-tool { font: 12px/1.5 var(--font-mono); color: var(--text-muted); border-left: 2px solid var(--line-strong); padding-left: 8px; }
+  .composer { margin: 0 10px 6px; padding: 12px 14px; min-height: 92px; border: 1px solid var(--line-strong); border-radius: var(--radius-overlay); color: var(--text-muted); display: flex; flex-direction: column; justify-content: space-between; }
+  .composer__row { display: flex; justify-content: space-between; align-items: center; }
+  .term { margin: 0; padding: 12px 14px; overflow: hidden; font: 12px/1.55 var(--font-mono); color: var(--text); white-space: pre-wrap; }
+  .term .ok { color: var(--success); } .term .dim-t { color: var(--text-muted); } .term .acc { color: var(--accent); }
+
+  /* ⋯ menu (mock of the shipped popup, opening downward from the top-right). */
+  .menu { position: absolute; z-index: 40; top: calc(var(--status-h) + 46px); right: 8px; width: 264px; padding: 4px; border: 1px solid var(--line-strong); border-radius: var(--radius-surface); background: var(--elev); box-shadow: var(--shadow); transform-origin: 100% 0; opacity: 0; transform: scale(.96); pointer-events: none; }
+  /* The shipped popup stays hidden until opened as a popover; the mock toggles it by attribute. */
+  .phone .menu.popup-menu { visibility: hidden; }
+  .phone[data-menu] .menu.popup-menu { visibility: visible; opacity: 1; transform: none; pointer-events: auto; }
+  .menu .content-row, .menu .content-row__primary { min-height: 44px; }
+  .menu-label { margin: 6px 10px 2px; color: var(--text-muted); font-size: 12px; }
+
+  /* ---------- A · Slim title row ---------- */
+  .phone[data-v="a"] .chrome { border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+
+  /* ---------- B · Title row + view tabs (Amp) ---------- */
+  .tabs { grid-row: 3; position: relative; display: flex; gap: 2px; padding: 0 8px 6px; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+  .tab { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 0; border-radius: var(--radius-control); background: none; color: var(--text-muted); font: 13px var(--font-sans); white-space: nowrap; cursor: pointer; }
+  .tab svg { width: 16px; height: 16px; }
+  .tab[aria-selected="true"] { color: var(--text-bright); }
+  .tab .status-dot { margin-left: 2px; }
+  .tab-thumb { position: absolute; z-index: 0; top: 0; height: 34px; border-radius: var(--radius-control); background: var(--accent-soft); left: var(--thumb-x); width: var(--thumb-w); }
+  .phone[data-v="b"] .main { grid-template-rows: var(--status-h) auto auto minmax(0, 1fr) var(--home-h); }
+  .phone[data-v="b"] .stage { grid-row: 4; }
+  .phone[data-v="b"] .chrome { grid-row: 2; }
+  .phone[data-v="b"] .chrome { min-height: 46px; }
+
+  /* ---------- C · Segmented pill ---------- */
+  .pill { position: relative; display: grid; grid-template-columns: 1fr 1fr; width: 92px; height: 30px; margin-right: 4px; padding: 2px; border: 1px solid var(--line-strong); border-radius: var(--radius-round); flex: none; }
+  .pill button { position: relative; z-index: 1; display: grid; place-items: center; border: 0; background: none; color: var(--text-muted); cursor: pointer; padding: 0; }
+  .pill button svg { width: 16px; height: 16px; }
+  .pill button[aria-pressed="true"] { color: var(--text-bright); }
+  .pill button .status-dot { position: absolute; top: 2px; right: 6px; }
+  .pill-thumb { position: absolute; z-index: 0; top: 2px; bottom: 2px; left: 2px; width: calc(50% - 2px); border-radius: var(--radius-round); background: var(--accent-soft); transform: translateX(calc(var(--w) * 100%)); }
+  .phone[data-v="c"] .chrome { border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); }
+
+  /* ---------- D · Floating corners ---------- */
+  .phone[data-v="d"] .main { grid-template-rows: var(--status-h) 0 minmax(0, 1fr) var(--home-h); }
+  .phone[data-v="d"] .chrome { grid-row: auto; position: absolute; z-index: 6; top: var(--status-h); left: 0; right: 0; min-height: 0; padding: 4px 8px; pointer-events: none; }
+  .phone[data-v="d"] .chrome > .button { pointer-events: auto; border-radius: var(--radius-round); background: color-mix(in srgb, var(--elev) 80%, transparent); backdrop-filter: blur(10px); box-shadow: 0 0 0 1px var(--line-strong); }
+  .phone[data-v="d"] .chrome__title { visibility: hidden; }
+  .phone[data-v="d"] .transcript { padding-top: 56px; }
+  .phone[data-v="d"] .term { padding-top: 56px; }
+  .phone[data-v="d"] .float-title { position: absolute; z-index: 1; top: 12px; left: 64px; right: 64px; text-align: center; color: var(--text-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- E · Auto-hiding header ---------- */
+  .phone[data-v="e"] .main { grid-template-rows: var(--status-h) 0 minmax(0, 1fr) var(--home-h); }
+  .phone[data-v="e"] .chrome { grid-row: auto; position: absolute; z-index: 6; top: var(--status-h); left: 0; right: 0; background: var(--bg); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); transform: translateY(calc(var(--hide) * -110%)); opacity: calc(1 - var(--hide)); }
+  .phone[data-v="e"] .stage { margin-top: calc((1 - var(--hide)) * 48px); transition: margin-top var(--motion-enter) var(--motion-ease-out); }
+  .hairline { grid-row: auto; position: absolute; z-index: 7; top: var(--status-h); left: 0; right: 0; height: 2px; opacity: var(--hide); pointer-events: none; }
+  .hairline i { position: absolute; top: 0; height: 2px; width: 50%; left: calc(var(--w) * 50%); background: color-mix(in srgb, var(--text-bright) 45%, transparent); border-radius: var(--radius-round); }
+
+  .touch { position: absolute; z-index: 60; width: 40px; height: 40px; margin: -20px; border-radius: 50%; background: color-mix(in srgb, var(--text-bright) 28%, transparent); border: 2px solid color-mix(in srgb, var(--text-bright) 60%, transparent); pointer-events: none; }
+  .touch::after { content: ""; position: absolute; top: 50%; left: 100%; width: var(--trail, 60px); height: 2px; background: linear-gradient(to right, color-mix(in srgb, var(--text-bright) 50%, transparent), transparent); }
+  .touch.tap::after { display: none; }
+
+  .card-head { flex: none; display: flex; align-items: center; gap: 8px; padding: 12px 10px 8px 16px; color: var(--text-bright); font-size: var(--text-title); }
+  .card-head svg { width: 19px; height: 19px; }
+  .card-scroll { flex: 1; min-height: 0; overflow: hidden; padding: 2px 8px 8px; display: flex; flex-direction: column; gap: 1px; }
+  .card-foot { flex: none; padding: 6px 8px 10px; border-top: 1px solid var(--line); }
+  .group-head { display: flex; align-items: center; gap: 10px; margin: 10px 8px 2px; color: var(--text-muted); font-size: 13px; }
+  .group-head::after { content: ""; order: 1; flex: 1; height: 1px; background: var(--line); }
+  .group-head b { order: 2; font-weight: 400; }
+  .swatch { width: 18px; height: 18px; flex: none; display: block; border-radius: var(--radius-indicator); background: var(--sw); }
+  .swatch-slot { width: 44px; height: 50px; display: grid; place-items: center; flex: none; }
+</style>
+</head>
+<body>
+<header class="proto-bar" aria-label="Prototype controls">
+  <div class="proto-bar__row">
+    <span class="proto-tag">Prototype</span>
+    <h1>Mobile top chrome</h1>
+    <span class="proto-spacer"></span>
+    <div class="button-group button-group--horizontal">
+      <button class="button quiet icon-only" type="button" id="prev" title="Previous direction (←)" aria-label="Previous direction"></button>
+      <button class="button quiet icon-only" type="button" id="next" title="Next direction (→)" aria-label="Next direction"></button>
+    </div>
+    <div class="proto-chips" id="chips" role="tablist" aria-label="Directions"></div>
+    <select id="theme" aria-label="Theme">
+      <option value="nox-oscura">Nox Oscura</option><option value="nord">Nord</option><option value="midnight">Midnight</option><option value="tokyo-night">Tokyo Night</option><option value="cappuccino">Cappuccino</option>
+    </select>
+  </div>
+  <p class="proto-question"><b>Question:</b> with swipes handling navigation, how do we drop the phone's bottom bar and put only what's still needed into a slim, Amp-clean top?
+    <b>Changing:</b> how much the top shows (title only, view tabs, a pane pill, floating corners, or a header that hides), and how it reacts during the depth swap.
+    <b>Held constant:</b> no bottom bar, ⋯ at the top right holding the composer and the hidden view options, the shipped workspace reveal, the Depth swap, and Nox Oscura.</p>
+</header>
+
+<main class="proto-main">
+  <section class="proto-live" aria-label="Interactive phone">
+    <div id="live"></div>
+    <div class="proto-state" id="state"></div>
+    <p class="proto-live__hint">Swipe left for Work, right for the Agent or workspaces. Tap ⋯ for the menu, and the sidebar icon to reveal workspaces. In E, drag the transcript up or down to hide or show the header.</p>
+  </section>
+  <section class="proto-side">
+    <div>
+      <h2 class="proto-variant-title" id="vtitle"></h2>
+      <p id="vsummary" style="margin:6px 0 0;max-width:820px"></p>
+    </div>
+    <div class="storyboard" id="storyboard" aria-label="Storyboard"></div>
+    <div class="proto-rationale" id="rationale"></div>
+  </section>
+</main>
+
+<script>
+const I = {"Agent":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4h6M12 4V2M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z\"/><circle cx=\"9\" cy=\"13\" r=\"1\"/><circle cx=\"15\" cy=\"13\" r=\"1\"/></svg>","Panel":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 4h16v16H4zM15 4v16\"/></svg>","More":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"5\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/></svg>","Plus":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 5v14M5 12h14\"/></svg>","Settings":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"12\" cy=\"12\" r=\"3\"/><path d=\"M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1z\"/></svg>","Workspace":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h16v14H4zM8 9h8M8 13h5\"/></svg>","Close":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 6l12 12M18 6L6 18\"/></svg>","Park":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M17.5 15.5A7 7 0 0 1 8.5 6.5a7 7 0 1 0 9 9z\"/><path d=\"M16 5h4M18 3v4\"/></svg>","Next":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 12h14M13 7l5 5-5 5\"/><circle cx=\"5\" cy=\"6\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/></svg>","Cloud":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 19a4 4 0 0 1-1-7.87A7 7 0 0 1 18.6 9.4 4.8 4.8 0 0 1 18 19Z\"/></svg>","Back":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m15 18-6-6 6-6\"/></svg>","Ready":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><g stroke-width=\"1.15\"><path d=\"M16.56 4.52 16.71 14.38 7.73 8.91ZM16.56 4.52 16.71 14.38 22 11.94ZM16.56 4.52 7.46 3.09 7.73 8.91Z\" fill=\"currentColor\" fill-opacity=\".12\" stroke=\"none\"/><path d=\"M7.29 9.62 7.44 19.48M7.29 9.62 7.46 3.09M7.29 9.62 16.28 4.96M7.29 9.62 2 12.06M7.29 9.62 16.27 15.09M16.56 4.52 16.28 4.96M7.44 19.48 16.27 15.09M7.46 3.09 16.28 4.96M16.28 4.96 16.27 15.09M16.28 4.96 22 11.94M16.54 20.91 16.27 15.09M16.27 15.09 22 11.94\" opacity=\".25\"/><path d=\"M16.56 4.52 16.71 14.38M16.56 4.52 7.46 3.09M16.56 4.52 7.73 8.91M16.56 4.52 22 11.94M7.44 19.48 7.72 19.04M7.44 19.48 16.54 20.91M7.44 19.48 2 12.06M16.71 14.38 7.72 19.04M16.71 14.38 16.54 20.91M16.71 14.38 7.73 8.91M16.71 14.38 22 11.94M7.46 3.09 2 12.06M7.46 3.09 7.73 8.91M7.72 19.04 16.54 20.91M7.72 19.04 2 12.06M7.72 19.04 7.73 8.91M16.54 20.91 22 11.94M2 12.06 7.73 8.91\"/></g></svg>","Terminal":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"M7 10l3 2-3 2M12 15h5\"/></svg>","Browser":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M10 4v4M2 8h20M6 4v4\"/></svg>","Changes":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zM9 10h6m-3 3V7m-3 10h6\"/></svg>","Code":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m9 7-5 5 5 5m6-10 5 5-5 5\"/></svg>","Sidebar":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/></svg>","Trash":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6\"/></svg>","Transcript":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"5\" y=\"3\" width=\"14\" height=\"18\" rx=\"2\"/><path d=\"M8 8h8M8 12h8M8 16h5\"/></svg>"};
+const sw = { ait: "oklch(0.62 0.15 166)", dot: "oklch(0.62 0.15 347)" };
+
+const V = {
+  a: {
+    name: "Slim title row", short: "Title row",
+    summary: "One quiet 48px row: the sidebar icon, the workspace title with the current view underneath (Pi → Terminal 1, crossfading as you swipe), and ⋯. Everything else, including agent tabs, park and delete, moves into ⋯.",
+    frames: [["Agent", "One slim row; the composer owns the bottom.", { w: 0 }], ["Swiping", "The row stays put while the panes depth-swap underneath; the subtitle crossfades.", { w: .5, touch: true }], ["Work", "Same row, now reading Terminal 1.", { w: 1 }], ["⋯ open", "Composer, view toggles, Work views, launchers, agent and workspace actions.", { w: 0, menu: true }]],
+    good: ["Cleanest, closest to Amp's top row", "One header for both panes, so nothing jumps during the swipe", "Frees the whole bottom bar row (~54px) for content"],
+    cost: ["Work views are only reachable from ⋯ or by swiping", "The subtitle is the only hint of which pane you're on"],
+    impl: ["Server: a phone-only shell header in <code>renderWorkspacePresentation</code>, with the More popup moved up from the bar (<code>placement: \"below\"</code>)", "<code>nox-layout.css</code>: hide the bottom bar row and the per-pane headers on phones", "Moves agent tabs, New agent, park and delete into ⋯ on phones", "Content gets taller, so terminals resize once: run <code>acceptance/composer-layout.ts</code> and <code>soft-keyboard.ts</code>"],
+    risk: ["med", "Medium: markup moves between bar, header and menu"],
+  },
+  b: {
+    name: "Title row + view tabs", short: "Tabs (Amp)",
+    summary: "Amp's layout: the title row, plus a slim scrolling tab strip under it with Agent and every Work view. The highlight slides with your finger during the depth swap, and tapping a tab jumps straight there.",
+    frames: [["Agent", "Every view is one tap away in the strip.", { w: 0 }], ["Swiping", "The highlight follows the swipe, so the strip doubles as a position indicator.", { w: .5, touch: true }], ["Work", "Terminal 1 is selected.", { w: 1 }], ["⋯ open", "⋯ no longer needs the view list, so it only holds actions.", { w: 1, menu: true }]],
+    good: ["Most discoverable: every view is visible and one tap away", "Literally Amp's pattern", "⋯ gets shorter (actions only)"],
+    cost: ["Two rows (about 86px): slimmer than today's top + bottom together, but not the slimmest", "Long lists of views scroll sideways"],
+    impl: ["Server: reuse the Work view selectors (<code>renderWorkViewSelector</code>) as a phone tab strip, with Agent as the first tab", "Client: tap a tab → depth swap to that view; the highlight reads <code>--nox-pane-progress</code>", "Same acceptance runs as A"],
+    risk: ["med", "Medium: new phone tab strip"],
+  },
+  c: {
+    name: "Segmented pill", short: "Pill",
+    summary: "The title row with a tiny Agent | Work pill before ⋯. The pill's thumb slides continuously with the swipe, and its segments carry the attention dots, so it replaces the edge hint too.",
+    frames: [["Agent", "A tiny pill shows where you are and what needs you.", { w: 0 }], ["Swiping", "The thumb slides with your finger.", { w: .5, touch: true }], ["Work", "Thumb on Work. Tap a segment to swap.", { w: 1 }], ["⋯ open", "Work views and actions live in ⋯, as in A.", { w: 1, menu: true }]],
+    good: ["One slim row, with a clear position indicator", "Attention lands on the pill instead of the screen edge", "Tap targets for people who don't swipe"],
+    cost: ["The pill doesn't say which Work view (that's in ⋯)", "One more control in the row, which squeezes long titles"],
+    impl: ["As A, plus a two-button segmented control bound to <code>--nox-pane-progress</code>", "Attention: move the existing Agent/Work status slots into the pill"],
+    risk: ["med", "Medium: same as A"],
+  },
+  d: {
+    name: "Floating corners", short: "Floating",
+    summary: "No header row at all. A frosted sidebar button floats top-left and ⋯ top-right over the content, with the view name as faint text between them. This gives the content the most room.",
+    frames: [["Agent", "The content runs from the status bar to the composer.", { w: 0 }], ["Swiping", "The corner buttons stay put while the panes move.", { w: .5, touch: true }], ["Work", "The terminal starts below the buttons.", { w: 1 }], ["⋯ open", "Same menu, opening from the floating button.", { w: 0, menu: true }]],
+    good: ["The most content-forward and minimal", "No divider lines at all", "Feels most native and fullscreen"],
+    cost: ["Buttons overlap content: terminals and transcripts need top padding anyway", "Weaker orientation: the title is faint", "Frosted glass over live terminals costs a little performance"],
+    impl: ["<code>nox-layout.css</code>: absolutely positioned chrome over the stage; panes get top padding", "Server: same header markup as A, styled to float"],
+    risk: ["med", "Medium: padding inside every Work surface type"],
+  },
+  e: {
+    name: "Auto-hiding header", short: "Auto-hide",
+    summary: "A's slim row, but it slides away as you scroll down a transcript or a terminal fills with output, leaving a 2px hairline that shows your position. It comes back when you scroll up or tap the top edge.",
+    frames: [["Agent", "The slim row from A.", { w: 0, hide: 0 }], ["Reading", "Scroll down and the header tucks away, leaving a hairline.", { w: 0, hide: 1 }], ["Swiping", "The hairline's position slides with the depth swap.", { w: .5, hide: 1, touch: true }], ["Back on top", "Scroll up or tap the top and it returns.", { w: 1, hide: 0 }]],
+    good: ["The full screen goes to content while you read or watch output", "Still has a proper title row when you need it", "The hairline keeps you oriented"],
+    cost: ["Changing the height while scrolling resizes terminals, unless the header overlays the content instead", "Motion while reading can feel busy", "Needs scroll direction from every surface type (terminals, iframes)"],
+    impl: ["Overlay variant (recommended): the header slides over the content, which keeps a fixed top inset, so terminals never resize", "Scroll signals: transcript scroll events plus terminal output; iframes can't report scrolling, so they keep the header"],
+    risk: ["med", "Medium: scroll plumbing per surface"],
+  },
+};
+const order = Object.keys(V);
+
+const btn = (icon, label, extra = "", variant = "quiet") => `<button class="button ${variant} icon-only" type="button" title="${label}" aria-label="${label}" ${extra}><span class="button__icon" aria-hidden="true">${icon}</span></button>`;
+const spinner = `<span class="status-indicator" role="img" aria-label="Busy"><i class="status-spinner sm" aria-hidden="true"></i></span>`;
+const dot = `<i class="status-dot attention" aria-hidden="true"></i>`;
+const row = (icon, label, trail = "", extra = "") => `<div class="content-row content-row--compact content-row--fill"><button class="content-row__primary" type="button" role="menuitem" ${extra}><span class="content-row__icon"><span class="popup-menu__icon">${icon}</span></span><span class="content-row__content"><span class="content-row__label"><span class="content-row__label-text">${label}</span></span></span>${trail ? `<span class="content-row__metadata">${trail}</span>` : ""}</button></div>`;
+const wsRow = (c, label, trail = "", current = false) => `<div class="content-row content-row--compact content-row--fill"><div class="content-row__actions content-row__actions--leading"><span class="swatch-slot"><span class="swatch" style="--sw:${c}"></span></span></div><button class="content-row__primary" type="button"${current ? ' aria-current="page"' : ""}><span class="content-row__content"><span class="content-row__label"><span class="content-row__label-text">${label}</span></span></span><span class="content-row__metadata">${trail}</span></button></div>`;
+
+function wsCard() {
+  return `<aside class="ws-card" aria-label="Workspaces"><div class="card-head">${I.Cloud}Workspaces</div><div class="card-scroll">
+    <div class="group-head">Needs you<b>1</b></div>${wsRow(sw.ait, "Nox visual preview", `<span class="status-indicator">${dot}</span>`)}
+    <div class="group-head">Working<b>1</b></div>${wsRow(sw.ait, "Composer acceptance", spinner, true)}
+    <div class="group-head">Idle<b>1</b></div>${wsRow(sw.dot, "dotfiles: zsh startup")}
+    </div><div class="card-foot">${row(I.Plus, "New workspace")}${row(I.Settings, "Settings")}</div></aside>`;
+}
+
+function menu(v) {
+  const views = v === "b" ? "" : `<hr class="popup-menu__separator"><p class="menu-label">Work views</p>
+    ${row(I.Terminal, "Terminal 1", spinner, 'data-go-work')}${row(I.Browser, "Browser 1", "", 'data-go-work')}${row(I.Changes, "Changes", "", 'data-go-work')}`;
+  return `<div class="menu popup-menu" role="menu" aria-label="More">
+    ${row(I.Edit ?? I.Transcript, "Open composer")}${row(I.Transcript, "View transcript")}
+    ${views}
+    <hr class="popup-menu__separator">${row(I.Plus, "New terminal")}${row(I.Agent, "New agent")}
+    <hr class="popup-menu__separator">${row(I.Park, "Park workspace")}</div>`;
+}
+
+function chrome(v, s) {
+  const sidebar = btn(I.Sidebar, "Show workspaces", 'data-go="ws"');
+  const more = btn(I.More, "More", 'data-menu-toggle');
+  const subtitle = `<small><span style="opacity:calc(1 - var(--w))">Pi · working</span><span style="opacity:var(--w)">Terminal 1</span></small>`;
+  const title = `<div class="chrome__title"><strong>Composer acceptance</strong>${subtitle}</div>`;
+  if (v === "c") {
+    const pill = `<div class="pill" role="group" aria-label="Pane"><span class="pill-thumb"></span><button type="button" data-go="agent" aria-pressed="${s.w < .5}" aria-label="Agent">${I.Agent}</button><button type="button" data-go="work" aria-pressed="${s.w >= .5}" aria-label="Work">${I.Panel}${dot}</button></div>`;
+    return `<div class="chrome">${sidebar}${title}${pill}${more}</div>`;
+  }
+  return `<div class="chrome">${sidebar}${title}${more}</div>`;
+}
+
+function tabs() {
+  const items = [["agent", I.Agent, "Agent", ""], ["work", I.Terminal, "Terminal 1", dot], ["work", I.Browser, "Browser 1", ""], ["work", I.Changes, "Changes", ""]];
+  return `<div class="tabs" role="tablist"><span class="tab-thumb"></span>${items.map(([go, icon, label, extra], i) => `<button class="tab" type="button" role="tab" data-go="${go}" data-tab="${i}">${icon}${label}${extra}</button>`).join("")}</div>`;
+}
+
+function phone(v, s) {
+  const agent = `<section class="agent"><div class="transcript">
+      ${v === "d" ? `<div class="float-title">Composer acceptance · Pi</div>` : ""}
+      <div class="msg-user">Can we drop the bottom bar and keep it Amp-clean?</div>
+      <div class="msg-agent"><p>Swipes already cover Workspaces, Agent and Work, so the bar only has ⋯ left.</p>
+      <div class="msg-tool">read apps/web/src/server/workspace-presentation.ts</div><div class="msg-tool">read apps/web/public/nox-layout.css</div>
+      <p style="margin-top:8px">Moving ⋯ to the top frees the whole bottom row for the composer.</p></div>
+      <div class="msg-agent" style="color:var(--text-muted)"><p>Earlier: the workspace reveal, Depth swap, the grouping by status, and the windowed flick speed…</p></div>
+    </div>
+    <div class="composer"><span>Message Pi…</span><div class="composer__row">${btn(I.Plus, "Attach")}${btn(I.Next, "Send", "", "primary")}</div></div>
+    <div class="agent-dim"></div></section>`;
+  const work = `<section class="work"><pre class="term">${v === "d" ? "" : ""}<span class="acc">~/work</span> $ bun test --watch
+<span class="dim-t">bun test v1.4.0</span>
+
+<span class="ok">✓</span> mobile swipe › claims horizontal intent
+<span class="ok">✓</span> mobile swipe › yields vertical scroll
+<span class="ok">✓</span> mobile swipe › flick commits drag
+<span class="ok">✓</span> ingress › injects bridge script
+
+ <span class="ok">6 pass</span>
+ 0 fail
+<span class="dim-t">Ran 6 tests across 1 file. [4.61s]</span>
+
+<span class="dim-t">Watching for changes…</span></pre></section>`;
+  return `<div class="phone" data-v="${v}"${s.menu ? " data-menu" : ""}>
+    <div class="statusbar"><span>9:41</span><i>●●● ▮</i></div>
+    ${wsCard()}
+    <div class="main">
+      ${chrome(v, s)}
+      ${v === "b" ? tabs() : ""}
+      <div class="stage">${agent}${work}${v === "b" || v === "c" ? "" : `<span class="edge"></span>`}</div>
+      ${v === "e" ? `<div class="hairline"><i></i></div>` : ""}
+    </div>
+    ${menu(v)}
+    <div class="main-tap" data-go="agent"></div>
+    ${s.touch ? `<span class="touch" style="left:${330 - s.w * 120}px;top:430px;--trail:${80 + s.w * 60}px"></span>` : ""}
+    ${s.tap ? `<span class="touch tap" style="left:${s.tap.x}px;top:${s.tap.y}px"></span>` : ""}
+    <div class="homebar"></div>
+  </div>`;
+}
+
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+function apply(el, v, s) {
+  const l = clamp(-s.pos);
+  const w = clamp(s.pos);
+  el.style.setProperty("--l", l);
+  el.style.setProperty("--l-vis", l > 0 ? "visible" : "hidden");
+  el.toggleAttribute("data-l-open", l > 0);
+  el.style.setProperty("--w", w);
+  el.dataset.w = String(w);
+  el.style.setProperty("--hide", s.hide ?? 0);
+  if (v === "b") {
+    const tabs = [...el.querySelectorAll(".tab")];
+    const index = s.tab ?? 1;
+    const a = tabs[0], b = tabs[index] ?? tabs[1];
+    if (a && b) {
+      const x = a.offsetLeft + (b.offsetLeft - a.offsetLeft) * w;
+      const width = a.offsetWidth + (b.offsetWidth - a.offsetWidth) * w;
+      el.style.setProperty("--thumb-x", `${x}px`);
+      el.style.setProperty("--thumb-w", `${width}px`);
+      tabs.forEach((t, i) => t.setAttribute("aria-selected", String(w < .5 ? i === 0 : i === index)));
+    }
+  }
+  el.querySelectorAll(".pill button").forEach((b, i) => b.setAttribute("aria-pressed", String(i === 0 ? w < .5 : w >= .5)));
+}
+function label(s) {
+  if (s.pos <= -.98) return "workspace list";
+  if (s.pos < -.02) return "revealing workspaces";
+  if (s.pos < .02) return "Agent";
+  if (s.pos > .98) return "Work";
+  return "depth swap";
+}
+
+function renderStoryboard(v) {
+  const frames = V[v].frames;
+  document.getElementById("storyboard").innerHTML = frames.map(([title, text, f], i) => {
+    const s = { pos: f.w, hide: f.hide, menu: f.menu, touch: f.touch, tap: f.menu ? { x: v === "d" ? 360 : 362, y: 70 } : undefined };
+    return `<figure class="frame"><div class="frame__stage">${phone(v, s)}</div><figcaption class="frame__caption"><b><span class="frame__step">${i + 1}</span>${title}</b>${text}</figcaption></figure>`;
+  }).join("");
+  requestAnimationFrame(() => document.querySelectorAll("#storyboard .phone").forEach((el, i) => {
+    const f = frames[i][2]; apply(el, v, { pos: f.w, hide: f.hide });
+  }));
+}
+
+let current = new URLSearchParams(location.search).get("variant") || "a";
+if (!V[current]) current = "a";
+let live = { pos: 0, hide: 0, menu: false, tab: 1 };
+const host = document.getElementById("live");
+function renderLive() {
+  host.innerHTML = phone(current, live);
+  const el = host.firstElementChild;
+  apply(el, current, live);
+  bind(el);
+  showState();
+}
+function showState() { document.getElementById("state").innerHTML = `direction <b>${current.toUpperCase()}</b> · <b>${label(live)}</b>${current === "e" ? ` · header <b>${live.hide > .5 ? "hidden" : "shown"}</b>` : ""}${live.menu ? " · <b>⋯ open</b>" : ""}`; }
+function animate(patch) {
+  const el = host.firstElementChild;
+  el.classList.add("is-animating");
+  Object.assign(live, patch);
+  el.toggleAttribute("data-menu", live.menu);
+  apply(el, current, live);
+  showState();
+  setTimeout(() => el.classList.remove("is-animating"), 260);
+}
+function bind(el) {
+  el.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-go], [data-menu-toggle], [data-go-work], .menu .content-row__primary, .tab");
+    if (!t) { if (live.menu && !e.target.closest(".menu")) animate({ menu: false }); return; }
+    if (t.matches("[data-menu-toggle]")) return animate({ menu: !live.menu });
+    if (t.matches("[data-go-work]")) return animate({ menu: false, pos: 1 });
+    if (t.matches(".menu .content-row__primary")) return animate({ menu: false });
+    if (t.matches(".tab")) return animate({ tab: Math.max(1, Number(t.dataset.tab)), pos: t.dataset.go === "work" ? 1 : 0 });
+    const go = t.dataset.go;
+    if (go === "ws") return animate({ pos: live.pos <= -.98 ? 0 : -1, menu: false });
+    if (go === "agent") return animate({ pos: 0 });
+    if (go === "work") return animate({ pos: 1 });
+  });
+  if (current === "e") el.addEventListener("pointerdown", (e) => { if (e.clientY - el.getBoundingClientRect().top < 100) animate({ hide: 0 }); });
+  let start = null, last = null, velocity = 0;
+  el.addEventListener("pointerdown", (e) => {
+    if (e.target.closest(".chrome, .tabs, .menu, .card-scroll, .card-foot, .composer")) { start = null; return; }
+    start = { x: e.clientX, y: e.clientY, pos: live.pos, moved: false, axis: null }; last = { x: e.clientX, t: e.timeStamp }; velocity = 0;
+  });
+  el.addEventListener("pointermove", (e) => {
+    if (!start) return;
+    const dx = e.clientX - start.x, dy = e.clientY - start.y;
+    if (!start.axis) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) < 8) return;
+      start.axis = Math.abs(dx) > Math.abs(dy) * 1.25 ? "x" : "y";
+      el.setPointerCapture(e.pointerId);
+    }
+    if (start.axis === "y") {
+      if (current === "e" && Math.abs(dy) > 24) { const hide = dy < 0 ? 1 : 0; if (live.hide !== hide) animate({ hide }); }
+      return;
+    }
+    start.moved = true;
+    if (e.clientX !== last.x && e.timeStamp > last.t) { velocity = (e.clientX - last.x) / (e.timeStamp - last.t); last = { x: e.clientX, t: e.timeStamp }; }
+    const travel = start.pos <= 0 && dx > 0 ? 318 : 390;
+    live.pos = clamp(start.pos - dx / travel, -1, 1);
+    apply(el, current, live);
+    showState();
+  });
+  const end = (e) => {
+    if (!start) return;
+    const s = start; start = null;
+    if (!s.moved) return;
+    const stops = [-1, 0, 1];
+    const flick = Math.abs(velocity) >= .3 && e.timeStamp - last.t < 100;
+    let target;
+    if (flick) target = velocity < 0 ? stops.find(x => x > s.pos + .01) ?? 1 : [...stops].reverse().find(x => x < s.pos - .01) ?? -1;
+    else target = stops.reduce((a, b) => Math.abs(b - live.pos) < Math.abs(a - live.pos) ? b : a);
+    animate({ pos: target });
+  };
+  el.addEventListener("pointerup", end);
+  el.addEventListener("pointercancel", end);
+}
+
+function renderChrome() {
+  const v = V[current];
+  document.getElementById("chips").innerHTML = order.map(k => `<button class="button ${k === current ? "primary" : "secondary"}" type="button" role="tab" aria-selected="${k === current}" data-variant="${k}">${k.toUpperCase()} · ${V[k].short}</button>`).join("");
+  document.getElementById("vtitle").innerHTML = `<span>${current.toUpperCase()}</span>${v.name}`;
+  document.getElementById("vsummary").textContent = v.summary;
+  const list = (xs) => `<ul>${xs.map(x => `<li>${x}</li>`).join("")}</ul>`;
+  document.getElementById("rationale").innerHTML = `
+    <div class="proto-card"><h3>Optimizes</h3>${list(v.good)}</div>
+    <div class="proto-card"><h3>Compromises</h3>${list(v.cost)}</div>
+    <div class="proto-card" style="grid-column:1/-1"><h3>Implementation on nox · <span class="risk ${v.risk[0]}">${v.risk[1]}</span></h3>${list(v.impl)}</div>`;
+}
+function go(k) {
+  current = k;
+  live = { pos: 0, hide: 0, menu: false, tab: 1 };
+  const u = new URL(location.href); u.searchParams.set("variant", k); history.replaceState(null, "", u);
+  renderChrome(); renderStoryboard(k); renderLive();
+}
+document.getElementById("chips").addEventListener("click", e => { const b = e.target.closest("[data-variant]"); if (b) go(b.dataset.variant); });
+document.getElementById("prev").innerHTML = `<span class="button__icon" aria-hidden="true">${I.Back}</span>`;
+document.getElementById("next").innerHTML = `<span class="button__icon" aria-hidden="true" style="transform:scaleX(-1);display:inline-flex">${I.Back}</span>`;
+const step = (d) => go(order[(order.indexOf(current) + d + order.length) % order.length]);
+document.getElementById("prev").onclick = () => step(-1);
+document.getElementById("next").onclick = () => step(1);
+addEventListener("keydown", e => { if (e.target.closest("input,textarea,select,[contenteditable]")) return; if (e.key === "ArrowLeft") step(-1); if (e.key === "ArrowRight") step(1); });
+const theme = document.getElementById("theme");
+const savedTheme = new URLSearchParams(location.search).get("theme");
+if (savedTheme) { theme.value = savedTheme; document.documentElement.dataset.theme = savedTheme; }
+theme.onchange = () => { document.documentElement.dataset.theme = theme.value; const u = new URL(location.href); u.searchParams.set("theme", theme.value); history.replaceState(null, "", u); };
+go(current);
+</script>
+</body>
+</html>
