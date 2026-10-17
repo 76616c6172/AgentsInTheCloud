@@ -24,7 +24,6 @@ html[data-theme] {
 }
 .nox-workspace-rail,
 .nox-agent-action,
-.nox-phone-new-workspace,
 .nox-workspace-group,
 .nox-workspace-scrim { display: none; }
 .fixed-shell-agent-pane .floating-stack :is(.agent-composer-opener, [data-cli-transcript-button]) { display: none; }
@@ -50,31 +49,43 @@ html[data-theme] {
   .agents-in-the-cloud-fullscreen-open .fixed-shell-app-main { container-type: inline-size; }
   .agents-in-the-cloud-fullscreen-open .fixed-shell-main { container-type: normal; isolation: auto; }
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .fixed-shell-agents-in-the-cloud-bar { display: none; }
-  /* The dimmed workspace keeps its bar; the scrim above it takes the taps. */
+  /* The previewed workspace keeps its bar; the tap target above it returns to the workspace. */
   .fixed-shell-app.is-mobile-workspace-pane-open .workspace-detail-resident.visible .fixed-shell-workspace-bar { visibility: visible; }
 
-  /* With a workspace behind it, the list is a floating card over the dimmed workspace
-   * rather than a page. A swipe sets --nox-drawer-progress (0–1) to move it with the finger;
-   * otherwise the open state picks the end and the transition animates there. */
+  /* With a workspace open, the list is revealed rather than overlaid: the workspace steps
+   * aside into a live preview on the right, uncovering the list card beneath it. A swipe sets
+   * --nox-drawer-progress (0–1) to follow the finger; otherwise the open state picks the end. */
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) {
     --nox-drawer-gap: 8px;
-    --nox-drawer-motion: transform var(--motion-enter) var(--motion-ease-out), opacity var(--motion-enter) var(--motion-ease-out);
+    --nox-drawer-width: min(calc(100vw - 88px), 400px);
+    --nox-drawer-motion: transform var(--motion-enter) var(--motion-ease-out), opacity var(--motion-enter) var(--motion-ease-out), border-radius var(--motion-enter) var(--motion-ease-out);
+    --nox-reveal-transform: translateX(calc(var(--nox-drawer-progress, 0) * (var(--nox-drawer-width) + 2 * var(--nox-drawer-gap)))) scale(calc(1 - var(--nox-drawer-progress, 0) * 0.1));
   }
   .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) { --nox-drawer-progress: 1; }
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .fixed-shell-workspace-pane {
-    position: absolute; grid-area: 1 / 1 / -1 / -1; z-index: 40;
+    position: absolute; grid-area: 1 / 1 / -1 / -1; z-index: 0;
     inset: calc(env(safe-area-inset-top, 0px) + var(--nox-drawer-gap)) auto calc(env(safe-area-inset-bottom, 0px) + var(--nox-drawer-gap)) var(--nox-drawer-gap);
-    width: min(calc(100% - 56px), 400px); height: auto;
+    width: var(--nox-drawer-width); height: auto;
     border: 1px solid var(--line-strong); border-radius: var(--radius-overlay); overflow: hidden;
-    background: var(--panel); box-shadow: var(--shadow);
-    opacity: 1;
-    transform: translateX(calc((var(--nox-drawer-progress, 0) - 1) * (100% + 2 * var(--nox-drawer-gap))));
-    /* Stay visible until the card has slid out. */
+    background: var(--panel);
+    opacity: calc(0.4 + var(--nox-drawer-progress, 0) * 0.6);
+    transform: translateX(calc((var(--nox-drawer-progress, 0) - 1) * 8%));
+    /* Stay visible until the workspace has covered it again. */
     transition: var(--nox-drawer-motion), visibility 0s linear var(--motion-enter);
   }
+  /* The workspace stays above the list so it covers it while closing. */
+  .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .fixed-shell-app-main { position: relative; z-index: 1; transform-origin: 0 50%; transition: var(--nox-drawer-motion); }
+  /* Transform only while revealing: any transform would confine fixed-position fullscreen. */
+  .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .fixed-shell-app-main,
+  .fixed-shell-app[data-nox-drawer-drag] > .fixed-shell-app-main {
+    transform: var(--nox-reveal-transform);
+    border-radius: calc(var(--nox-drawer-progress, 0) * var(--radius-overlay)); overflow: clip;
+    box-shadow: 0 0 0 1px var(--line-strong), var(--shadow);
+  }
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .nox-workspace-scrim {
-    display: block; position: absolute; grid-area: 1 / 1 / -1 / -1; inset: 0; z-index: 39;
-    background: color-mix(in srgb, #000 50%, transparent);
+    display: block; position: absolute; grid-area: 1 / 1 / -1 / -1; inset: 0; z-index: 2;
+    transform-origin: 0 50%; transform: var(--nox-reveal-transform); border-radius: var(--radius-overlay);
+    background: color-mix(in srgb, #000 30%, transparent);
     opacity: var(--nox-drawer-progress, 0); visibility: hidden;
     touch-action: none;
     transition: var(--nox-drawer-motion), visibility 0s linear var(--motion-enter);
@@ -83,11 +94,10 @@ html[data-theme] {
     visibility: visible;
     transition: var(--nox-drawer-motion), visibility 0s;
   }
-  .fixed-shell-app[data-nox-drawer-drag] > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) { visibility: visible; transition: none; }
+  .fixed-shell-app[data-nox-drawer-drag] > :is(.fixed-shell-workspace-pane, .fixed-shell-app-main, .nox-workspace-scrim) { transition: none; }
+  .fixed-shell-app[data-nox-drawer-drag] > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) { visibility: visible; }
 
-  /* The card's header carries New workspace; Settings closes the list off below. */
-  .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) .nox-phone-new-workspace { display: contents; }
-  .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) #fixed_shell_new_workspace { display: none; }
+  /* New workspace and Settings sit at the bottom of the card. */
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) .workspace-pane-footer { border-top: 1px solid var(--line); }
 
   /* Group rows by status under "label ─── count" headings. Headings follow the rows in
