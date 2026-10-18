@@ -49,6 +49,12 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.media.removeEventListener("change", this.syncFrames);
   }
 
+  /** Sidebar navigation is available during preparation and deletion, not just in Agent/Work views. */
+  private get workspaceElement(): HTMLElement | null {
+    const element = this.element.querySelector<HTMLElement>(".workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)");
+    return element && !element.closest("[inert]") ? element : null;
+  }
+
   private get presentationElement(): HTMLElement | null {
     const element = this.element.querySelector<HTMLElement>(".workspace-detail-resident.visible [data-controller~=workspace-presentation]");
     return element && !element.closest("[inert]") ? element : null;
@@ -64,13 +70,12 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   }
 
   private resolveNavigation(direction: MobileSwipeDirection): SwipeNavigation | undefined {
-    const presentation = this.presentation;
-    if (!this.media.matches || this.element.closest("[inert]") || !presentation
+    if (!this.media.matches || !this.workspaceElement
       || document.querySelector("dialog[open], :popover-open, .workspace-ssh-trust-overlay")) return;
     if (this.sidebarOpen) {
       return direction === 1 ? { navigate: () => workspaceNavigationController()!.closeWorkspacePane(), drawer: true } : undefined;
     }
-    const navigate = presentation.mobileSwipeNavigation(direction);
+    const navigate = this.presentation?.mobileSwipeNavigation(direction);
     if (navigate) return { navigate, drawer: false };
     // The sidebar sits before the first content destination; never wrap at the end.
     return direction === -1 ? { navigate: () => workspaceNavigationController()!.showWorkspacePane(), drawer: true } : undefined;
