@@ -446,7 +446,9 @@ function renderMobileMoreMenu(presentation: WorkspacePresentation): string {
 
 /* Nox phone chrome: a slim header that stays put while the Agent and Work panes swap beneath
  * it. Each pane has its own strip, and CSS shows the visible pane's one. Tabs select by the
- * visible pane (see syncMobileNavigationSelection), not by the desktop selection. */
+ * visible pane (see syncMobileNavigationSelection), not by the desktop selection.
+ * nox-phone-chrome condenses it while you work in the content, and tapping a selected Browser
+ * tab (data-nox-tools) opens that Browser's toolbar. */
 function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean): string {
   const workspaceId = presentation.workspace.id;
   const agentTab = (agent: AgentPaneContribution) => tabHtml({
@@ -461,7 +463,7 @@ function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean):
     label: { kind: "text", text: view.label },
     iconHtml: view.iconHtml ?? Icons.Plus,
     status: { requestingAttention: view.attentionSequence !== undefined },
-    primary: { tag: "button", attributesHtml: `type="button" data-nox-phone-tab="work:${escapeHtml(view.key)}" data-work-view-key="${escapeHtml(view.key)}" data-work-view-kind="${view.kind}" data-action="click->workspace-presentation#selectWorkView"` },
+    primary: { tag: "button", attributesHtml: `type="button" data-nox-phone-tab="work:${escapeHtml(view.key)}"${view.key.startsWith("browser:") ? " data-nox-tools" : ""} data-work-view-key="${escapeHtml(view.key)}" data-work-view-kind="${view.kind}" data-action="click->workspace-presentation#selectWorkView"` },
   });
   const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher");
   const newAgent = presentation.agentTypes.length ? popupHtml({
@@ -482,7 +484,7 @@ function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean):
   presentation.agents.filter((agent) => agent.requestingAttention).map(agentTab));
   // The dot shows (in CSS) when another workspace needs attention.
   const sidebar = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", `${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i>`, "data-show-workspace-list");
-  return `<header class="nox-phone-header" aria-label="Workspace"${inert ? " inert" : ""}>
+  return `<header class="nox-phone-header" aria-label="Workspace" data-controller="nox-phone-chrome"${inert ? " inert" : ""}>
     <div class="nox-phone-header__row">${sidebar}<strong class="nox-phone-header__title">${escapeHtml(presentation.workspace.title)}</strong>${renderPhoneWorkspaceActions(presentation)}${renderMobileMoreMenu(presentation)}</div>
     <div class="nox-phone-strips">${agentStrip}${workStrip}</div>
   </header>`;

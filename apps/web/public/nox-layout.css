@@ -298,3 +298,50 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-workspace-presentation[data-nox-pane-drag] :is(.fixed-shell-agent-pane, .fixed-shell-work-pane),
   .fixed-workspace-presentation[data-nox-pane-drag] .fixed-shell-agent-pane::after { transition: none; }
 }
+
+/* Phone chrome while working (nox-phone-chrome). Condensed, the header keeps only its selected
+ * tab, small and centered, and a dot when another tab or workspace needs attention. The Browser
+ * toolbar stays out of the way until its selected tab is tapped, then floats over the page. */
+@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
+  .nox-phone-header { position: relative; }
+  .nox-phone-header[data-nox-condensed] > .nox-phone-header__row,
+  .nox-phone-header[data-nox-condensed] .nox-phone-strip > :not(.tab-strip),
+  .nox-phone-header[data-nox-condensed] .tab-strip__tabs > .content-row:not(:has(> .content-row__primary[aria-selected="true"])) { display: none; }
+  .nox-phone-header[data-nox-condensed] .nox-phone-strips { padding: 0 32px 2px; }
+  .nox-phone-header[data-nox-condensed] .nox-phone-strip { justify-content: center; }
+  .nox-phone-header[data-nox-condensed] .nox-phone-strip > .tab-strip { flex: 0 1 auto; }
+  .nox-phone-header[data-nox-condensed] .tab-strip__tabs > .content-row { min-height: 26px; background: none; font-size: 13px; }
+  .nox-phone-header[data-nox-condensed] .tab-strip__tabs > .content-row > .content-row__primary { min-height: 26px; }
+  .nox-phone-header[data-nox-condensed] .tab-strip__tabs .content-row__icon :is(svg, img) { width: 14px; height: 14px; }
+  .nox-phone-header[data-nox-condensed] .nox-phone-strips { animation: nox-chrome-settle var(--motion-enter) var(--motion-ease-out); }
+  .nox-phone-header:not([data-nox-condensed]) > .nox-phone-header__row { animation: nox-chrome-settle var(--motion-enter) var(--motion-ease-out); }
+  .nox-phone-header[data-nox-condensed]:has(.tab-strip__tabs > .content-row:not(:has(> [aria-selected="true"])) .tab-strip__status:not([hidden]) .status-dot.attention:not([hidden]))::after,
+  .fixed-shell-app:has(.fixed-shell-workspace-scroll [data-workspace-attention-at]:not([aria-current="page"])) .nox-phone-header[data-nox-condensed]::after {
+    content: ""; position: absolute; right: 16px; bottom: 12px; width: 6px; height: 6px; border-radius: var(--radius-round); background: var(--warning);
+  }
+
+  /* A selected Browser tab shows a chevron: its toolbar is one tap away. */
+  .nox-phone-header [data-nox-tools][aria-selected="true"]::after {
+    content: ""; flex: none; width: 14px; height: 14px; margin-inline-start: 2px; background: var(--text-muted);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+    transition: transform var(--motion-enter) var(--motion-ease-out);
+  }
+  .nox-phone-header[data-nox-tools-open] [data-nox-tools][aria-selected="true"]::after { transform: rotate(180deg); }
+  .nox-phone-header[data-nox-condensed] [data-nox-tools][aria-selected="true"]::after { display: none; }
+
+  .fixed-shell-work-pane .browser-shell { position: relative; }
+  .fixed-shell-work-pane .browser-toolbar { display: none; }
+  .fixed-workspace-presentation:has(> .nox-phone-header[data-nox-tools-open]) .fixed-shell-work-pane .fixed-shell-surface.is-active .browser-toolbar {
+    display: flex; position: absolute; z-index: 5; inset: 4px 6px auto; padding: 6px;
+    border: 1px solid var(--line-strong); border-radius: var(--radius-surface); background: var(--elev); box-shadow: var(--floating-surface-shadow);
+    animation: nox-chrome-settle var(--motion-enter) var(--motion-ease-out);
+  }
+  /* Dim the page under the toolbar; taps still reach it and close the toolbar. */
+  .fixed-workspace-presentation:has(> .nox-phone-header[data-nox-tools-open]) .fixed-shell-work-pane .fixed-shell-surface.is-active .browser-shell::after {
+    content: ""; position: absolute; z-index: 4; inset: 0; background: color-mix(in srgb, #000 25%, transparent); pointer-events: none;
+  }
+}
+@keyframes nox-chrome-settle { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .nox-phone-header :is(.nox-phone-strips, .nox-phone-header__row), .fixed-shell-work-pane .browser-toolbar { animation: none !important; }
+}
