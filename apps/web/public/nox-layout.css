@@ -269,8 +269,10 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-workspace-presentation[data-phone-destination^="work:"] { --nox-pane-progress: 1; }
   /* Outside a swipe, panes switch in place; the motion is the depth swap's alone. */
   .fixed-workspace-presentation :is(.fixed-shell-agent-pane, .fixed-shell-work-pane) { transition: none; }
+  /* Keep live panes scrollable while the animation settles. The swipe recognizer
+   * already consumes the horizontal gesture and suppresses its compatibility click. */
   .fixed-workspace-presentation[data-nox-pane-motion] :is(.fixed-shell-agent-pane, .fixed-shell-work-pane) {
-    opacity: 1; visibility: visible; pointer-events: none; overflow: clip;
+    opacity: 1; visibility: visible; pointer-events: auto; overflow: clip;
     transition: transform var(--motion-enter) var(--motion-ease-out), border-radius var(--motion-enter) var(--motion-ease-out);
   }
   .fixed-workspace-presentation[data-nox-pane-motion] .fixed-shell-agent-pane {
