@@ -8,8 +8,8 @@ for (const id of ["codex-cli", "claude-cli", "pi"]) {
     const directory = await mkdtemp(join(tmpdir(), `${id}-adapter-`));
     const source = join(import.meta.dir, `../../../packages/${id}-agent/src/server`);
     const model = id === "pi" ? "custom::model" : id === "codex-cli" ? "openai-codex::gpt-5.4" : "anthropic::claude-opus-4-6";
-    const npmPackage = id === "pi" ? "@earendil-works/pi-coding-agent@latest" : id === "codex-cli" ? "@openai/codex@latest" : "@anthropic-ai/claude-code@latest";
-    const mcpConfigMarker = id === "codex-cli" ? "config.toml" : id === "claude-cli" ? "claude-mcp.json" : "/pi-agents-in-the-cloud";
+    const installSource = id === "pi" ? "https://pi.dev/install.sh" : id === "codex-cli" ? "https://chatgpt.com/codex/install.sh" : "@anthropic-ai/claude-code@latest";
+    const mcpConfigMarker = id === "codex-cli" ? "codex/mcp.override" : id === "claude-cli" ? "claude-mcp.json" : "/pi-agents-in-the-cloud";
     try {
       const child = Bun.spawn([process.execPath, "-e", `
         import { expect, mock } from "bun:test";
@@ -40,7 +40,7 @@ for (const id of ["codex-cli", "claude-cli", "pi"]) {
         expect(authChecks).toBe(2);
         expect(credentials).toEqual(["adapter"]);
         expect(calls).toHaveLength(3);
-        expect(calls.at(-1)[1]).toContain(${JSON.stringify(npmPackage)});
+        expect(calls.at(-1)[1]).toContain(${JSON.stringify(installSource)});
         expect(calls.at(-1)[1]).toContain("${id}-");
         expect(calls.at(-1)[1]).toContain("HOME=/home/agents-in-the-cloud");
         expect(calls.at(-1)[1]).not.toContain("test-credential");
@@ -48,7 +48,7 @@ for (const id of ["codex-cli", "claude-cli", "pi"]) {
         const mcpSetup = calls.find((call) => call[1].includes(${JSON.stringify(mcpConfigMarker)}));
         expect(mcpSetup).toBeDefined();
         expect(mcpSetup[2].stdin).toContain("test-credential");
-        if (${id === "codex-cli"}) expect(calls.at(-1)[1]).toContain("CODEX_HOME=/home/agents-in-the-cloud/.local/share/agents-in-the-cloud-agents/" + tab.id + "/codex");
+        if (${id === "codex-cli"}) expect(calls.at(-1)[1]).toContain("sqlite_home=" + JSON.stringify("/home/agents-in-the-cloud/.local/share/agents-in-the-cloud-agents/" + tab.id + "/codex"));
         if (${id === "pi"}) expect(calls.at(-1)[1]).toContain("/pi-agents-in-the-cloud/extension.mjs");
         await agentType.launch.prepareWorkspace("adapter", context);
         expect(calls).toHaveLength(3);
