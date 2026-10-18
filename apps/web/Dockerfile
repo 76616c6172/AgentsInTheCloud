@@ -17,8 +17,8 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
  && apt-get install -y --no-install-recommends ca-certificates
 WORKDIR /app
 
-# Each platform's workspace helper is copied separately below.
-COPY --exclude=packages/workspace-helper/dist . .
+# Development's helper binary stays out; each platform's is copied below.
+COPY --exclude=packages/workspace-helper/dist --exclude=packages/workspace-helper/workspace_tools . .
 
 # Claude Code runs in workspaces; the Agent SDK's bundled platform binaries are never used here.
 RUN --mount=type=cache,target=/root/.bun/install/cache \

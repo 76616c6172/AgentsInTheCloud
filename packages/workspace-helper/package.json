@@ -11,6 +11,7 @@
     "@grpc/proto-loader": "0.8.1"
   },
   "scripts": {
-    "build": "bun scripts/build.ts"
+    "build": "bun scripts/build.ts",
+    "generate": "bun scripts/generate.ts"
   }
 }

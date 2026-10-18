@@ -23,22 +23,24 @@ func listen(path string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
-	// The socket runs anything as root, so only the directory's owner, the app,
-	// may connect.
-	var directory syscall.Stat_t
-	if err := syscall.Stat(filepath.Dir(path), &directory); err != nil {
-		listener.Close()
-		return nil, err
-	}
-	if err := os.Chown(path, int(directory.Uid), int(directory.Gid)); err != nil {
-		listener.Close()
-		return nil, err
-	}
-	if err := os.Chmod(path, 0o600); err != nil {
+	if err := restrict(path); err != nil {
 		listener.Close()
 		return nil, err
 	}
 	return listener, nil
+}
+
+// The socket runs anything as root, so only the directory's owner, the app,
+// may connect.
+func restrict(path string) error {
+	var directory syscall.Stat_t
+	if err := syscall.Stat(filepath.Dir(path), &directory); err != nil {
+		return err
+	}
+	if err := os.Chown(path, int(directory.Uid), int(directory.Gid)); err != nil {
+		return err
+	}
+	return os.Chmod(path, 0o600)
 }
 
 func main() {
