@@ -132,7 +132,7 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
   .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.status-spinner, .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
 
-  /* Phone chrome lives at the top: a slim title row with More, and tabs for every view.
+  /* Phone chrome lives at the top: one bar with the sidebar button, the pane's tabs and More.
    * Swipes and tabs replace the bottom bar, which stays in the markup for its status slots. */
   .fixed-workspace-presentation:has(> .nox-phone-header) { grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); }
   /* Without the bar, the content itself clears the home indicator. */
@@ -140,18 +140,16 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-workspace-presentation:has(> .nox-phone-header) > .fixed-shell-workspace-bar,
   .fixed-shell-agent-pane > .panel > .panel__header { display: none; }
   .nox-phone-header { grid-area: 1 / 1; display: grid; padding-top: env(safe-area-inset-top, 0px); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: var(--bg); }
-  .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 0; }
-  .nox-phone-header__row > form { display: flex; margin: 0; }
-  .nox-phone-header__title { flex: 1; min-width: 0; padding-inline: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-weight: 400; font-size: 15px; }
+  .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 4px; }
   /* Each pane has its own strip; both share one spot and crossfade at the swipe's midpoint. */
-  .nox-phone-strips { display: grid; padding: 0 8px 6px; }
+  .nox-phone-strips { flex: 1; min-width: 0; display: grid; padding-inline: 2px; }
   .nox-phone-strip { grid-area: 1 / 1; display: flex; align-items: center; gap: 4px; min-width: 0; transition: opacity var(--motion-enter) var(--motion-ease-out); }
   .nox-phone-strip[data-nox-phone-strip="agents"] { opacity: clamp(0, 1 - 2 * var(--nox-pane-progress), 1); }
   .nox-phone-strip[data-nox-phone-strip="work"] { opacity: clamp(0, 2 * var(--nox-pane-progress) - 1, 1); }
   .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination="agents"] [data-nox-phone-strip="work"],
   .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination^="work:"] [data-nox-phone-strip="agents"] { visibility: hidden; }
   .fixed-workspace-presentation[data-nox-pane-drag] .nox-phone-strip { transition: none; }
-  /* Tabs take their width so + follows them; tabs pinned from the other pane never scroll away. */
+  /* Tabs take their width; tabs pinned from the other pane never scroll away. */
   .nox-phone-strip > .tab-strip { flex: 0 1 auto; padding-block: 0; }
   .nox-phone-strip > .nox-phone-strip__divider ~ .tab-strip { flex: none; }
   .nox-phone-strip__divider { flex: none; width: 1px; height: 20px; margin-inline: 2px; background: var(--line-strong); }
@@ -167,14 +165,25 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .nox-phone-header [data-more-work-key] { display: none; }
   /* Header menus read like Amp's: a wider panel with larger type and icons, tight rows instead of
    * the 50px touch rows, and full-bleed rules between groups. */
-  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) { width: min(280px, calc(100dvw - 16px)); padding-block: 4px; font-size: 17px; }
-  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) :is(.content-row, .content-row__primary) { min-height: 36px; gap: 12px; }
-  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .content-row__icon :is(.popup-menu__icon, svg, img) { width: 20px; height: 20px; object-fit: contain; }
-  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .popup-menu__separator { margin: 4px -6px; }
-  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .fixed-shell-more-close-section:has([data-more-close-destination]:not([hidden])) { margin-inline: -6px; padding-inline: 6px; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] { width: min(280px, calc(100dvw - 16px)); padding-block: 4px; font-size: 17px; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] :is(.content-row, .content-row__primary) { min-height: 36px; gap: 12px; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .content-row__icon :is(.popup-menu__icon, svg, img) { width: 20px; height: 20px; object-fit: contain; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .popup-menu__separator { margin: 4px -6px; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .fixed-shell-more-close-section:has([data-more-close-destination]:not([hidden])) { margin-inline: -6px; padding-inline: 6px; }
   /* Agent types join the list as plain items. */
-  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) :is(.agent-type-picker, .agent-type-choice) { border: 0; }
-  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .agent-type-picker .content-row { padding-block: 0; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] :is(.agent-type-picker, .agent-type-choice) { border: 0; }
+  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .agent-type-picker .content-row { padding-block: 0; }
+  /* More starts with the workspace it belongs to, then Park and Delete side by side. */
+  .nox-phone-more-heading { display: grid; gap: 8px; padding: 6px 6px 4px; }
+  .nox-phone-more-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-size: 15px; }
+  .nox-phone-more-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .nox-phone-more-actions > form { display: flex; min-width: 0; margin: 0; }
+  .nox-phone-more-actions :is(.button, .destructive-confirmation) { flex: 1; }
+  /* New tabs for the visible pane only. */
+  .nox-phone-more-section { display: grid; }
+  .nox-phone-more-label { padding: 8px 6px 2px; color: var(--text-muted); font-size: 13px; }
+  .fixed-workspace-presentation[data-phone-destination^="work:"] [data-nox-more-pane="agents"],
+  .fixed-workspace-presentation[data-phone-destination="agents"] [data-nox-more-pane="work"] { display: none; }
 
   /* Another workspace needing attention puts a dot on the sidebar button; the tabs carry
    * attention for this workspace's own Agent and Work views. */
@@ -299,27 +308,9 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-workspace-presentation[data-nox-pane-drag] .fixed-shell-agent-pane::after { transition: none; }
 }
 
-/* Phone chrome while working (nox-phone-chrome). Condensed, the header keeps only its selected
- * tab, small and centered, and a dot when another tab or workspace needs attention. The Browser
- * toolbar stays out of the way until its selected tab is tapped, then floats over the page. */
+/* The Browser toolbar stays out of the way on phones until its selected tab is tapped, then
+ * floats over the page (nox-phone-chrome). */
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  .nox-phone-header { position: relative; }
-  .nox-phone-header[data-nox-condensed] > .nox-phone-header__row,
-  .nox-phone-header[data-nox-condensed] .nox-phone-strip > :not(.tab-strip),
-  .nox-phone-header[data-nox-condensed] .tab-strip__tabs > .content-row:not(:has(> .content-row__primary[aria-selected="true"])) { display: none; }
-  .nox-phone-header[data-nox-condensed] .nox-phone-strips { padding: 0 32px 2px; }
-  .nox-phone-header[data-nox-condensed] .nox-phone-strip { justify-content: center; }
-  .nox-phone-header[data-nox-condensed] .nox-phone-strip > .tab-strip { flex: 0 1 auto; }
-  .nox-phone-header[data-nox-condensed] .tab-strip__tabs > .content-row { min-height: 26px; background: none; font-size: 13px; }
-  .nox-phone-header[data-nox-condensed] .tab-strip__tabs > .content-row > .content-row__primary { min-height: 26px; }
-  .nox-phone-header[data-nox-condensed] .tab-strip__tabs .content-row__icon :is(svg, img) { width: 14px; height: 14px; }
-  .nox-phone-header[data-nox-condensed] .nox-phone-strips { animation: nox-chrome-settle var(--motion-enter) var(--motion-ease-out); }
-  .nox-phone-header:not([data-nox-condensed]) > .nox-phone-header__row { animation: nox-chrome-settle var(--motion-enter) var(--motion-ease-out); }
-  .nox-phone-header[data-nox-condensed]:has(.tab-strip__tabs > .content-row:not(:has(> [aria-selected="true"])) .tab-strip__status:not([hidden]) .status-dot.attention:not([hidden]))::after,
-  .fixed-shell-app:has(.fixed-shell-workspace-scroll [data-workspace-attention-at]:not([aria-current="page"])) .nox-phone-header[data-nox-condensed]::after {
-    content: ""; position: absolute; right: 16px; bottom: 12px; width: 6px; height: 6px; border-radius: var(--radius-round); background: var(--warning);
-  }
-
   /* A selected Browser tab shows a chevron: its toolbar is one tap away. */
   .nox-phone-header [data-nox-tools][aria-selected="true"]::after {
     content: ""; flex: none; width: 14px; height: 14px; margin-inline-start: 2px; background: var(--text-muted);
@@ -327,7 +318,6 @@ svg.brand-icon path[fill] { fill: currentColor; }
     transition: transform var(--motion-enter) var(--motion-ease-out);
   }
   .nox-phone-header[data-nox-tools-open] [data-nox-tools][aria-selected="true"]::after { transform: rotate(180deg); }
-  .nox-phone-header[data-nox-condensed] [data-nox-tools][aria-selected="true"]::after { display: none; }
 
   .fixed-shell-work-pane .browser-shell { position: relative; }
   .fixed-shell-work-pane .browser-toolbar { display: none; }
@@ -343,5 +333,5 @@ svg.brand-icon path[fill] { fill: currentColor; }
 }
 @keyframes nox-chrome-settle { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) {
-  .nox-phone-header :is(.nox-phone-strips, .nox-phone-header__row), .fixed-shell-work-pane .browser-toolbar { animation: none !important; }
+  .fixed-shell-work-pane .browser-toolbar { animation: none !important; }
 }

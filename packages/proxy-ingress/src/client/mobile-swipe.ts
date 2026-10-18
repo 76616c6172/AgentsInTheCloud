@@ -1,7 +1,6 @@
 import { Application, Controller, defaultSchema } from "@hotwired/stimulus";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
 import { isMobileSwipeMessage, mobileSwipeMessage, observeMobileSwipe, type MobileSwipeDirection } from "@agents-in-the-cloud/shared/mobile-swipe";
-import { observeReadingScroll, readingScrollMessage } from "@agents-in-the-cloud/shared/nox-reading-scroll";
 
 /** Isolated Stimulus application: never register with or modify a preview's own app. */
 class FrameSwipeController extends Controller<HTMLElement> {
@@ -9,22 +8,16 @@ class FrameSwipeController extends Controller<HTMLElement> {
   private previous = false;
   private next = false;
   private stopObserving?: () => void;
-  private stopReading?: () => void;
   private readonly media = matchMedia(phoneLayoutMediaQuery);
 
   connect(): void {
     this.stopObserving = observeMobileSwipe(this.element, this.navigationFor);
-    // Nox: the app condenses its chrome while you read; it can't see touches in this page.
-    this.stopReading = observeReadingScroll(this.element, (direction) => {
-      if (this.media.matches && this.parentOrigin !== undefined) window.parent.postMessage({ type: readingScrollMessage, direction }, this.parentOrigin);
-    });
     window.addEventListener("message", this.receive);
     this.ready();
   }
 
   disconnect(): void {
     this.stopObserving!();
-    this.stopReading!();
     window.removeEventListener("message", this.receive);
   }
 

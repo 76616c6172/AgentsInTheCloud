@@ -99,13 +99,13 @@ export function renderPhoneAgentTypeOptions(presentation: WorkspacePresentation)
   return forms + renderAgentTypePicker(presentation.agentTypes, { attributes: agentType => `type="submit" form="${formId(agentType.id)}" role="menuitem"` });
 }
 
-/** Park and delete for the phone header, with their own IDs. */
+/** Park and delete for the phone More menu, with their own IDs. */
 export function renderPhoneWorkspaceActions(presentation: WorkspacePresentation): string {
   const id = encodeURIComponent(presentation.workspace.id);
-  const park = buttonHtml({ type: "submit", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Park, label: "Park workspace" } });
+  const park = buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Park" } });
   const deleteConfirmation = destructiveConfirmationHtml({
     id: domId("phone_delete_workspace", presentation.workspace.id),
-    trigger: { type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Trash, label: "Delete workspace" } },
+    trigger: { type: "button", variant: "secondary", content: { kind: "caption", caption: "Delete" } },
     confirmCaption: "Yes, delete",
     cancelCaption: "Oops",
   });
