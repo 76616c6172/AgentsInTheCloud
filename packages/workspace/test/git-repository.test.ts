@@ -35,7 +35,7 @@ test("independent Git, file and index reads share one workspace exec; dependent 
   const originalIndex = await readFile(join(root, ".git/index"));
   const [status, file, tree] = await Promise.all([
     repo.gitResult(["status", "--porcelain=v1", "-z"]),
-    repo.workingFile("file"),
+    repo.workingFile("file", 1024),
     repo.captureIndexTree(),
   ]);
   expect(calls).toHaveLength(1);
@@ -44,11 +44,11 @@ test("independent Git, file and index reads share one workspace exec; dependent 
   expect(calls[0]!.options.user).toBe("agents-in-the-cloud");
   expect(calls[0]!.command.slice(0, 4)).toEqual(["bun", "--no-env-file", "--config=/dev/null", "--eval"]);
   expect(status.stdout.toString()).toBe("A  file\0");
-  expect(file!.contents.toString()).toBe("staged\n");
+  expect(file!.contents!.toString()).toBe("staged\n");
   expect(await readFile(join(root, ".git/index"))).toEqual(originalIndex);
   const [contents, missing] = await Promise.all([
     repo.gitResult(["show", `${tree.toString().trim()}:file`]),
-    repo.workingFile("missing"),
+    repo.workingFile("missing", 1024),
   ]);
   expect(calls).toHaveLength(2);
   expect(contents.stdout.toString()).toBe("staged\n");
@@ -71,7 +71,7 @@ test("Git failure remains an individual result; transport failure rejects every 
   expect(successful.exitCode).toBe(0);
   await expect(git(repo, ["rev-parse", "--verify", "HEAD"])).rejects.toThrow("fatal");
   const unavailable = createWorkspaceRepository("fixture", "", async (): Promise<GitResult> => { throw new Error("workspace unavailable"); });
-  const results = await Promise.allSettled([unavailable.gitResult(["status"]), unavailable.workingFile("file"), unavailable.captureIndexTree()]);
+  const results = await Promise.allSettled([unavailable.gitResult(["status"]), unavailable.workingFile("file", 1024), unavailable.captureIndexTree()]);
   expect(results.every(result => result.status === "rejected" && result.reason.message === "workspace unavailable")).toBe(true);
 });
 
@@ -80,8 +80,8 @@ test("repository and working-file escape paths are rejected before execution", a
   expect(() => createWorkspaceRepository("fixture", "../outside", execute)).toThrow("escapes workspace");
   expect(() => createWorkspaceRepository("fixture", "/outside", execute)).toThrow("workspace-relative");
   const repo = createWorkspaceRepository("fixture", "", execute);
-  await expect(repo.workingFile("../outside")).rejects.toThrow("escapes repository");
-  await expect(repo.workingFile("/outside")).rejects.toThrow("repository-relative");
+  await expect(repo.workingFile("../outside", 1024)).rejects.toThrow("escapes repository");
+  await expect(repo.workingFile("/outside", 1024)).rejects.toThrow("repository-relative");
 });
 
 test("shared execution policy suppresses hostile hooks, fsmonitor, external diff and textconv", async () => {
@@ -126,7 +126,7 @@ test("workspace-owned conditional writes serialize conflicting saves and retain 
   const results = await Promise.all([repo.writeWorkingFile("script", expected, "first\n"), repo.writeWorkingFile("script", expected, "second\n")]);
   expect(results).toEqual(["saved", "changed"]);
   expect(await readFile(join(root, "script"), "utf8")).toBe("first\n");
-  expect((await repo.workingFile("script"))!.mode).toBe("100755");
+  expect((await repo.workingFile("script", 1024))!.mode).toBe("100755");
   expect(calls.every(call => call.options.user === "agents-in-the-cloud")).toBe(true);
   await expect(repo.writeWorkingFile(".git/config", expected, "unsafe")).rejects.toThrow("Invalid editable");
   await expect(repo.writeWorkingFile("../outside", expected, "unsafe")).rejects.toThrow("Invalid editable");

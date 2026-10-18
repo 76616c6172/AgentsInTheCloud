@@ -1,6 +1,6 @@
 import type { WorkingFileRevision, WorkingFileWriteResult, GitResult } from "./git-repository.ts";
 
-export type RepositoryRequest = { kind: "git"; args: string[] } | { kind: "working-file"; path: string; editable?: true } | { kind: "index-tree" } | { kind: "write-working-file"; path: string; expected: WorkingFileRevision; contents: string };
+export type RepositoryRequest = { kind: "git"; args: string[] } | { kind: "working-file"; path: string; maxBytes: number; editable?: true } | { kind: "blob"; object: string; maxBytes: number } | { kind: "index-tree" } | { kind: "write-working-file"; path: string; expected: WorkingFileRevision; contents: string };
 
 export function decodeWorkingFileWrite(result: GitResult): WorkingFileWriteResult {
   if (result.exitCode === 73) return "changed";
@@ -17,13 +17,39 @@ const { tmpdir } = require('node:os');
 const { constants } = require('node:fs');
 const { createHash, randomUUID } = require('node:crypto');
 const requests = JSON.parse(await Bun.stdin.text());
-async function execute(args, env) {
-  const child = Bun.spawn(args, { stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', env });
+async function execute(args, env, stdin) {
+  const child = Bun.spawn(args, { stdin: stdin === undefined ? 'ignore' : Buffer.from(stdin), stdout: 'pipe', stderr: 'pipe', env });
   const [stdout, stderr, exitCode] = await Promise.all([new Response(child.stdout).arrayBuffer(), new Response(child.stderr).arrayBuffer(), child.exited]);
   return { stdout: Buffer.from(stdout), stderr: Buffer.from(stderr), exitCode };
 }
+// Content larger than its bound is reported by size alone (exit 46), so a huge file never reaches memory.
+async function boundedRead(path, maxBytes) {
+  const handle = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  try {
+    const { size: expected } = await handle.stat();
+    if (expected > maxBytes) return { size: expected };
+    // The file may grow after stat; end is inclusive, so reading one byte past the bound detects that.
+    const chunks = [];
+    let size = 0;
+    for await (const chunk of handle.createReadStream({ end: maxBytes, autoClose: false })) { chunks.push(chunk); size += chunk.length; }
+    return size > maxBytes ? { size: (await handle.stat()).size } : { size, contents: Buffer.concat(chunks) };
+  } finally { await handle.close(); }
+}
 async function run(request) {
   if (request.kind === 'git') return execute(request.args);
+  if (request.kind === 'blob') {
+    const missing = { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode: 44 };
+    const resolved = await execute([...request.resolveArgs, request.object]);
+    if (resolved.exitCode !== 0) return missing;
+    // Pin the object id so the size check and the read see the same blob.
+    const id = resolved.stdout.toString().trim();
+    const check = await execute(request.checkArgs, undefined, id + '\n');
+    if (check.exitCode !== 0) return check;
+    const [, type, size] = check.stdout.toString().trim().split(' ');
+    if (type !== 'blob') return missing;
+    if (Number(size) > request.maxBytes) return { stdout: Buffer.from(size), stderr: Buffer.alloc(0), exitCode: 46 };
+    return execute([...request.readArgs, id]);
+  }
   if (request.kind === 'write-working-file') {
     const result = exitCode => ({ stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode });
     if (!request.path || request.path.startsWith('/') || request.path.includes('\0') || request.path.split('/').some(part => part === '..' || part === '.git')) return result(45);
@@ -94,10 +120,11 @@ async function run(request) {
       if (request.editable && !info.isFile()) return { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode: 44 };
       if (!info.isFile() && !info.isSymbolicLink()) return { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode: 44 };
       const mode = info.isSymbolicLink() ? '120000' : info.mode & 0o111 ? '100755' : '100644';
-      const contents = info.isSymbolicLink() ? Buffer.from(await readlink(path)) : await readFile(path);
+      const { size, contents } = info.isSymbolicLink() ? { size: info.size, contents: Buffer.from(await readlink(path)) } : await boundedRead(path, request.maxBytes);
+      if (!contents) return { stdout: Buffer.from(mode + '\n' + size), stderr: Buffer.alloc(0), exitCode: 46 };
       return { stdout: Buffer.concat([Buffer.from(mode + '\n'), contents]), stderr: Buffer.alloc(0), exitCode: 0 };
     } catch (error) {
-      if (error.code === 'ENOENT') return { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode: 44 };
+      if (error.code === 'ENOENT' || error.code === 'ELOOP') return { stdout: Buffer.alloc(0), stderr: Buffer.alloc(0), exitCode: 44 };
       throw error;
     }
   }

@@ -12,7 +12,7 @@ import { matchRoute, response, textResponse } from "@agents-in-the-cloud/shared/
 import { workspaceRepository } from "@agents-in-the-cloud/workspace/git";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { collectUnchangedPaths, readUnchangedContents, readUnchangedFile, unchangedMediaType, type ChangesFile, type UnchangedFile } from "./diff.ts";
+import { collectUnchangedPaths, maxUnchangedMediaBytes, readUnchangedContents, readUnchangedFile, unchangedMediaType, type ChangesFile, type UnchangedFile } from "./diff.ts";
 import { canEditFile } from "../editing.ts";
 import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
 import type { DiffEndpoints } from "../history.ts";
@@ -177,7 +177,8 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
       if (match[1] === "unchanged-media") {
         const contentType = unchangedMediaType(path);
         if (!contentType || !await isUnchanged(workspaceId, snapshot, path)) return textResponse("Unchanged file not found", { status: 404 });
-        const { contents } = await readUnchangedContents(workspaceRepository(workspaceId), snapshot.target, path);
+        const { contents } = await readUnchangedContents(workspaceRepository(workspaceId), snapshot.target, path, maxUnchangedMediaBytes);
+        if (!contents) return textResponse("This file is too large to preview here.", { status: 413 });
         return new Response(new Uint8Array(contents), { headers: {
           "Content-Type": contentType, "Cache-Control": "private, no-store",
           "X-Content-Type-Options": "nosniff", "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",

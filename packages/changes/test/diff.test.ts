@@ -1,9 +1,9 @@
 import { localRepository } from "../../workspace/test/support/local-repository.ts";
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, truncate, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { collectChangesComparison, collectChangesFile, collectChangesIndex, collectChangesStats, collectUnchangedPaths, readUnchangedFile, type ChangesFile } from "../src/server/diff.ts";
+import { collectChangesComparison, collectChangesFile, collectChangesIndex, collectChangesStats, collectUnchangedPaths, readUnchangedContents, readUnchangedFile, type ChangesFile } from "../src/server/diff.ts";
 import { command, createChangesRepository } from "./support/repository.ts";
 
 const roots: string[] = [];
@@ -153,6 +153,28 @@ describe("Changes collection", () => {
     expect((await changesFiles(root))[0]!.kind).toBe("binary");
   });
 
+
+  test("measures files too large to review instead of reading them", async () => {
+    const root = await repository();
+    await writeFile(join(root, "photo.png"), Buffer.alloc(17 * 1024 * 1024));
+    await command(root, "git", "add", "photo.png");
+    await command(root, "git", "commit", "-qm", "large image");
+    await writeFile(join(root, "photo.png"), "small");
+    await writeFile(join(root, "dump.log"), "");
+    await truncate(join(root, "dump.log"), 5 * 1024 ** 3);
+    const repo = localRepository(root);
+    const index = await collectChangesIndex(repo);
+    expect(await collectChangesStats(repo, index)).toMatchObject([
+      { path: "dump.log", additions: 0, binarySizes: { after: 5 * 1024 ** 3 } },
+      { path: "photo.png", binarySizes: { before: 17 * 1024 * 1024, after: 5 } },
+    ]);
+    expect(await collectChangesFile(repo, "dump.log")).toMatchObject({ kind: "large", change: "added" });
+    expect(await collectChangesFile(repo, "photo.png")).toMatchObject({ kind: "large", change: "modified" });
+    const comparison = await collectChangesComparison(repo, "HEAD");
+    expect(comparison.files.get("dump.log")?.kind).toBe("large");
+    expect(comparison.stats.find(stat => stat.path === "dump.log")?.binarySizes).toEqual({ before: undefined, after: 5 * 1024 ** 3 });
+    expect(await readUnchangedContents(repo, "HEAD", "photo.png", 1024)).toEqual({ size: 17 * 1024 * 1024 });
+  });
 
   test("lists and reads unchanged files in the working tree and in commits", async () => {
     const root = await repository();

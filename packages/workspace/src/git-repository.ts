@@ -3,14 +3,19 @@ import { decodeWorkingFileWrite, decodeRepositoryBatch, repositoryBatchRunner, t
 import { workspaceRoot, type WorkspaceCommandOptions } from "./index.ts";
 
 export interface GitResult { stdout: Buffer; stderr: string; exitCode: number }
-export interface WorkingFile { contents: Buffer; mode: string }
+/** `contents` is absent when the content is larger than the bound it was read with. */
+export interface RepositoryContent { size: number; contents?: Buffer }
+export interface WorkingFile extends RepositoryContent { mode: string }
 export interface WorkingFileRevision { hash: string; mode: string }
 export type WorkingFileWriteResult = "saved" | "changed" | "unsupported";
 const writes = new Map<string, Promise<void>>();
 
 export interface Repository {
   gitResult(args: string[]): Promise<GitResult>;
-  workingFile(path: string, editable?: true): Promise<WorkingFile | undefined>;
+  /** Reads at most `maxBytes`; larger files report only their size. */
+  workingFile(path: string, maxBytes: number, editable?: true): Promise<WorkingFile | undefined>;
+  /** Any Git object expression, such as `HEAD:path`; undefined unless it names a blob. Reads at most `maxBytes`. */
+  blob(object: string, maxBytes: number): Promise<RepositoryContent | undefined>;
   captureIndexTree(): Promise<Buffer>;
   writeWorkingFile(path: string, expected: WorkingFileRevision, contents: string): Promise<WorkingFileWriteResult>;
 }
@@ -45,7 +50,8 @@ export function createWorkspaceRepository(
         return;
       }
       const requests = batch.map(({ request }) => request.kind === "git" ? { ...request, args: safeGitArguments(request.args) }
-        : request.kind === "index-tree" ? { ...request, args: safeGitArguments(["rev-parse", "--git-path", "index"]), writeArgs: safeGitArguments(["write-tree"]) } : request);
+        : request.kind === "index-tree" ? { ...request, args: safeGitArguments(["rev-parse", "--git-path", "index"]), writeArgs: safeGitArguments(["write-tree"]) }
+        : request.kind === "blob" ? { ...request, ...blobArguments } : request);
       const result = await execute(workspaceId, ["bun", "--no-env-file", "--config=/dev/null", "--eval", repositoryBatchRunner], { workdir, user: "agents-in-the-cloud", stdin: JSON.stringify(requests) });
       if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Workspace repository batch failed");
       const results = decodeRepositoryBatch(result.stdout, batch.length);
@@ -63,16 +69,14 @@ export function createWorkspaceRepository(
   }
   return {
     gitResult: args => enqueue({ kind: "git", args }),
-    async workingFile(path, editable) {
+    async workingFile(path, maxBytes, editable) {
       if (path.startsWith("/")) throw new Error("File path must be repository-relative");
       const within = relative(workdir, join(workdir, path));
       if (within === ".." || within.startsWith(`..${sep}`)) throw new Error("File path escapes repository");
-      const result = await enqueue({ kind: "working-file", path, editable });
-      if (result.exitCode === 44) return undefined;
-      if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Couldn’t read workspace file");
-      const separator = result.stdout.indexOf(10);
-      if (separator !== 6) throw new Error("Invalid workspace file response");
-      return { mode: result.stdout.subarray(0, separator).toString(), contents: result.stdout.subarray(separator + 1) };
+      return decodeWorkingFile(await enqueue({ kind: "working-file", path, maxBytes, editable }));
+    },
+    async blob(object, maxBytes) {
+      return decodeBlob(await enqueue({ kind: "blob", object, maxBytes }));
     },
     async writeWorkingFile(path, expected, contents) {
       if (!path || path.startsWith("/") || path.split("/").some(part => part === ".." || part === ".git") || path.includes("\0")) throw new Error("Invalid editable repository path");
@@ -89,6 +93,32 @@ export function createWorkspaceRepository(
       return result.stdout;
     },
   };
+}
+
+/** Prepared commands the batch runner uses to read a bounded blob. */
+export const blobArguments = {
+  resolveArgs: safeGitArguments(["rev-parse", "--verify", "--quiet", "--end-of-options"]),
+  checkArgs: safeGitArguments(["cat-file", "--batch-check"]),
+  readArgs: safeGitArguments(["cat-file", "blob"]),
+};
+
+/** Exit 44: absent. Exit 46: larger than the bound, reported by size alone. */
+function decodeContent(result: GitResult, bytes: Buffer): RepositoryContent {
+  return result.exitCode === 46 ? { size: Number(bytes.toString()) } : { size: bytes.length, contents: bytes };
+}
+
+export function decodeWorkingFile(result: GitResult): WorkingFile | undefined {
+  if (result.exitCode === 44) return undefined;
+  if (result.exitCode !== 0 && result.exitCode !== 46) throw new Error(result.stderr.trim() || "Couldn’t read workspace file");
+  const separator = result.stdout.indexOf(10);
+  if (separator !== 6) throw new Error("Invalid workspace file response");
+  return { mode: result.stdout.subarray(0, separator).toString(), ...decodeContent(result, result.stdout.subarray(separator + 1)) };
+}
+
+export function decodeBlob(result: GitResult): RepositoryContent | undefined {
+  if (result.exitCode === 44) return undefined;
+  if (result.exitCode !== 0 && result.exitCode !== 46) throw new Error(result.stderr.trim() || "Couldn’t read Git object");
+  return decodeContent(result, result.stdout);
 }
 
 export async function git(root: Repository, args: string[], allowFailure = false): Promise<Buffer> {
