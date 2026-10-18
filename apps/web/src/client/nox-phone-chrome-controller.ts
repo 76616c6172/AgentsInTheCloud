@@ -2,29 +2,27 @@
 
 import { Controller } from "@hotwired/stimulus";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
+import { isReadingScrollMessage, observeReadingScroll, type ReadingScrollDirection } from "@agents-in-the-cloud/shared/nox-reading-scroll";
 
-// A vertical drag this far scrolls content far enough to count as reading; pulling back down
-// takes a little more, so reading upward doesn't immediately bring the chrome back.
-const condenseDistance = 32;
-const expandDistance = 48;
 const ownAttributes = new Set(["data-nox-condensed", "data-nox-tools-open"]);
 
 /**
  * Nox phone chrome. The header condenses to its selected tab while you work in the content:
- * scrolling a transcript, terminal or list down, or tapping into an embedded page (whose
- * cross-origin touches never reach this document). Pulling down, tapping the header or moving
+ * scrolling a transcript, terminal, list or Browser page down. Embedded pages report their own
+ * scrolling (see the ingress swipe bridge), and focus moving into any other embedded page
+ * counts too, since its touches never reach this document. Pulling down, tapping the header or moving
  * to another pane brings it back. Tapping an already selected Browser tab opens that Browser's
  * toolbar over the page instead of keeping it on screen.
  */
 export class NoxPhoneChromeController extends Controller<HTMLElement> {
   private readonly media = matchMedia(phoneLayoutMediaQuery);
-  private touch?: { x: number; y: number; scrolls: boolean };
+  private stopReading?: () => void;
   private destination?: string;
 
   connect(): void {
     this.destination = this.presentation.dataset.phoneDestination;
-    this.presentation.addEventListener("touchstart", this.touchStarted, { passive: true });
-    this.presentation.addEventListener("touchmove", this.touchMoved, { passive: true });
+    this.stopReading = observeReadingScroll(this.content, this.read);
+    window.addEventListener("message", this.frameRead);
     this.presentation.addEventListener("submit", this.submitted);
     this.presentation.addEventListener("agents-in-the-cloud:presentation-changed", this.presentationChanged);
     this.element.addEventListener("click", this.headerClicked, true);
@@ -36,8 +34,8 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
   }
 
   disconnect(): void {
-    this.presentation.removeEventListener("touchstart", this.touchStarted);
-    this.presentation.removeEventListener("touchmove", this.touchMoved);
+    this.stopReading!();
+    window.removeEventListener("message", this.frameRead);
     this.presentation.removeEventListener("submit", this.submitted);
     this.presentation.removeEventListener("agents-in-the-cloud:presentation-changed", this.presentationChanged);
     this.element.removeEventListener("click", this.headerClicked, true);
@@ -78,41 +76,17 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
     this.closeTools();
   };
 
-  private readonly touchStarted = (event: TouchEvent): void => {
-    this.touch = undefined;
-    const target = event.target;
-    if (!this.media.matches || event.touches.length !== 1 || !(target instanceof Element)) return;
-    if (!this.content.contains(target) || target.closest("input, textarea, select, [contenteditable]")) return;
-    const { clientX: x, clientY: y } = event.touches[0]!;
-    this.touch = { x, y, scrolls: this.scrollsVertically(target) };
+  private readonly read = (direction: ReadingScrollDirection): void => {
+    if (!this.media.matches) return;
+    if (direction === "down" && !this.condensed) this.condense(true);
+    else if (direction === "up" && this.condensed) this.condense(false);
   };
 
-  private readonly touchMoved = (event: TouchEvent): void => {
-    if (!this.touch) return;
-    const { clientX, clientY } = event.touches[0]!;
-    const dx = clientX - this.touch.x;
-    const dy = clientY - this.touch.y;
-    // Horizontal drags belong to the pane and drawer swipes.
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (Math.abs(dx) > condenseDistance) this.touch = undefined;
-      return;
-    }
-    if (dy <= -condenseDistance && this.touch.scrolls && !this.condensed) {
-      this.condense(true);
-      this.touch = undefined;
-    } else if (dy >= expandDistance && this.condensed) {
-      this.condense(false);
-      this.touch = undefined;
-    }
+  private readonly frameRead = (event: MessageEvent): void => {
+    if (!isReadingScrollMessage(event.data) || event.origin === "null") return;
+    const frame = [...this.content.querySelectorAll("iframe")].find((candidate) => candidate.contentWindow === event.source);
+    if (frame?.closest("[data-workspace-logically-visible='true']")) this.read(event.data.direction);
   };
-
-  /** Only content that can scroll condenses; short pages keep their chrome. */
-  private scrollsVertically(target: Element): boolean {
-    for (let element: Element | null = target; element && element !== this.content; element = element.parentElement) {
-      if (element.scrollHeight > element.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(element).overflowY)) return true;
-    }
-    return false;
-  }
 
   /** Focus moving into an embedded page is the only sign of a tap inside it. */
   private readonly windowBlurred = (): void => {
