@@ -558,7 +558,7 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
   align-self: start;
   align-content: start;
   grid-auto-rows: max-content;
-  grid-template-columns: max-content minmax(0, 22em) max-content 5.75em;
+  grid-template-columns: max-content max-content minmax(0, 22em) max-content 5.75em;
   column-gap: 8px;
   width: max-content;
   max-width: 100%;
@@ -587,7 +587,7 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 .agent-type-picker .content-row__metadata {
   display: grid;
   grid-template-columns: subgrid;
-  grid-column: 2 / -1;
+  grid-column: 3 / -1;
   min-width: 0;
   color: inherit;
 }
@@ -611,12 +611,12 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 
 /* Narrow: names only; the comparison columns don't fit. */
 @container (max-width: 440px) {
-  .agent-empty-choices .agent-type-picker { width:100%; grid-template-columns:minmax(0, 1fr); }
+  .agent-empty-choices .agent-type-picker { width:100%; grid-template-columns:max-content minmax(0, 1fr); }
   .agent-empty-choices .agent-type-picker :is(.agent-type-picker-header, .content-row__metadata) { display:none; }
   .agent-empty-choices .agent-type-picker-header + .agent-type-choice { border-top:none; }
 }
 @media (max-width: 700px) {
-  .agent-type-picker { width:100%; grid-template-columns:minmax(0, 1fr); }
+  .agent-type-picker { width:100%; grid-template-columns:max-content minmax(0, 1fr); }
   .agent-type-picker :is(.agent-type-picker-header, .content-row__metadata) { display:none; }
   .agent-type-picker-header + .agent-type-choice { border-top:none; }
 }
