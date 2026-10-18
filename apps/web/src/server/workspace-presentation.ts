@@ -433,7 +433,6 @@ function renderWorkspaceBar(presentation: WorkspacePresentation, inert = false):
 
 function renderMobileMoreMenu(presentation: WorkspacePresentation): string {
   const workViews = renderMobileWorkViews(presentation.workViews);
-  const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher").map((command) => renderWorkLauncherCommand(command, presentation.workspace.id, "submit->workspace-presentation#closeMore")).join("");
   const closers = presentation.workViews.map(renderMobileWorkViewCloser).join("");
   const moreMenuId = workViewDomId(presentation.workspace.id, "mobile_more_menu");
   return popupHtml({
@@ -441,36 +440,71 @@ function renderMobileMoreMenu(presentation: WorkspacePresentation): string {
     trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-mobile-more" },
     menuAttributesHtml: 'data-workspace-presentation-target="moreMenu" data-action="toggle->workspace-presentation#syncMore"',
     contentHtml: `${renderAgentComposerAction(true)}${renderAgentViewSwitch(true)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
-      ${launchers}
-      ${presentation.agentTypes.length ? `<hr class="popup-menu__separator">${renderPhoneAgentTypeOptions(presentation)}` : ""}
       <div id="${workViewDomId(presentation.workspace.id, "mobile_closers")}" class="fixed-shell-more-close-section">${closers}</div>`,
   });
 }
 
 /* Nox phone chrome: a slim header that stays put while the Agent and Work panes swap beneath
- * it. Tabs select by the visible pane (see syncMobileNavigationSelection), not by the desktop selection. */
+ * it. Each pane has its own strip, and CSS shows the visible pane's one. Tabs select by the
+ * visible pane (see syncMobileNavigationSelection), not by the desktop selection. */
 function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean): string {
   const workspaceId = presentation.workspace.id;
-  const agentTabs = presentation.agents.map((agent) => tabHtml({
+  const agentTab = (agent: AgentPaneContribution) => tabHtml({
     selected: false,
     label: { kind: "text", text: agent.title },
     iconHtml: agent.iconHtml,
     status: { busy: agent.busy, requestingAttention: agent.requestingAttention },
     primary: { tag: "button", attributesHtml: `type="button" data-nox-phone-tab="agents" data-agent-id="${escapeHtml(agent.id)}" data-action="click->workspace-presentation#selectAgent"` },
-  }));
-  const workTabs = presentation.workViews.map((view) => tabHtml({
+  });
+  const workTab = (view: WorkPaneContribution) => tabHtml({
     selected: false,
     label: { kind: "text", text: view.label },
     iconHtml: view.iconHtml ?? Icons.Plus,
     status: { requestingAttention: view.attentionSequence !== undefined },
     primary: { tag: "button", attributesHtml: `type="button" data-nox-phone-tab="work:${escapeHtml(view.key)}" data-work-view-key="${escapeHtml(view.key)}" data-work-view-kind="${view.kind}" data-action="click->workspace-presentation#selectWorkView"` },
-  }));
+  });
+  const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher");
+  const newAgent = presentation.agentTypes.length ? popupHtml({
+    id: domId("phone_new_agent", workspaceId), label: "New agent", width: "content",
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "New agent" } },
+    contentHtml: renderPhoneAgentTypeOptions(presentation),
+  }) : "";
+  const openWorkView = launchers.length ? popupHtml({
+    id: domId("phone_open_work_view", workspaceId), label: "Open Work view",
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "Open Work view" } },
+    contentHtml: launchers.map((command) => renderWorkLauncherCommand(command, workspaceId)).join(""),
+  }) : "";
+  const agentStrip = renderPhoneStrip(presentation, "agents", tabStripHtml({ id: domId("phone_agent_tabs", workspaceId), label: "Agents", tabsHtml: presentation.agents.map(agentTab).join("") }) + newAgent,
+    presentation.workViews.filter((view) => view.attentionSequence !== undefined).map(workTab));
+  const workStrip = renderPhoneStrip(presentation, "work", presentation.workViews.length
+    ? tabStripHtml({ id: domId("phone_work_tabs", workspaceId), label: "Work views", tabsHtml: presentation.workViews.map(workTab).join("") }) + openWorkView
+    : renderPhoneLaunchers(workspaceId, launchers),
+  presentation.agents.filter((agent) => agent.requestingAttention).map(agentTab));
   // The dot shows (in CSS) when another workspace needs attention.
   const sidebar = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", `${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i>`, "data-show-workspace-list");
   return `<header class="nox-phone-header" aria-label="Workspace"${inert ? " inert" : ""}>
     <div class="nox-phone-header__row">${sidebar}<strong class="nox-phone-header__title">${escapeHtml(presentation.workspace.title)}</strong>${renderPhoneWorkspaceActions(presentation)}${renderMobileMoreMenu(presentation)}</div>
-    ${tabStripHtml({ id: domId("phone_tabs", workspaceId), label: "Views", tabsHtml: [...agentTabs, ...workTabs].join("") })}
+    <div class="nox-phone-strips">${agentStrip}${workStrip}</div>
   </header>`;
+}
+
+/** One pane's strip. Tabs waiting on the other pane are pinned after it, so attention stays in view. */
+function renderPhoneStrip(presentation: WorkspacePresentation, pane: "agents" | "work", contentHtml: string, waitingTabs: string[]): string {
+  const waiting = waitingTabs.length
+    ? `<span class="nox-phone-strip__divider" aria-hidden="true"></span>${tabStripHtml({ id: domId("phone_waiting", presentation.workspace.id, pane), label: pane === "agents" ? "Waiting on Work" : "Waiting on Agent", tabsHtml: waitingTabs.join("") })}`
+    : "";
+  return `<div class="nox-phone-strip" data-nox-phone-strip="${pane}">${contentHtml}${waiting}</div>`;
+}
+
+/** With nothing open on Work, its strip offers the launchers in place of tabs. */
+function renderPhoneLaunchers(workspaceId: string, launchers: NonNullable<WorkspacePresentation["commands"]>): string {
+  const formId = (commandId: string) => domId("phone_launch", workspaceId, commandId);
+  const forms = launchers.map((command) => `<form id="${formId(command.id)}" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/commands/${encodeURIComponent(command.id)}" data-turbo="true" hidden></form>`).join("");
+  const buttons = launchers.map((command) => contentRowHtml({
+    width: "fill", kind: "compact", label: { kind: "text", text: command.label }, leadingHtml: command.iconHtml ?? Icons.Plus,
+    element: { tag: "button", attributesHtml: `type="submit" form="${formId(command.id)}"` },
+  })).join("");
+  return `${forms}<div class="nox-phone-launchers" role="group" aria-label="Open a Work view">${buttons}</div>`;
 }
 
 export function renderWorkspaceDeletionPresentation(workspaceId: string, deletion: WorkspaceDeletionState, evidenceHtml = ""): string {

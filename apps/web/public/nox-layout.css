@@ -139,7 +139,21 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 0; }
   .nox-phone-header__row > form { display: flex; margin: 0; }
   .nox-phone-header__title { flex: 1; min-width: 0; padding-inline: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-weight: 400; font-size: 15px; }
-  .nox-phone-header > .tab-strip { padding: 0 8px 6px; }
+  /* Each pane has its own strip; both share one spot and crossfade at the swipe's midpoint. */
+  .nox-phone-strips { display: grid; padding: 0 8px 6px; }
+  .nox-phone-strip { grid-area: 1 / 1; display: flex; align-items: center; gap: 4px; min-width: 0; transition: opacity var(--motion-enter) var(--motion-ease-out); }
+  .nox-phone-strip[data-nox-phone-strip="agents"] { opacity: clamp(0, 1 - 2 * var(--nox-pane-progress), 1); }
+  .nox-phone-strip[data-nox-phone-strip="work"] { opacity: clamp(0, 2 * var(--nox-pane-progress) - 1, 1); }
+  .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination="agents"] [data-nox-phone-strip="work"],
+  .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination^="work:"] [data-nox-phone-strip="agents"] { visibility: hidden; }
+  .fixed-workspace-presentation[data-nox-pane-drag] .nox-phone-strip { transition: none; }
+  /* Tabs take their width so + follows them; tabs pinned from the other pane never scroll away. */
+  .nox-phone-strip > .tab-strip { flex: 0 1 auto; padding-block: 0; }
+  .nox-phone-strip > .nox-phone-strip__divider ~ .tab-strip { flex: none; }
+  .nox-phone-strip__divider { flex: none; width: 1px; height: 20px; margin-inline: 2px; background: var(--line-strong); }
+  .nox-phone-launchers { display: flex; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+  .nox-phone-launchers > .content-row { flex: none; width: auto; min-height: 36px; padding-inline-end: 8px; border-radius: var(--radius-control); color: var(--text-faint); }
+  .nox-phone-launchers > .content-row > .content-row__primary { min-height: 36px; padding-inline: 4px 2px; }
   .nox-phone-header .tab-strip__tabs { scrollbar-width: none; }
   /* Tabs size to their labels, like Amp's, instead of filling the strip. */
   .nox-phone-header .tab-strip__tabs > .content-row { flex: none; width: auto; min-width: 0; min-height: 36px; border-radius: var(--radius-control); }
@@ -147,16 +161,16 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .nox-phone-header .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: var(--accent-soft); }
   /* Tabs already list every Work view, so More only keeps actions. */
   .nox-phone-header [data-more-work-key] { display: none; }
-  /* More reads like Amp's menu: a wider panel with larger type and icons, tight rows instead of
+  /* Header menus read like Amp's: a wider panel with larger type and icons, tight rows instead of
    * the 50px touch rows, and full-bleed rules between groups. */
-  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] { width: min(280px, calc(100dvw - 16px)); padding-block: 4px; font-size: 17px; }
-  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] :is(.content-row, .content-row__primary) { min-height: 36px; gap: 12px; }
-  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .content-row__icon :is(.popup-menu__icon, svg, img) { width: 20px; height: 20px; object-fit: contain; }
-  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .popup-menu__separator { margin: 4px -6px; }
-  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .fixed-shell-more-close-section:has([data-more-close-destination]:not([hidden])) { margin-inline: -6px; padding-inline: 6px; }
+  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) { width: min(280px, calc(100dvw - 16px)); padding-block: 4px; font-size: 17px; }
+  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) :is(.content-row, .content-row__primary) { min-height: 36px; gap: 12px; }
+  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .content-row__icon :is(.popup-menu__icon, svg, img) { width: 20px; height: 20px; object-fit: contain; }
+  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .popup-menu__separator { margin: 4px -6px; }
+  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .fixed-shell-more-close-section:has([data-more-close-destination]:not([hidden])) { margin-inline: -6px; padding-inline: 6px; }
   /* Agent types join the list as plain items. */
-  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] :is(.agent-type-picker, .agent-type-choice) { border: 0; }
-  .nox-phone-header .popup-menu[data-workspace-presentation-target="moreMenu"] .agent-type-picker .content-row { padding-block: 0; }
+  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) :is(.agent-type-picker, .agent-type-choice) { border: 0; }
+  .nox-phone-header :is(.popup-menu[data-workspace-presentation-target="moreMenu"], .nox-phone-strip .popup-menu) .agent-type-picker .content-row { padding-block: 0; }
 
   /* Another workspace needing attention puts a dot on the sidebar button; the tabs carry
    * attention for this workspace's own Agent and Work views. */
