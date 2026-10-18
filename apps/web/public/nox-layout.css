@@ -23,6 +23,10 @@ html[data-theme] {
 /* Pi is the one brand mark with colored paths; draw it in the text color like the rest. */
 svg.brand-icon path[fill] { fill: currentColor; }
 
+/* The pane title already says Changes. Keep upstream's fallback markup intact so
+ * history-renderer updates merge cleanly; hide only the label, not its controls. */
+.changes-diff-endpoints-header > strong { display: none; }
+
 /* Single-pane touch layouts stay edge-to-edge; desktop gets a light window frame. */
 .fixed-shell-app {
   --panel-border-width: 0px;
