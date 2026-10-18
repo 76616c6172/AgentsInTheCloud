@@ -1,0 +1,385 @@
+<!doctype html>
+<!-- THROWAWAY PROTOTYPE. Question: on the phone, should the top tab strip show only the visible pane's tabs
+     (Agent pane: agent tabs; Work pane: work-view tabs), and how should the surrounding decisions go?
+     Not production code; see the prototype skill for how the answer is captured. -->
+<html lang="en" data-theme="nox-oscura">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prototype · Phone tabs per pane</title>
+<link rel="stylesheet" href="../design-system.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-sans); }
+  /* Prototype tooling, deliberately separate from the candidate UI. */
+  .proto-bar { position: sticky; top: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line-strong); }
+  .proto-bar__badge { padding: 2px 8px; border-radius: var(--radius-round); background: var(--warning-soft); color: var(--warning); font-size: 12px; font-weight: var(--weight-semibold); letter-spacing: .04em; text-transform: uppercase; }
+  .proto-bar__title { flex: 1 1 240px; color: var(--text-bright); font-weight: var(--weight-medium); }
+  .proto-bar__picks { color: var(--text-muted); font-family: var(--font-mono); font-size: 12px; }
+  .proto-page { max-width: 1400px; margin: 0 auto; padding: 16px 16px 80px; }
+  .proto-intro { max-width: 760px; color: var(--text-body); line-height: var(--leading-copy); }
+  .proto-intro strong { color: var(--text-bright); }
+  .proto-section { margin-top: 40px; }
+  .proto-section > h2 { margin: 0 0 4px; color: var(--text-title); font-size: 18px; font-weight: var(--weight-semibold); }
+  .proto-section > p { margin: 0 0 16px; max-width: 760px; color: var(--text-muted); line-height: var(--leading-copy); }
+  .proto-row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+  .proto-card { display: flex; flex-direction: column; gap: 10px; width: 320px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-surface); background: var(--panel); }
+  .proto-card[data-picked] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .proto-card__head { display: flex; align-items: baseline; gap: 8px; }
+  .proto-card__key { font-family: var(--font-mono); color: var(--accent); font-weight: var(--weight-semibold); }
+  .proto-card__name { flex: 1; color: var(--text-bright); font-weight: var(--weight-medium); }
+  .proto-card__why { margin: 0; color: var(--text-muted); font-size: 13px; line-height: var(--leading-standard); }
+  .proto-card__why b { color: var(--text-body); font-weight: var(--weight-medium); }
+  .proto-hint { color: var(--text-faint); font-size: 12px; }
+  .proto-scrub { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
+  .proto-scrub input { flex: 1; accent-color: var(--accent); }
+  .proto-pair { display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start; }
+  .proto-pair > figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .proto-pair figcaption { color: var(--text-muted); font-size: 13px; }
+  .proto-pair figcaption b { color: var(--text-bright); font-weight: var(--weight-medium); }
+
+  /* ---------- Candidate UI: a phone running the Nox phone chrome ---------- */
+  .phone { position: relative; display: grid; grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); width: 100%; height: 400px; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 22px; background: var(--bg); user-select: none; -webkit-user-select: none; }
+  .phone--tall { width: 360px; height: 640px; }
+  .ph-header { position: relative; z-index: 3; display: grid; padding-top: 6px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: var(--bg); }
+  .ph-row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 0; }
+  .ph-title { flex: 1; min-width: 0; padding-inline: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-size: 15px; }
+  .ph-title small { color: var(--text-muted); font-size: 13px; }
+  .ph-row .button { position: relative; }
+  .ph-row .button > .status-dot { position: absolute; top: 7px; right: 7px; }
+  .ph-stripwrap { position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; height: 44px; padding: 0 8px 6px; overflow: hidden; }
+  .ph-stripwrap[hidden] { display: none; }
+  .ph-strips { position: relative; flex: 1; min-width: 0; height: 100%; overflow: hidden; }
+  .ph-strips > .tab-strip { position: absolute; inset: 0; padding: 0; }
+  .ph-strip .tab-strip__tabs { scrollbar-width: none; }
+  .ph-strip .tab-strip__tabs > .content-row { flex: none; width: auto; min-width: 0; min-height: 36px; border-radius: var(--radius-control); }
+  .ph-strip .tab-strip__tabs > .content-row > .content-row__primary { min-height: 36px; padding-inline: 4px 10px; }
+  .ph-strip .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: var(--accent-soft); }
+  .ph-strip .tab-strip__tabs > .content-row.ph-ghost { color: var(--text-faint); }
+  .ph-strip .tab-strip__tabs > .content-row.ph-ghost .content-row__icon { opacity: .7; }
+  .ph-divider { flex: none; width: 1px; height: 20px; background: var(--line-strong); }
+  .ph-dots { display: flex; gap: 5px; padding-inline: 6px; }
+  .ph-dots > i { position: relative; width: 6px; height: 6px; border-radius: var(--radius-round); background: var(--line-strong); transition: background var(--motion-enter); }
+  .ph-dots > i[data-on] { background: var(--text-bright); }
+  .ph-dots > i > .status-dot { position: absolute; top: -6px; right: -6px; }
+  .ph-segment { position: relative; flex: none; }
+  .ph-segment .status-dot { position: absolute; top: 2px; right: -2px; }
+  .ph-body { position: relative; grid-area: 2 / 1; overflow: hidden; touch-action: pan-y; cursor: grab; }
+  .ph-pane { position: absolute; inset: 0; overflow: hidden; background: var(--bg); transform-origin: 0 50%; }
+  .ph-pane--work { transform-origin: 100% 50%; box-shadow: 0 0 0 1px var(--line-strong); }
+  .ph-pane--agent::after { content: ""; position: absolute; inset: 0; background: #000; opacity: var(--shade, 0); pointer-events: none; }
+  .ph-term { margin: 0; padding: 10px 12px; color: var(--text-code); font-family: var(--font-mono); font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+  .ph-term .c { color: var(--text-faint); } .ph-term .g { color: var(--terminal-green); } .ph-term .y { color: var(--terminal-yellow); } .ph-term .b { color: var(--terminal-blue); }
+  .ph-work-head { padding: 10px 12px 4px; color: var(--text-muted); font-size: 12px; }
+  .ph-list { display: grid; padding: 0 6px; }
+  .ph-browser { margin: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-surface); overflow: hidden; }
+  .ph-browser__url { padding: 6px 10px; border-bottom: 1px solid var(--line); color: var(--text-muted); font-family: var(--font-mono); font-size: 11px; }
+  .ph-browser__page { display: grid; gap: 8px; padding: 14px; }
+  .ph-browser__page > i { display: block; height: 10px; border-radius: var(--radius-indicator); background: var(--line); }
+  .ph-empty { display: grid; justify-items: center; gap: 12px; padding: 48px 20px; color: var(--text-muted); text-align: center; font-size: 14px; }
+  .ph-empty .button-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .ph-menu { position: absolute; z-index: 10; top: 92px; right: 8px; width: 220px; }
+  .ph-menu .popup-menu { position: static; display: block; width: auto; inset: auto; margin: 0; }
+</style>
+</head>
+<body>
+<header class="proto-bar" aria-label="Prototype controls">
+  <span class="proto-bar__badge">Prototype</span>
+  <span class="proto-bar__title">Phone tabs: show only the visible pane's tabs</span>
+  <label class="proto-scrub">Theme
+    <select class="popup-select" id="theme">
+      <option value="nox-oscura">Nox Oscura</option><option value="tokyo-night">Tokyo Night</option><option value="midnight">Midnight</option><option value="nord">Nord</option><option value="cappuccino">Cappuccino</option><option value="daylight">Daylight</option>
+    </select>
+  </label>
+  <span class="proto-bar__picks" id="picks"></span>
+  <button class="button secondary" type="button" id="reset">Reset picks</button>
+</header>
+
+<main class="proto-page">
+  <p class="proto-intro"><strong>The idea:</strong> on the phone you swipe Workspaces ← Agent ← → Work. Today the strip under the title lists every agent tab <em>and</em> every work tab, whichever pane you're on. Here, the Agent pane shows only agent tabs and the Work pane only work tabs, so the strip always describes what's on screen.<br>
+  <strong>How to use:</strong> drag sideways on any phone's content to swipe, or tap tabs. Below the comparison, each section is one decision; press <em>Pick</em> on the option you like and it flows into the <em>Proposed</em> phone. Picks live in the URL, so you can share them.</p>
+
+  <section class="proto-section" aria-labelledby="cmp">
+    <h2 id="cmp">Today vs proposed</h2>
+    <p>Same workspace in both: two agents (Pi is busy) and three work views. The proposed phone uses your current picks from the sections below.</p>
+    <div class="proto-pair">
+      <figure><div id="today"></div><figcaption><b>Today</b> · one mixed strip on both panes</figcaption></figure>
+      <figure><div id="proposed"></div><figcaption><b>Proposed</b> · strip scoped to the visible pane</figcaption></figure>
+      <figure style="max-width:320px"><figcaption><b>Scenario for these two phones</b></figcaption>
+        <select class="popup-select" aria-label="Scenario" id="scenario"></select>
+        <p class="proto-hint">Switch scenarios to see how your picks hold up with one agent, no work views, or attention waiting on the other pane.</p>
+      </figure>
+    </div>
+  </section>
+  <div id="decisions"></div>
+</main>
+
+<script>
+const I = {
+  Sidebar: '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>',
+  More: '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>',
+  Plus: '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>',
+  Changes: '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zM9 10h6m-3 3V7m-3 10h6"/></svg>',
+  Browser: '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 4v4M2 8h20M6 4v4"/></svg>',
+  Terminal: '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10l3 2-3 2M12 15h5"/></svg>',
+  Agent: '<svg aria-hidden="true" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4h6M12 4V2M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/><circle cx="9" cy="13" r="1"/><circle cx="15" cy="13" r="1"/></svg>',
+  Next: '<svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
+  Back: '<svg aria-hidden="true" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>',
+};
+
+/* ---------- Realistic data ---------- */
+const SCENARIOS = {
+  full:   { name: "2 agents, 3 views", agents: [{ id: "pi", title: "Pi", busy: true }, { id: "claude", title: "Claude" }], views: [{ key: "changes", label: "Changes", icon: I.Changes }, { key: "browser", label: "Browser", icon: I.Browser }, { key: "term", label: "Terminal", icon: I.Terminal }] },
+  single: { name: "1 agent, 1 view", agents: [{ id: "pi", title: "Pi", busy: true }], views: [{ key: "changes", label: "Changes", icon: I.Changes }] },
+  empty:  { name: "1 agent, no views", agents: [{ id: "pi", title: "Pi" }], views: [] },
+  attn:   { name: "Attention on Work", agents: [{ id: "pi", title: "Pi" }, { id: "claude", title: "Claude" }], views: [{ key: "changes", label: "Changes", icon: I.Changes, attention: true }, { key: "browser", label: "Browser", icon: I.Browser }] },
+};
+const LAUNCHERS = [{ label: "Browser", icon: I.Browser }, { label: "Changes", icon: I.Changes }, { label: "Terminal", icon: I.Terminal }];
+
+/* ---------- Decisions ---------- */
+const DECISIONS = [
+  { id: "sign", title: "1 · How do you know the other pane is there?", blurb: "With the strip scoped, nothing on the Agent pane mentions Work any more. Something has to say ‘there's more to the right’ and offer a tap target for people who don't swipe.", scenario: "full", options: [
+    { k: "a", name: "Page dots", why: "<b>Optimizes:</b> quiet, familiar pager cue in the title row. <b>Costs:</b> dots don't say what's over there and are too small to tap." },
+    { k: "b", name: "Agent | Work switch", why: "<b>Optimizes:</b> explicit, tappable, names both panes. <b>Costs:</b> takes ~110px of the strip, so fewer tabs fit." },
+    { k: "c", name: "Peek chip", why: "<b>Optimizes:</b> the strip ends with a faint ‘Work ›’ (or starts with ‘‹ Agent’) right where the swipe goes. <b>Costs:</b> one more chip in the strip." },
+    { k: "d", name: "Nothing, swipe only", why: "<b>Optimizes:</b> cleanest strip. <b>Costs:</b> Work is invisible until you swipe; relies on learned gesture." },
+  ]},
+  { id: "motion", title: "2 · What does the strip do during a swipe?", blurb: "Drag on the phone (or use the scrubber) to feel each one. The panes already do a depth swap; the strip can follow along or switch at a moment.", scenario: "full", scrub: true, options: [
+    { k: "a", name: "Tabs travel with their pane", why: "<b>Optimizes:</b> strip and pane feel like one sheet; very spatial. <b>Costs:</b> two strips are briefly visible side by side." },
+    { k: "b", name: "Crossfade at the midpoint", why: "<b>Optimizes:</b> calm, the header never slides. <b>Costs:</b> a moment where both are half-visible." },
+    { k: "c", name: "Swap when the swipe lands", why: "<b>Optimizes:</b> simplest to build; header is rock-steady. <b>Costs:</b> strip lags behind the pane during the drag." },
+  ]},
+  { id: "single", title: "3 · Only one tab on a pane?", blurb: "Most workspaces run one agent. A lone tab in its own row spends ~44px saying what the title could say.", scenario: "single", options: [
+    { k: "a", name: "Keep the strip", why: "<b>Optimizes:</b> header height never changes; consistent. <b>Costs:</b> a whole row for one label." },
+    { k: "b", name: "Collapse into the title", why: "<b>Optimizes:</b> more room for the terminal; title reads ‘AgentsInTheCloud · Pi’. <b>Costs:</b> header height changes between panes and when a second tab appears." },
+    { k: "c", name: "Collapse on the Agent pane only", why: "<b>Optimizes:</b> terminal gets the room; Work keeps its strip because views come and go. <b>Costs:</b> two rules to learn." },
+  ]},
+  { id: "empty", title: "4 · Work pane with no views open?", blurb: "A fresh workspace has an agent but nothing on Work yet.", scenario: "empty", startWork: true, options: [
+    { k: "a", name: "Skip the Work pane", why: "<b>Optimizes:</b> no dead end; swiping left just rubber-bands. <b>Costs:</b> opening a first view needs More (or another entry point)." },
+    { k: "b", name: "Launchers in the strip", why: "<b>Optimizes:</b> the strip offers ‘+ Browser’, ‘+ Changes’, ‘+ Terminal’ as ghost tabs that turn real when tapped. <b>Costs:</b> ghost tabs can look like open ones." },
+    { k: "c", name: "Empty state in the pane", why: "<b>Optimizes:</b> roomy, clear buttons in the body; the strip stays empty. <b>Costs:</b> a whole screen for three buttons." },
+  ]},
+  { id: "add", title: "5 · Where do ‘new agent’ and ‘open view’ live?", blurb: "Scoping the strip makes adding contextual: on Agent you'd add an agent, on Work a view.", scenario: "full", options: [
+    { k: "a", name: "+ at the end of the strip", why: "<b>Optimizes:</b> adding sits where the new tab will appear, like a browser. <b>Costs:</b> scrolls away when there are many tabs." },
+    { k: "b", name: "Contextual + in the title row", why: "<b>Optimizes:</b> always reachable, beside More. <b>Costs:</b> title row gets busier; meaning changes per pane." },
+    { k: "c", name: "In More only (today)", why: "<b>Optimizes:</b> calm chrome. <b>Costs:</b> two taps, and less discoverable." },
+  ]},
+  { id: "attn", title: "6 · Attention on the pane you're not looking at?", blurb: "Today an attention dot on a Work tab is visible from the Agent pane because both share the strip. Scoped strips hide it. Here, Changes on Work wants you while you're on Agent.", scenario: "attn", options: [
+    { k: "a", name: "Dot on the signpost", why: "<b>Optimizes:</b> one consistent place: the dot rides on whatever points to the other pane (dots, switch, or peek chip). <b>Costs:</b> with signpost ‘Nothing’ it has no home, so it falls back to the title row." },
+    { k: "b", name: "Pin the waiting tab", why: "<b>Optimizes:</b> the exact tab that needs you appears at the end of this strip, after a divider; tap it to jump. <b>Costs:</b> breaks the ‘only this pane’ rule a little." },
+    { k: "c", name: "Dot in the title row", why: "<b>Optimizes:</b> simple and stable. <b>Costs:</b> says something's up, not where." },
+  ]},
+];
+const DEFAULTS = { sign: "c", motion: "a", single: "a", empty: "b", add: "a", attn: "a" };
+
+/* ---------- State ---------- */
+const params = new URLSearchParams(location.search);
+const picks = Object.fromEntries(Object.keys(DEFAULTS).map((k) => [k, params.get(k) ?? DEFAULTS[k]]));
+let scenarioKey = params.get("scenario") ?? "full";
+document.documentElement.dataset.theme = params.get("theme") ?? "nox-oscura";
+document.getElementById("theme").value = document.documentElement.dataset.theme;
+function saveUrl() {
+  const p = new URLSearchParams({ ...picks, scenario: scenarioKey, theme: document.documentElement.dataset.theme });
+  history.replaceState(null, "", `?${p}${location.hash}`);
+  document.getElementById("picks").textContent = Object.entries(picks).map(([k, v]) => `${DECISIONS.findIndex((d) => d.id === k) + 1}${v.toUpperCase()}`).join(" ");
+}
+
+/* ---------- Markup helpers: same anatomy as the design system's tabHtml / buttonHtml ---------- */
+const status = ({ busy, attention } = {}) => `<span class="tab-strip__status" role="img" aria-label="${[busy && "Busy", attention && "Requesting attention"].filter(Boolean).join("; ")}"${busy || attention ? "" : " hidden"}><span class="status-indicator"><i class="status-dot running" aria-hidden="true"${busy ? "" : " hidden"}></i><i class="status-dot attention" aria-hidden="true"${attention ? "" : " hidden"}></i></span></span>`;
+const tab = ({ label, icon, selected = false, busy, attention, act, cls = "" }) => `<div class="content-row content-row--compact content-row--fill ${cls}"><button class="content-row__primary" role="tab" aria-selected="${selected}" tabindex="${selected ? 0 : -1}" type="button" data-act="${act}"><span class="content-row__icon">${icon}</span><span class="content-row__content"><span class="content-row__label"><span class="content-row__label-text">${label}</span></span></span><span class="content-row__metadata">${status({ busy, attention })}</span></button></div>`;
+const strip = (label, tabs, extra = "") => `<div class="tab-strip ph-strip" ${extra}><div class="tab-strip__tabs" role="tablist" aria-label="${label}">${tabs}</div></div>`;
+const iconButton = (label, icon, act, dot = false) => `<button class="button quiet icon-only" type="button" title="${label}" aria-label="${label}" data-act="${act}"><span class="button__icon" aria-hidden="true">${icon}</span>${dot ? '<i class="status-dot attention" aria-hidden="true"></i>' : ""}</button>`;
+const dot = '<i class="status-dot attention" aria-hidden="true"></i>';
+
+/* ---------- A phone ---------- */
+class Phone {
+  constructor(host, { config, scenario, today = false, startWork = false, tall = false, onScrub }) {
+    this.host = host; this.config = config; this.today = today; this.tall = tall; this.onScrub = onScrub;
+    this.setScenario(scenario, startWork);
+  }
+  setScenario(key, startWork = false) {
+    const s = SCENARIOS[key];
+    this.data = { agents: s.agents.map((a) => ({ ...a })), views: s.views.map((v) => ({ ...v })) };
+    this.agent = this.data.agents[0].id; this.view = this.data.views[0]?.key;
+    this.progress = startWork && this.workReachable() ? 1 : 0;
+    this.menu = false;
+    this.render();
+  }
+  workReachable() { return this.today || this.data.views.length > 0 || this.config.empty !== "a"; }
+  pane() { return this.progress >= .5 ? "work" : "agent"; }
+  hiddenAttention() {
+    const other = this.pane() === "agent" ? this.data.views.filter((v) => v.attention) : this.data.agents.filter((a) => a.attention);
+    return other;
+  }
+  agentTabs() { return this.data.agents.map((a) => tab({ label: a.title, icon: I.Agent, selected: a.id === this.agent && (this.today ? this.pane() === "agent" : true), busy: a.busy, attention: a.attention, act: `agent:${a.id}` })).join(""); }
+  workTabs() {
+    if (!this.data.views.length && this.config.empty === "b") return LAUNCHERS.map((l) => tab({ label: `+ ${l.label}`, icon: l.icon, act: `launch:${l.label}`, cls: "ph-ghost" })).join("");
+    return this.data.views.map((v) => tab({ label: v.label, icon: v.icon, selected: v.key === this.view && (this.today ? this.pane() === "work" : true), attention: v.attention, act: `view:${v.key}` })).join("");
+  }
+  collapsed(pane) {
+    const c = this.config.single; if (this.today || c === "a") return false;
+    if (pane === "agent") return this.data.agents.length === 1;
+    return c === "b" && this.data.views.length === 1;
+  }
+  render() {
+    const c = this.config, p = this.progress, pane = this.pane();
+    const waiting = this.today ? [] : this.hiddenAttention();
+    const attnHome = c.attn === "a" ? (c.sign === "d" ? "title" : "sign") : c.attn === "c" ? "title" : "pin";
+    const signDot = waiting.length && attnHome === "sign";
+    const titleDot = waiting.length && attnHome === "title";
+    // Title row
+    const collapsedNow = this.collapsed(pane);
+    const currentName = pane === "agent" ? this.data.agents.find((a) => a.id === this.agent)?.title : this.data.views.find((v) => v.key === this.view)?.label;
+    let title = `AgentsInTheCloud${collapsedNow && currentName ? ` <small>· ${currentName}</small>` : ""}`;
+    let row = iconButton("Show workspaces", I.Sidebar, "noop");
+    row += `<span class="ph-title">${title}</span>`;
+    if (!this.today && c.sign === "a") row += `<span class="ph-dots" aria-label="Pane ${pane === "agent" ? 1 : 2} of 2"><i ${pane === "agent" ? "data-on" : ""}></i><i ${pane === "work" ? "data-on" : ""}>${signDot ? dot : ""}</i></span>`;
+    if (titleDot) row += `<span style="position:relative;width:10px;height:10px;margin-inline:4px">${dot}</span>`;
+    if (!this.today && c.add === "b") row += iconButton(pane === "agent" ? "New agent" : "Open view", I.Plus, "add");
+    row += iconButton("More", I.More, "more");
+    // Strip row
+    let lead = "", trail = "";
+    if (!this.today && c.sign === "b") lead = `<span class="ph-segment"><span class="text-toggle" role="group" aria-label="Pane"><button class="text-toggle__option" type="button" data-act="pane:agent" aria-pressed="${pane === "agent"}">Agent</button><button class="text-toggle__option" type="button" data-act="pane:work" aria-pressed="${pane === "work"}"${this.workReachable() ? "" : " disabled"}>Work</button></span>${signDot ? dot : ""}</span><span class="ph-divider"></span>`;
+    let strips;
+    if (this.today) strips = strip("Views", this.agentTabs() + this.workTabs());
+    else {
+      const peek = (side) => {
+        if (c.sign !== "c") return "";
+        if (side === "work" && !this.workReachable()) return "";
+        const label = side === "work" ? `Work` : `Agent`;
+        const icon = side === "work" ? I.Next : I.Back;
+        return `<div class="content-row content-row--compact content-row--fill ph-ghost"><button class="content-row__primary" type="button" data-act="pane:${side}" aria-label="Go to ${label}">${side === "agent" ? `<span class="content-row__icon">${icon}</span>` : ""}<span class="content-row__content"><span class="content-row__label"><span class="content-row__label-text">${label}</span></span></span>${side === "work" ? `<span class="content-row__icon">${icon}</span>` : ""}<span class="content-row__metadata">${status({ attention: signDot })}</span></button></div>`;
+      };
+      const pin = (list) => attnHome === "pin" && list.length ? `<span class="ph-divider"></span>${list.map((x) => tab({ label: x.label ?? x.title, icon: x.icon ?? I.Agent, attention: true, act: x.key ? `view:${x.key}` : `agent:${x.id}` })).join("")}` : "";
+      const plus = (paneName) => c.add === "a" ? iconButton(paneName === "agent" ? "New agent" : "Open view", I.Plus, "add") : "";
+      const agentStrip = strip("Agents", this.agentTabs() + plus("agent") + pin(pane === "agent" ? waiting : []) + peek("work"), 'data-pane="agent"');
+      const workStrip = strip("Work views", peek("agent") + this.workTabs() + (this.data.views.length ? plus("work") : "") + pin(pane === "work" ? waiting : []), 'data-pane="work"');
+      strips = agentStrip + workStrip;
+    }
+    const stripHidden = !this.today && collapsedNow && (p === 0 || p === 1);
+    this.host.innerHTML = `<div class="phone${this.tall ? " phone--tall" : ""}">
+      <header class="ph-header" aria-label="Workspace"><div class="ph-row">${row}</div>
+        <div class="ph-stripwrap"${stripHidden ? " hidden" : ""}>${lead}<div class="ph-strips">${strips}</div></div></header>
+      <div class="ph-body">${this.agentPane()}${this.workPane()}</div>
+      ${this.menu ? this.menuHtml() : ""}</div>`;
+    this.layout();
+    this.wire();
+  }
+  /* Positions panes and strips for the current progress without re-rendering. */
+  layout() {
+    const p = this.progress, c = this.config, root = this.host.firstElementChild;
+    const agent = root.querySelector(".ph-pane--agent"), work = root.querySelector(".ph-pane--work");
+    agent.style.transform = `translateX(${-4 * p}%) scale(${1 - .1 * p})`; agent.style.borderRadius = `${p * 16}px`; agent.style.setProperty("--shade", .45 * p);
+    work.style.transform = `translateX(${(1 - p) * 104}%) scale(${.9 + .1 * p})`; work.style.borderRadius = `${(1 - p) * 16}px`;
+    if (this.today) return;
+    const a = root.querySelector('[data-pane="agent"]'), w = root.querySelector('[data-pane="work"]');
+    const settled = this.settled ?? Math.round(p);
+    if (c.motion === "a") { a.style.transform = `translateX(${-p * 100}%)`; w.style.transform = `translateX(${(1 - p) * 100}%)`; a.style.opacity = 1; w.style.opacity = 1; }
+    else if (c.motion === "b") { a.style.opacity = Math.max(0, 1 - 2 * p); w.style.opacity = Math.max(0, 2 * p - 1); a.style.visibility = p < .5 ? "visible" : "hidden"; w.style.visibility = p >= .5 ? "visible" : "hidden"; }
+    else { a.style.display = settled === 0 ? "" : "none"; w.style.display = settled === 1 ? "" : "none"; }
+    // A collapsed pane's strip shows nothing; the title carries the name.
+    if (this.collapsed("agent")) a.style.visibility = "hidden";
+    if (this.collapsed("work")) w.style.visibility = "hidden";
+  }
+  agentPane() {
+    const a = this.data.agents.find((x) => x.id === this.agent);
+    return `<section class="ph-pane ph-pane--agent" aria-label="Agent"><pre class="ph-term"><span class="c">${a.title} · /work (nox)</span>
+<span class="b">›</span> make the mobile header scoped per pane
+
+<span class="y">●</span> Reading apps/web/src/server/workspace-presentation.ts
+<span class="y">●</span> renderPhoneHeader builds one strip with
+  agent tabs and work tabs together.
+${a.busy ? '<span class="g">⠋ Thinking…</span>' : '<span class="g">✓ Done.</span> Waiting for you.'}</pre></section>`;
+  }
+  workPane() {
+    let body;
+    const v = this.data.views.find((x) => x.key === this.view);
+    if (!v) body = this.config.empty === "c" && !this.today ? `<div class="ph-empty"><span>Nothing open on Work yet.</span><div class="button-row">${LAUNCHERS.map((l) => `<button class="button secondary" type="button" data-act="launch:${l.label}"><span class="button__icon" aria-hidden="true">${l.icon}</span><span class="button__caption">${l.label}</span></button>`).join("")}</div></div>` : `<div class="ph-empty"><span class="proto-hint">No work views</span></div>`;
+    else if (v.key === "changes") body = `<div class="ph-work-head">3 files changed</div><div class="ph-list">${["workspace-presentation.ts", "nox-layout.css", "mobile-swipe-controller.ts"].map((f) => `<div class="content-row content-row--compact content-row--fill"><button class="content-row__primary" type="button"><span class="content-row__icon">${I.Changes}</span><span class="content-row__content"><span class="content-row__label"><span class="content-row__label-text">${f}</span></span></span></button></div>`).join("")}</div>`;
+    else if (v.key === "browser") body = `<div class="ph-browser"><div class="ph-browser__url">localhost:4890</div><div class="ph-browser__page"><i style="width:60%"></i><i></i><i style="width:80%"></i><i style="width:40%"></i></div></div>`;
+    else body = `<pre class="ph-term"><span class="b">$</span> bun run web\n<span class="g">[assets] ready</span></pre>`;
+    return `<section class="ph-pane ph-pane--work" aria-label="Work">${body}</section>`;
+  }
+  menuHtml() {
+    const pane = this.pane();
+    const items = pane === "agent" ? ["New Pi agent", "New Claude agent"] : LAUNCHERS.map((l) => `Open ${l.label}`);
+    return `<div class="ph-menu"><div class="popup-menu floating-surface" role="menu">${items.map((t) => `<div class="content-row content-row--compact content-row--fill"><button class="content-row__primary" role="menuitem" type="button" data-act="menu"><span class="content-row__icon">${I.Plus}</span><span class="content-row__content"><span class="content-row__label"><span class="content-row__label-text">${t}</span></span></span></button></div>`).join("")}</div></div>`;
+  }
+  animateTo(target) {
+    const from = this.progress, start = performance.now(), dur = 260;
+    this.settled = undefined;
+    const step = (t) => {
+      const k = Math.min(1, (t - start) / dur), e = 1 - Math.pow(1 - k, 3);
+      this.progress = from + (target - from) * e;
+      if (this.config.motion === "c") this.settled = Math.round(from);
+      this.layout(); this.onScrub?.(this.progress);
+      if (k < 1) requestAnimationFrame(step); else { this.progress = target; this.settled = target; this.render(); this.onScrub?.(target); }
+    };
+    requestAnimationFrame(step);
+  }
+  scrubTo(p) { this.progress = p; this.settled = this.config.motion === "c" ? (p >= 1 ? 1 : p <= 0 ? 0 : this.settled ?? 0) : undefined; this.render(); }
+  wire() {
+    const root = this.host.firstElementChild;
+    root.querySelectorAll("[data-act]").forEach((el) => el.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const [kind, arg] = el.dataset.act.split(":");
+      if (kind === "agent") { this.agent = arg; this.menu = false; if (this.pane() !== "agent") this.animateTo(0); else this.render(); }
+      else if (kind === "view") { this.view = arg; this.menu = false; if (this.pane() !== "work") this.animateTo(1); else this.render(); }
+      else if (kind === "pane") { if (arg === "work" && !this.workReachable()) return; this.animateTo(arg === "work" ? 1 : 0); }
+      else if (kind === "launch" || kind === "menu") {
+        const l = LAUNCHERS.find((x) => x.label === arg) ?? LAUNCHERS[0];
+        if (this.pane() === "work" || kind === "launch") { if (!this.data.views.some((v) => v.label === l.label)) this.data.views.push({ key: l.label.toLowerCase() === "changes" ? "changes" : l.label.toLowerCase() === "browser" ? "browser" : "term", label: l.label, icon: l.icon }); this.view = this.data.views.at(-1).key; }
+        else { const n = this.data.agents.length + 1; this.data.agents.push({ id: `a${n}`, title: `Pi ${n}` }); this.agent = `a${n}`; }
+        this.menu = false; this.render(); if (this.pane() !== "work" && kind === "launch") this.animateTo(1);
+      }
+      else if (kind === "add" || kind === "more") { this.menu = !this.menu; this.render(); }
+    }));
+    const body = root.querySelector(".ph-body");
+    let startX, startP, dragging = false;
+    body.addEventListener("pointerdown", (e) => { startX = e.clientX; startP = this.progress; dragging = true; this.settled = Math.round(this.progress); body.setPointerCapture(e.pointerId); });
+    body.addEventListener("pointermove", (e) => {
+      if (!dragging) return;
+      const max = this.workReachable() ? 1 : .08;
+      let p = startP - (e.clientX - startX) / body.clientWidth;
+      p = Math.max(0, Math.min(max, p));
+      this.progress = p; this.layout(); this.onScrub?.(p);
+    });
+    const end = () => { if (!dragging) return; dragging = false; const target = this.workReachable() && this.progress > .5 ? 1 : 0; this.animateTo(target); };
+    body.addEventListener("pointerup", end); body.addEventListener("pointercancel", end);
+  }
+}
+
+/* ---------- Page ---------- */
+const comparePhones = [];
+function buildCompare() {
+  comparePhones.length = 0;
+  comparePhones.push(new Phone(document.getElementById("today"), { config: { ...picks }, scenario: scenarioKey, today: true, tall: true }));
+  comparePhones.push(new Phone(document.getElementById("proposed"), { config: { ...picks }, scenario: scenarioKey, tall: true }));
+  const seg = document.getElementById("scenario");
+  seg.innerHTML = Object.entries(SCENARIOS).map(([k, s]) => `<option value="${k}"${k === scenarioKey ? " selected" : ""}>${s.name}</option>`).join("");
+  seg.onchange = () => { scenarioKey = seg.value; saveUrl(); buildCompare(); };
+}
+function buildDecisions() {
+  const host = document.getElementById("decisions");
+  host.innerHTML = DECISIONS.map((d) => `<section class="proto-section" aria-labelledby="h-${d.id}"><h2 id="h-${d.id}">${d.title}</h2><p>${d.blurb}</p><div class="proto-row">${d.options.map((o) => `
+    <article class="proto-card" data-dec="${d.id}" data-opt="${o.k}"${picks[d.id] === o.k ? " data-picked" : ""}>
+      <div class="proto-card__head"><span class="proto-card__key">${DECISIONS.indexOf(d) + 1}${o.k.toUpperCase()}</span><span class="proto-card__name">${o.name}</span>
+        <button class="button ${picks[d.id] === o.k ? "primary" : "secondary"}" type="button" data-pick>${picks[d.id] === o.k ? "Picked" : "Pick"}</button></div>
+      <div class="proto-phone"></div>
+      ${d.scrub ? `<label class="proto-scrub">Agent<input type="range" min="0" max="1" step="0.01" value="0">Work</label>` : ""}
+      <p class="proto-card__why">${o.why}</p>
+    </article>`).join("")}</div></section>`).join("");
+  host.querySelectorAll(".proto-card").forEach((card) => {
+    const d = DECISIONS.find((x) => x.id === card.dataset.dec);
+    const range = card.querySelector('input[type="range"]');
+    const phone = new Phone(card.querySelector(".proto-phone"), { config: { ...picks, [d.id]: card.dataset.opt }, scenario: d.scenario, startWork: d.startWork, onScrub: range ? (p) => { range.value = p; } : undefined });
+    range?.addEventListener("input", () => phone.scrubTo(Number(range.value)));
+    card.querySelector("[data-pick]").addEventListener("click", () => { picks[d.id] = card.dataset.opt; saveUrl(); buildCompare(); buildDecisions(); });
+  });
+}
+document.getElementById("theme").addEventListener("change", (e) => { document.documentElement.dataset.theme = e.target.value; saveUrl(); });
+document.getElementById("reset").addEventListener("click", () => { Object.assign(picks, DEFAULTS); saveUrl(); buildCompare(); buildDecisions(); });
+saveUrl(); buildCompare(); buildDecisions();
+if (location.hash) document.querySelector(location.hash)?.scrollIntoView();
+</script>
+</body>
+</html>
