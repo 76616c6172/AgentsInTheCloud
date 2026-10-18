@@ -79,7 +79,7 @@ html[data-theme] {
   .fixed-shell-app[data-nox-drawer-drag] > .fixed-shell-app-main {
     transform: var(--nox-reveal-transform);
     border-radius: calc(var(--nox-drawer-progress, 0) * var(--radius-overlay)); overflow: clip;
-    box-shadow: 0 0 0 1px var(--line-strong), var(--shadow);
+    box-shadow: 0 0 0 1px var(--line-strong);
   }
   .fixed-shell-app:has(.workspace-detail-resident.visible [data-controller~="workspace-presentation"]) > .nox-workspace-scrim {
     display: block; position: absolute; grid-area: 1 / 1 / -1 / -1; inset: 0; z-index: 2;
