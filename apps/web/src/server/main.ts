@@ -16,6 +16,7 @@ import {
 } from "@agents-in-the-cloud/proxy-ingress/server";
 import { agentsInTheCloudName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
 import { response, textResponse } from "@agents-in-the-cloud/shared/http";
+import { agentsInTheCloudThemes, readThemeSetting } from "@agents-in-the-cloud/shared/theme";
 import { checkWorkspaceReadiness, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@agents-in-the-cloud/workspace";
 import { ensureDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 import type { ServerWebSocket } from "bun";
@@ -179,6 +180,13 @@ async function serveStatic(pathname: string, request: Request): Promise<Response
 
   const entry = legacyStaticFiles[pathname];
   if (!entry) return undefined;
+  // Installed apps paint their system bars from the manifest, so it follows the chosen theme.
+  if (pathname === "/manifest.webmanifest") {
+    const theme = readThemeSetting();
+    const { background } = agentsInTheCloudThemes.find(({ id }) => id === theme)!;
+    const manifest = { ...await Bun.file(entry.url).json(), background_color: background, theme_color: background };
+    return new Response(JSON.stringify(manifest), { headers: { "content-type": entry.contentType, "cache-control": "no-store" } });
+  }
   const file = Bun.file(entry.url);
   if (!(await file.exists())) return textResponse("not found", { status: 404 });
   const headers = new Headers({ "content-type": entry.contentType });
