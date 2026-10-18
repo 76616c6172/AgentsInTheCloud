@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://agentsinthecloud.com/">
-    <img src="docs/readme/hero.jpg" alt="AgentsInTheCloud, with robots forming the A and the T, above a cloud-shaped window full of robots at a workbench." width="600">
+    <img src="docs/readme/hero.jpg" alt="AgentsInTheCloud: a robed person and a chrome robot look out over a sea of clouds toward a vast arch, where a beam of light falls on a domed city." width="600">
   </a>
 </p>
 
