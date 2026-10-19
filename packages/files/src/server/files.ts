@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { execWorkspaceCommand, execWorkspaceCommandBuffer, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { checkFileInWorkspace, execWorkspaceCommand, execWorkspaceCommandBuffer, workspaceRoot, WorkspaceHelperError, WorkspaceHelperStatus, writeFileInWorkspace } from "@agents-in-the-cloud/workspace";
 
 export interface FileEntry {
   name: string;
@@ -120,21 +120,28 @@ rm -rf -- "$1"`;
   if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Delete failed");
 }
 
+async function exists(workspaceId: string, file: { user: "agents-in-the-cloud"; path: string }): Promise<boolean> {
+  try {
+    await checkFileInWorkspace(workspaceId, file);
+    return true;
+  } catch (error) {
+    if (!(error instanceof WorkspaceHelperError)) throw error;
+    if (error.code === WorkspaceHelperStatus.NOT_FOUND) return false;
+    if (error.code === WorkspaceHelperStatus.PERMISSION_DENIED) return true;
+    throw error;
+  }
+}
+
 export async function uploadFile(workspaceId: string, inputDirectory: string | null, name: string | null, overwrite: boolean, content: Uint8Array): Promise<void> {
   const directory = await resolveFilesDirectory(workspaceId, inputDirectory);
   if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\\") || name.includes("\0")) throw new FilesPathError("Invalid file name", 422);
 
-  const target = posix.join(directory, name);
-  const temporary = posix.join(directory, `.agents-in-the-cloud-upload-${crypto.randomUUID()}`);
-  const script = `set -e
-umask 022
-trap 'rm -f -- "$1"' EXIT
-cat > "$1"
-if test -L "$2" || test -d "$2"; then exit 65; fi
-if test "$3" != 1 && test -e "$2"; then exit 66; fi
-mv -fT -- "$1" "$2"`;
-  const result = await execWorkspaceCommand(workspaceId, ["sh", "-c", script, "sh", temporary, target, overwrite ? "1" : "0"], { stdin: content });
-  if (result.exitCode === 65) throw new FilesPathError("A folder or symlink already uses that name", 422);
-  if (result.exitCode === 66) throw new FilesPathError("File already exists", 409);
-  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Upload failed");
+  const file = { user: "agents-in-the-cloud", path: posix.join(directory, name) } as const;
+  try {
+    if (!overwrite && await exists(workspaceId, file)) throw new FilesPathError("File already exists", 409);
+    await writeFileInWorkspace(workspaceId, file, content);
+  } catch (error) {
+    if (error instanceof WorkspaceHelperError && error.code === WorkspaceHelperStatus.FAILED_PRECONDITION) throw new FilesPathError("A folder already uses that name", 422);
+    throw error;
+  }
 }

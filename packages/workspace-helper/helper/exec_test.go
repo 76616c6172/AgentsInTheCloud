@@ -44,13 +44,18 @@ func clientWithState(t *testing.T, state string) pb.WorkspaceHelperClient {
 			syscall.Kill(-process.pid, syscall.SIGKILL)
 		}
 	})
+	return serve(t, &helper{users: map[pb.User]string{pb.User_USER_AGENT: current.Username}, detached: detached})
+}
+
+func serve(t *testing.T, implementation *helper) pb.WorkspaceHelperClient {
+	t.Helper()
 	socket := filepath.Join(t.TempDir(), "helper.sock")
 	listener, err := net.Listen("unix", socket)
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := grpc.NewServer()
-	pb.RegisterWorkspaceHelperServer(server, &helper{users: map[pb.User]string{pb.User_USER_AGENT: current.Username}, detached: detached})
+	pb.RegisterWorkspaceHelperServer(server, implementation)
 	go server.Serve(listener)
 	t.Cleanup(server.Stop)
 	connection, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))

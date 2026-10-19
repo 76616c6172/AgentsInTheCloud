@@ -21,8 +21,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkspaceHelper_Exec_FullMethodName   = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Exec"
-	WorkspaceHelper_Attach_FullMethodName = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Attach"
+	WorkspaceHelper_Exec_FullMethodName      = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Exec"
+	WorkspaceHelper_Attach_FullMethodName    = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Attach"
+	WorkspaceHelper_ReadFile_FullMethodName  = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/ReadFile"
+	WorkspaceHelper_WriteFile_FullMethodName = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/WriteFile"
 )
 
 // WorkspaceHelperClient is the client API for WorkspaceHelper service.
@@ -53,6 +55,19 @@ type WorkspaceHelperClient interface {
 	// started, its exit was already reported, or the workspace stopped. A later
 	// call to the same process, Exec or Attach, ends this one with ABORTED.
 	Attach(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AttachRequest, ExecResponse], error)
+	// Reads a regular file as `user`, following symlinks, in chunks until EOF.
+	// Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT for a relative
+	// path, and FAILED_PRECONDITION for anything but a regular file, e.g.
+	// /dev/urandom. Cancel the call to stop early, e.g. at a size limit.
+	ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FileData], error)
+	// Writes a file as `user`, atomically: data goes to a temporary file that
+	// replaces `path` once the client closes the request stream. Cancelling
+	// leaves `path` untouched. Follows symlinks, so a link's target is replaced;
+	// creates missing parent folders; keeps an existing file's mode, and gives a
+	// new one 0644. The first request must be `start`, the rest `data`.
+	// Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT, and
+	// FAILED_PRECONDITION when `path` is a folder or another non-regular file.
+	WriteFile(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[WriteFileRequest, WriteFileResponse], error)
 }
 
 type workspaceHelperClient struct {
@@ -89,6 +104,38 @@ func (c *workspaceHelperClient) Attach(ctx context.Context, opts ...grpc.CallOpt
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type WorkspaceHelper_AttachClient = grpc.BidiStreamingClient[AttachRequest, ExecResponse]
 
+func (c *workspaceHelperClient) ReadFile(ctx context.Context, in *ReadFileRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[FileData], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &WorkspaceHelper_ServiceDesc.Streams[2], WorkspaceHelper_ReadFile_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[ReadFileRequest, FileData]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkspaceHelper_ReadFileClient = grpc.ServerStreamingClient[FileData]
+
+func (c *workspaceHelperClient) WriteFile(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[WriteFileRequest, WriteFileResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &WorkspaceHelper_ServiceDesc.Streams[3], WorkspaceHelper_WriteFile_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WriteFileRequest, WriteFileResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkspaceHelper_WriteFileClient = grpc.ClientStreamingClient[WriteFileRequest, WriteFileResponse]
+
 // WorkspaceHelperServer is the server API for WorkspaceHelper service.
 // All implementations must embed UnimplementedWorkspaceHelperServer
 // for forward compatibility.
@@ -117,6 +164,19 @@ type WorkspaceHelperServer interface {
 	// started, its exit was already reported, or the workspace stopped. A later
 	// call to the same process, Exec or Attach, ends this one with ABORTED.
 	Attach(grpc.BidiStreamingServer[AttachRequest, ExecResponse]) error
+	// Reads a regular file as `user`, following symlinks, in chunks until EOF.
+	// Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT for a relative
+	// path, and FAILED_PRECONDITION for anything but a regular file, e.g.
+	// /dev/urandom. Cancel the call to stop early, e.g. at a size limit.
+	ReadFile(*ReadFileRequest, grpc.ServerStreamingServer[FileData]) error
+	// Writes a file as `user`, atomically: data goes to a temporary file that
+	// replaces `path` once the client closes the request stream. Cancelling
+	// leaves `path` untouched. Follows symlinks, so a link's target is replaced;
+	// creates missing parent folders; keeps an existing file's mode, and gives a
+	// new one 0644. The first request must be `start`, the rest `data`.
+	// Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT, and
+	// FAILED_PRECONDITION when `path` is a folder or another non-regular file.
+	WriteFile(grpc.ClientStreamingServer[WriteFileRequest, WriteFileResponse]) error
 	mustEmbedUnimplementedWorkspaceHelperServer()
 }
 
@@ -132,6 +192,12 @@ func (UnimplementedWorkspaceHelperServer) Exec(grpc.BidiStreamingServer[ExecRequ
 }
 func (UnimplementedWorkspaceHelperServer) Attach(grpc.BidiStreamingServer[AttachRequest, ExecResponse]) error {
 	return status.Error(codes.Unimplemented, "method Attach not implemented")
+}
+func (UnimplementedWorkspaceHelperServer) ReadFile(*ReadFileRequest, grpc.ServerStreamingServer[FileData]) error {
+	return status.Error(codes.Unimplemented, "method ReadFile not implemented")
+}
+func (UnimplementedWorkspaceHelperServer) WriteFile(grpc.ClientStreamingServer[WriteFileRequest, WriteFileResponse]) error {
+	return status.Error(codes.Unimplemented, "method WriteFile not implemented")
 }
 func (UnimplementedWorkspaceHelperServer) mustEmbedUnimplementedWorkspaceHelperServer() {}
 func (UnimplementedWorkspaceHelperServer) testEmbeddedByValue()                         {}
@@ -168,6 +234,24 @@ func _WorkspaceHelper_Attach_Handler(srv interface{}, stream grpc.ServerStream) 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type WorkspaceHelper_AttachServer = grpc.BidiStreamingServer[AttachRequest, ExecResponse]
 
+func _WorkspaceHelper_ReadFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(ReadFileRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(WorkspaceHelperServer).ReadFile(m, &grpc.GenericServerStream[ReadFileRequest, FileData]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkspaceHelper_ReadFileServer = grpc.ServerStreamingServer[FileData]
+
+func _WorkspaceHelper_WriteFile_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(WorkspaceHelperServer).WriteFile(&grpc.GenericServerStream[WriteFileRequest, WriteFileResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkspaceHelper_WriteFileServer = grpc.ClientStreamingServer[WriteFileRequest, WriteFileResponse]
+
 // WorkspaceHelper_ServiceDesc is the grpc.ServiceDesc for WorkspaceHelper service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -186,6 +270,16 @@ var WorkspaceHelper_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "Attach",
 			Handler:       _WorkspaceHelper_Attach_Handler,
 			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "ReadFile",
+			Handler:       _WorkspaceHelper_ReadFile_Handler,
+			ServerStreams: true,
+		},
+		{
+			StreamName:    "WriteFile",
+			Handler:       _WorkspaceHelper_WriteFile_Handler,
 			ClientStreams: true,
 		},
 	},

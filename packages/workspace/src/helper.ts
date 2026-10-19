@@ -1,7 +1,7 @@
 import { mkdir, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { AgentsInTheCloudCoreError, agentsInTheCloudDataPath, commandSignal, getAgentsInTheCloudRuntimeContext, requireDocker, runCommand, type CommandInput } from "@agents-in-the-cloud/core";
-import { closeWorkspaceHelper, runWorkspaceProcess, startWorkspaceProcess, WorkspaceHelperError, WorkspaceHelperStatus, type WorkspaceExecStart, type WorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
+import { closeWorkspaceHelper, readWorkspaceFile, readWorkspaceFileStream, runWorkspaceProcess, startWorkspaceProcess, WorkspaceHelperError, WorkspaceHelperStatus, writeWorkspaceFile, type WorkspaceExecStart, type WorkspaceFile, type WorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
 
 /** Shared with the app's ingress and egress sockets; the helper listens here as well. */
 export const workspaceParentSocketDirectory = "/run/agents-in-the-cloud-parent";
@@ -64,4 +64,32 @@ export function startInWorkspace(id: string, start: WorkspaceExecStart, options:
   const exited = process.exited.catch((error: Error) => { throw describeFailure(id, error); });
   exited.catch(() => {});
   return { ...process, exited };
+}
+
+async function describingFailure<T>(id: string, operation: Promise<T>): Promise<T> {
+  try {
+    return await operation;
+  } catch (error) {
+    throw error instanceof Error ? describeFailure(id, error) : error;
+  }
+}
+
+/** Reads a whole regular file; the ambient command signal cancels it. */
+export function readFileInWorkspace(id: string, file: WorkspaceFile, options: { maxBytes: number }): Promise<Buffer> {
+  return describingFailure(id, readWorkspaceFile(workspaceHelperSocketPath(id), file, { ...options, signal: commandSignal() }));
+}
+
+/** Opens a file as reading it would, and stops: fails the same way, e.g. with NOT_FOUND. */
+export async function checkFileInWorkspace(id: string, file: WorkspaceFile): Promise<void> {
+  const reader = readWorkspaceFileStream(workspaceHelperSocketPath(id), file, { signal: commandSignal() }).getReader();
+  try {
+    await describingFailure(id, reader.read());
+  } finally {
+    await reader.cancel().catch(() => {});
+  }
+}
+
+/** Replaces or creates a file atomically, along with any missing folders. */
+export function writeFileInWorkspace(id: string, file: WorkspaceFile, content: string | Uint8Array): Promise<void> {
+  return describingFailure(id, writeWorkspaceFile(workspaceHelperSocketPath(id), file, content, { signal: commandSignal() }));
 }

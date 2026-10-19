@@ -30,7 +30,47 @@ service WorkspaceHelper {
   // started, its exit was already reported, or the workspace stopped. A later
   // call to the same process, Exec or Attach, ends this one with ABORTED.
   rpc Attach(stream AttachRequest) returns (stream ExecResponse);
+
+  // Reads a regular file as `user`, following symlinks, in chunks until EOF.
+  // Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT for a relative
+  // path, and FAILED_PRECONDITION for anything but a regular file, e.g.
+  // /dev/urandom. Cancel the call to stop early, e.g. at a size limit.
+  rpc ReadFile(ReadFileRequest) returns (stream FileData);
+
+  // Writes a file as `user`, atomically: data goes to a temporary file that
+  // replaces `path` once the client closes the request stream. Cancelling
+  // leaves `path` untouched. Follows symlinks, so a link's target is replaced;
+  // creates missing parent folders; keeps an existing file's mode, and gives a
+  // new one 0644. The first request must be `start`, the rest `data`.
+  // Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT, and
+  // FAILED_PRECONDITION when `path` is a folder or another non-regular file.
+  rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
 }
+
+message ReadFileRequest {
+  User user = 1;
+  // Absolute.
+  string path = 2;
+}
+
+message FileData {
+  bytes data = 1;
+}
+
+message WriteFileRequest {
+  oneof request {
+    WriteFileStart start = 1;
+    bytes data = 2;
+  }
+}
+
+message WriteFileStart {
+  User user = 1;
+  // Absolute.
+  string path = 2;
+}
+
+message WriteFileResponse {}
 
 message ExecRequest {
   oneof request {

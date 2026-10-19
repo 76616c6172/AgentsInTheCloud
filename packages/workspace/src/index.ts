@@ -19,7 +19,8 @@ import { applySeedConfigManifest } from "./seed-config.ts";
 import type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction } from "./types.ts";
 export type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPlan, WorkspaceInitInstruction, WorkspaceInitInstructionMap } from "./types.ts";
 
-export { runInWorkspace, startInWorkspace } from "./helper.ts";
+export { checkFileInWorkspace, readFileInWorkspace, runInWorkspace, startInWorkspace, writeFileInWorkspace } from "./helper.ts";
+export { WorkspaceHelperError, WorkspaceHelperStatus } from "@agents-in-the-cloud/workspace-helper";
 export { exitStatus as workspaceExitStatus } from "@agents-in-the-cloud/workspace-helper";
 export { createWorkspaceMetadataState, type WorkspaceMetadataState } from "./metadata-state.ts";
 export { ensureHostInotifyLimit } from "./host-inotify.ts";

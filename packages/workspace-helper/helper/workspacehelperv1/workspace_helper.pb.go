@@ -128,6 +128,274 @@ func (Signal) EnumDescriptor() ([]byte, []int) {
 	return file_workspace_helper_proto_rawDescGZIP(), []int{1}
 }
 
+type ReadFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	User  User                   `protobuf:"varint,1,opt,name=user,proto3,enum=agents_in_the_cloud.workspace_helper.v1.User" json:"user,omitempty"`
+	// Absolute.
+	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReadFileRequest) Reset() {
+	*x = ReadFileRequest{}
+	mi := &file_workspace_helper_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReadFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReadFileRequest) ProtoMessage() {}
+
+func (x *ReadFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReadFileRequest.ProtoReflect.Descriptor instead.
+func (*ReadFileRequest) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *ReadFileRequest) GetUser() User {
+	if x != nil {
+		return x.User
+	}
+	return User_USER_UNSPECIFIED
+}
+
+func (x *ReadFileRequest) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type FileData struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *FileData) Reset() {
+	*x = FileData{}
+	mi := &file_workspace_helper_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *FileData) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*FileData) ProtoMessage() {}
+
+func (x *FileData) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use FileData.ProtoReflect.Descriptor instead.
+func (*FileData) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *FileData) GetData() []byte {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+type WriteFileRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Request:
+	//
+	//	*WriteFileRequest_Start
+	//	*WriteFileRequest_Data
+	Request       isWriteFileRequest_Request `protobuf_oneof:"request"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteFileRequest) Reset() {
+	*x = WriteFileRequest{}
+	mi := &file_workspace_helper_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteFileRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteFileRequest) ProtoMessage() {}
+
+func (x *WriteFileRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteFileRequest.ProtoReflect.Descriptor instead.
+func (*WriteFileRequest) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *WriteFileRequest) GetRequest() isWriteFileRequest_Request {
+	if x != nil {
+		return x.Request
+	}
+	return nil
+}
+
+func (x *WriteFileRequest) GetStart() *WriteFileStart {
+	if x != nil {
+		if x, ok := x.Request.(*WriteFileRequest_Start); ok {
+			return x.Start
+		}
+	}
+	return nil
+}
+
+func (x *WriteFileRequest) GetData() []byte {
+	if x != nil {
+		if x, ok := x.Request.(*WriteFileRequest_Data); ok {
+			return x.Data
+		}
+	}
+	return nil
+}
+
+type isWriteFileRequest_Request interface {
+	isWriteFileRequest_Request()
+}
+
+type WriteFileRequest_Start struct {
+	Start *WriteFileStart `protobuf:"bytes,1,opt,name=start,proto3,oneof"`
+}
+
+type WriteFileRequest_Data struct {
+	Data []byte `protobuf:"bytes,2,opt,name=data,proto3,oneof"`
+}
+
+func (*WriteFileRequest_Start) isWriteFileRequest_Request() {}
+
+func (*WriteFileRequest_Data) isWriteFileRequest_Request() {}
+
+type WriteFileStart struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	User  User                   `protobuf:"varint,1,opt,name=user,proto3,enum=agents_in_the_cloud.workspace_helper.v1.User" json:"user,omitempty"`
+	// Absolute.
+	Path          string `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteFileStart) Reset() {
+	*x = WriteFileStart{}
+	mi := &file_workspace_helper_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteFileStart) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteFileStart) ProtoMessage() {}
+
+func (x *WriteFileStart) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteFileStart.ProtoReflect.Descriptor instead.
+func (*WriteFileStart) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *WriteFileStart) GetUser() User {
+	if x != nil {
+		return x.User
+	}
+	return User_USER_UNSPECIFIED
+}
+
+func (x *WriteFileStart) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+type WriteFileResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WriteFileResponse) Reset() {
+	*x = WriteFileResponse{}
+	mi := &file_workspace_helper_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WriteFileResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WriteFileResponse) ProtoMessage() {}
+
+func (x *WriteFileResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WriteFileResponse.ProtoReflect.Descriptor instead.
+func (*WriteFileResponse) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{4}
+}
+
 type ExecRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Types that are valid to be assigned to Request:
@@ -145,7 +413,7 @@ type ExecRequest struct {
 
 func (x *ExecRequest) Reset() {
 	*x = ExecRequest{}
-	mi := &file_workspace_helper_proto_msgTypes[0]
+	mi := &file_workspace_helper_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -157,7 +425,7 @@ func (x *ExecRequest) String() string {
 func (*ExecRequest) ProtoMessage() {}
 
 func (x *ExecRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[0]
+	mi := &file_workspace_helper_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -170,7 +438,7 @@ func (x *ExecRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecRequest.ProtoReflect.Descriptor instead.
 func (*ExecRequest) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{0}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ExecRequest) GetRequest() isExecRequest_Request {
@@ -304,7 +572,7 @@ type ExecStart struct {
 
 func (x *ExecStart) Reset() {
 	*x = ExecStart{}
-	mi := &file_workspace_helper_proto_msgTypes[1]
+	mi := &file_workspace_helper_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -316,7 +584,7 @@ func (x *ExecStart) String() string {
 func (*ExecStart) ProtoMessage() {}
 
 func (x *ExecStart) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[1]
+	mi := &file_workspace_helper_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -329,7 +597,7 @@ func (x *ExecStart) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecStart.ProtoReflect.Descriptor instead.
 func (*ExecStart) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{1}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ExecStart) GetArgv() []string {
@@ -429,7 +697,7 @@ type Pipes struct {
 
 func (x *Pipes) Reset() {
 	*x = Pipes{}
-	mi := &file_workspace_helper_proto_msgTypes[2]
+	mi := &file_workspace_helper_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -441,7 +709,7 @@ func (x *Pipes) String() string {
 func (*Pipes) ProtoMessage() {}
 
 func (x *Pipes) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[2]
+	mi := &file_workspace_helper_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -454,7 +722,7 @@ func (x *Pipes) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Pipes.ProtoReflect.Descriptor instead.
 func (*Pipes) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{2}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *Pipes) GetStdin() bool {
@@ -484,7 +752,7 @@ type Detached struct {
 
 func (x *Detached) Reset() {
 	*x = Detached{}
-	mi := &file_workspace_helper_proto_msgTypes[3]
+	mi := &file_workspace_helper_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -496,7 +764,7 @@ func (x *Detached) String() string {
 func (*Detached) ProtoMessage() {}
 
 func (x *Detached) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[3]
+	mi := &file_workspace_helper_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -509,7 +777,7 @@ func (x *Detached) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Detached.ProtoReflect.Descriptor instead.
 func (*Detached) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{3}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *Detached) GetName() string {
@@ -541,7 +809,7 @@ type AttachRequest struct {
 
 func (x *AttachRequest) Reset() {
 	*x = AttachRequest{}
-	mi := &file_workspace_helper_proto_msgTypes[4]
+	mi := &file_workspace_helper_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -553,7 +821,7 @@ func (x *AttachRequest) String() string {
 func (*AttachRequest) ProtoMessage() {}
 
 func (x *AttachRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[4]
+	mi := &file_workspace_helper_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -566,7 +834,7 @@ func (x *AttachRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use AttachRequest.ProtoReflect.Descriptor instead.
 func (*AttachRequest) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{4}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *AttachRequest) GetRequest() isAttachRequest_Request {
@@ -658,7 +926,7 @@ type Attach struct {
 
 func (x *Attach) Reset() {
 	*x = Attach{}
-	mi := &file_workspace_helper_proto_msgTypes[5]
+	mi := &file_workspace_helper_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -670,7 +938,7 @@ func (x *Attach) String() string {
 func (*Attach) ProtoMessage() {}
 
 func (x *Attach) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[5]
+	mi := &file_workspace_helper_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -683,7 +951,7 @@ func (x *Attach) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Attach.ProtoReflect.Descriptor instead.
 func (*Attach) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{5}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Attach) GetName() string {
@@ -720,7 +988,7 @@ type Acknowledge struct {
 
 func (x *Acknowledge) Reset() {
 	*x = Acknowledge{}
-	mi := &file_workspace_helper_proto_msgTypes[6]
+	mi := &file_workspace_helper_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -732,7 +1000,7 @@ func (x *Acknowledge) String() string {
 func (*Acknowledge) ProtoMessage() {}
 
 func (x *Acknowledge) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[6]
+	mi := &file_workspace_helper_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -745,7 +1013,7 @@ func (x *Acknowledge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Acknowledge.ProtoReflect.Descriptor instead.
 func (*Acknowledge) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{6}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *Acknowledge) GetStdoutOffset() uint64 {
@@ -772,7 +1040,7 @@ type TerminalSize struct {
 
 func (x *TerminalSize) Reset() {
 	*x = TerminalSize{}
-	mi := &file_workspace_helper_proto_msgTypes[7]
+	mi := &file_workspace_helper_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -784,7 +1052,7 @@ func (x *TerminalSize) String() string {
 func (*TerminalSize) ProtoMessage() {}
 
 func (x *TerminalSize) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[7]
+	mi := &file_workspace_helper_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -797,7 +1065,7 @@ func (x *TerminalSize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalSize.ProtoReflect.Descriptor instead.
 func (*TerminalSize) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{7}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *TerminalSize) GetCols() uint32 {
@@ -822,7 +1090,7 @@ type CloseStdin struct {
 
 func (x *CloseStdin) Reset() {
 	*x = CloseStdin{}
-	mi := &file_workspace_helper_proto_msgTypes[8]
+	mi := &file_workspace_helper_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -834,7 +1102,7 @@ func (x *CloseStdin) String() string {
 func (*CloseStdin) ProtoMessage() {}
 
 func (x *CloseStdin) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[8]
+	mi := &file_workspace_helper_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -847,7 +1115,7 @@ func (x *CloseStdin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseStdin.ProtoReflect.Descriptor instead.
 func (*CloseStdin) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{8}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{13}
 }
 
 type ExecResponse struct {
@@ -864,7 +1132,7 @@ type ExecResponse struct {
 
 func (x *ExecResponse) Reset() {
 	*x = ExecResponse{}
-	mi := &file_workspace_helper_proto_msgTypes[9]
+	mi := &file_workspace_helper_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -876,7 +1144,7 @@ func (x *ExecResponse) String() string {
 func (*ExecResponse) ProtoMessage() {}
 
 func (x *ExecResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[9]
+	mi := &file_workspace_helper_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -889,7 +1157,7 @@ func (x *ExecResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecResponse.ProtoReflect.Descriptor instead.
 func (*ExecResponse) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{9}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ExecResponse) GetResponse() isExecResponse_Response {
@@ -963,7 +1231,7 @@ type Exited struct {
 
 func (x *Exited) Reset() {
 	*x = Exited{}
-	mi := &file_workspace_helper_proto_msgTypes[10]
+	mi := &file_workspace_helper_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -975,7 +1243,7 @@ func (x *Exited) String() string {
 func (*Exited) ProtoMessage() {}
 
 func (x *Exited) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[10]
+	mi := &file_workspace_helper_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -988,7 +1256,7 @@ func (x *Exited) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Exited.ProtoReflect.Descriptor instead.
 func (*Exited) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{10}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *Exited) GetStatus() isExited_Status {
@@ -1058,7 +1326,7 @@ type Unknown struct {
 
 func (x *Unknown) Reset() {
 	*x = Unknown{}
-	mi := &file_workspace_helper_proto_msgTypes[11]
+	mi := &file_workspace_helper_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1070,7 +1338,7 @@ func (x *Unknown) String() string {
 func (*Unknown) ProtoMessage() {}
 
 func (x *Unknown) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[11]
+	mi := &file_workspace_helper_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1083,14 +1351,27 @@ func (x *Unknown) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Unknown.ProtoReflect.Descriptor instead.
 func (*Unknown) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{11}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{16}
 }
 
 var File_workspace_helper_proto protoreflect.FileDescriptor
 
 const file_workspace_helper_proto_rawDesc = "" +
 	"\n" +
-	"\x16workspace_helper.proto\x12'agents_in_the_cloud.workspace_helper.v1\"\xca\x03\n" +
+	"\x16workspace_helper.proto\x12'agents_in_the_cloud.workspace_helper.v1\"h\n" +
+	"\x0fReadFileRequest\x12A\n" +
+	"\x04user\x18\x01 \x01(\x0e2-.agents_in_the_cloud.workspace_helper.v1.UserR\x04user\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\x1e\n" +
+	"\bFileData\x12\x12\n" +
+	"\x04data\x18\x01 \x01(\fR\x04data\"\x84\x01\n" +
+	"\x10WriteFileRequest\x12O\n" +
+	"\x05start\x18\x01 \x01(\v27.agents_in_the_cloud.workspace_helper.v1.WriteFileStartH\x00R\x05start\x12\x14\n" +
+	"\x04data\x18\x02 \x01(\fH\x00R\x04dataB\t\n" +
+	"\arequest\"g\n" +
+	"\x0eWriteFileStart\x12A\n" +
+	"\x04user\x18\x01 \x01(\x0e2-.agents_in_the_cloud.workspace_helper.v1.UserR\x04user\x12\x12\n" +
+	"\x04path\x18\x02 \x01(\tR\x04path\"\x13\n" +
+	"\x11WriteFileResponse\"\xca\x03\n" +
 	"\vExecRequest\x12J\n" +
 	"\x05start\x18\x01 \x01(\v22.agents_in_the_cloud.workspace_helper.v1.ExecStartH\x00R\x05start\x12\x16\n" +
 	"\x05stdin\x18\x02 \x01(\fH\x00R\x05stdin\x12V\n" +
@@ -1159,10 +1440,12 @@ const file_workspace_helper_proto_rawDesc = "" +
 	"\n" +
 	"SIGNAL_INT\x10\x02\x12\x0f\n" +
 	"\vSIGNAL_TERM\x10\x03\x12\x0f\n" +
-	"\vSIGNAL_KILL\x10\x042\x87\x02\n" +
+	"\vSIGNAL_KILL\x10\x042\x89\x04\n" +
 	"\x0fWorkspaceHelper\x12w\n" +
 	"\x04Exec\x124.agents_in_the_cloud.workspace_helper.v1.ExecRequest\x1a5.agents_in_the_cloud.workspace_helper.v1.ExecResponse(\x010\x01\x12{\n" +
-	"\x06Attach\x126.agents_in_the_cloud.workspace_helper.v1.AttachRequest\x1a5.agents_in_the_cloud.workspace_helper.v1.ExecResponse(\x010\x01B8Z6agents-in-the-cloud/workspace-helper/workspacehelperv1b\x06proto3"
+	"\x06Attach\x126.agents_in_the_cloud.workspace_helper.v1.AttachRequest\x1a5.agents_in_the_cloud.workspace_helper.v1.ExecResponse(\x010\x01\x12y\n" +
+	"\bReadFile\x128.agents_in_the_cloud.workspace_helper.v1.ReadFileRequest\x1a1.agents_in_the_cloud.workspace_helper.v1.FileData0\x01\x12\x84\x01\n" +
+	"\tWriteFile\x129.agents_in_the_cloud.workspace_helper.v1.WriteFileRequest\x1a:.agents_in_the_cloud.workspace_helper.v1.WriteFileResponse(\x01B8Z6agents-in-the-cloud/workspace-helper/workspacehelperv1b\x06proto3"
 
 var (
 	file_workspace_helper_proto_rawDescOnce sync.Once
@@ -1177,49 +1460,61 @@ func file_workspace_helper_proto_rawDescGZIP() []byte {
 }
 
 var file_workspace_helper_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_workspace_helper_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_workspace_helper_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_workspace_helper_proto_goTypes = []any{
-	(User)(0),             // 0: agents_in_the_cloud.workspace_helper.v1.User
-	(Signal)(0),           // 1: agents_in_the_cloud.workspace_helper.v1.Signal
-	(*ExecRequest)(nil),   // 2: agents_in_the_cloud.workspace_helper.v1.ExecRequest
-	(*ExecStart)(nil),     // 3: agents_in_the_cloud.workspace_helper.v1.ExecStart
-	(*Pipes)(nil),         // 4: agents_in_the_cloud.workspace_helper.v1.Pipes
-	(*Detached)(nil),      // 5: agents_in_the_cloud.workspace_helper.v1.Detached
-	(*AttachRequest)(nil), // 6: agents_in_the_cloud.workspace_helper.v1.AttachRequest
-	(*Attach)(nil),        // 7: agents_in_the_cloud.workspace_helper.v1.Attach
-	(*Acknowledge)(nil),   // 8: agents_in_the_cloud.workspace_helper.v1.Acknowledge
-	(*TerminalSize)(nil),  // 9: agents_in_the_cloud.workspace_helper.v1.TerminalSize
-	(*CloseStdin)(nil),    // 10: agents_in_the_cloud.workspace_helper.v1.CloseStdin
-	(*ExecResponse)(nil),  // 11: agents_in_the_cloud.workspace_helper.v1.ExecResponse
-	(*Exited)(nil),        // 12: agents_in_the_cloud.workspace_helper.v1.Exited
-	(*Unknown)(nil),       // 13: agents_in_the_cloud.workspace_helper.v1.Unknown
-	nil,                   // 14: agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
+	(User)(0),                 // 0: agents_in_the_cloud.workspace_helper.v1.User
+	(Signal)(0),               // 1: agents_in_the_cloud.workspace_helper.v1.Signal
+	(*ReadFileRequest)(nil),   // 2: agents_in_the_cloud.workspace_helper.v1.ReadFileRequest
+	(*FileData)(nil),          // 3: agents_in_the_cloud.workspace_helper.v1.FileData
+	(*WriteFileRequest)(nil),  // 4: agents_in_the_cloud.workspace_helper.v1.WriteFileRequest
+	(*WriteFileStart)(nil),    // 5: agents_in_the_cloud.workspace_helper.v1.WriteFileStart
+	(*WriteFileResponse)(nil), // 6: agents_in_the_cloud.workspace_helper.v1.WriteFileResponse
+	(*ExecRequest)(nil),       // 7: agents_in_the_cloud.workspace_helper.v1.ExecRequest
+	(*ExecStart)(nil),         // 8: agents_in_the_cloud.workspace_helper.v1.ExecStart
+	(*Pipes)(nil),             // 9: agents_in_the_cloud.workspace_helper.v1.Pipes
+	(*Detached)(nil),          // 10: agents_in_the_cloud.workspace_helper.v1.Detached
+	(*AttachRequest)(nil),     // 11: agents_in_the_cloud.workspace_helper.v1.AttachRequest
+	(*Attach)(nil),            // 12: agents_in_the_cloud.workspace_helper.v1.Attach
+	(*Acknowledge)(nil),       // 13: agents_in_the_cloud.workspace_helper.v1.Acknowledge
+	(*TerminalSize)(nil),      // 14: agents_in_the_cloud.workspace_helper.v1.TerminalSize
+	(*CloseStdin)(nil),        // 15: agents_in_the_cloud.workspace_helper.v1.CloseStdin
+	(*ExecResponse)(nil),      // 16: agents_in_the_cloud.workspace_helper.v1.ExecResponse
+	(*Exited)(nil),            // 17: agents_in_the_cloud.workspace_helper.v1.Exited
+	(*Unknown)(nil),           // 18: agents_in_the_cloud.workspace_helper.v1.Unknown
+	nil,                       // 19: agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
 }
 var file_workspace_helper_proto_depIdxs = []int32{
-	3,  // 0: agents_in_the_cloud.workspace_helper.v1.ExecRequest.start:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart
-	10, // 1: agents_in_the_cloud.workspace_helper.v1.ExecRequest.close_stdin:type_name -> agents_in_the_cloud.workspace_helper.v1.CloseStdin
-	1,  // 2: agents_in_the_cloud.workspace_helper.v1.ExecRequest.signal:type_name -> agents_in_the_cloud.workspace_helper.v1.Signal
-	9,  // 3: agents_in_the_cloud.workspace_helper.v1.ExecRequest.resize:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
-	8,  // 4: agents_in_the_cloud.workspace_helper.v1.ExecRequest.acknowledge:type_name -> agents_in_the_cloud.workspace_helper.v1.Acknowledge
-	0,  // 5: agents_in_the_cloud.workspace_helper.v1.ExecStart.user:type_name -> agents_in_the_cloud.workspace_helper.v1.User
-	14, // 6: agents_in_the_cloud.workspace_helper.v1.ExecStart.env:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
-	4,  // 7: agents_in_the_cloud.workspace_helper.v1.ExecStart.pipes:type_name -> agents_in_the_cloud.workspace_helper.v1.Pipes
-	9,  // 8: agents_in_the_cloud.workspace_helper.v1.ExecStart.terminal:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
-	5,  // 9: agents_in_the_cloud.workspace_helper.v1.ExecStart.detached:type_name -> agents_in_the_cloud.workspace_helper.v1.Detached
-	7,  // 10: agents_in_the_cloud.workspace_helper.v1.AttachRequest.attach:type_name -> agents_in_the_cloud.workspace_helper.v1.Attach
-	1,  // 11: agents_in_the_cloud.workspace_helper.v1.AttachRequest.signal:type_name -> agents_in_the_cloud.workspace_helper.v1.Signal
-	8,  // 12: agents_in_the_cloud.workspace_helper.v1.AttachRequest.acknowledge:type_name -> agents_in_the_cloud.workspace_helper.v1.Acknowledge
-	12, // 13: agents_in_the_cloud.workspace_helper.v1.ExecResponse.exited:type_name -> agents_in_the_cloud.workspace_helper.v1.Exited
-	13, // 14: agents_in_the_cloud.workspace_helper.v1.Exited.unknown:type_name -> agents_in_the_cloud.workspace_helper.v1.Unknown
-	2,  // 15: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:input_type -> agents_in_the_cloud.workspace_helper.v1.ExecRequest
-	6,  // 16: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Attach:input_type -> agents_in_the_cloud.workspace_helper.v1.AttachRequest
-	11, // 17: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:output_type -> agents_in_the_cloud.workspace_helper.v1.ExecResponse
-	11, // 18: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Attach:output_type -> agents_in_the_cloud.workspace_helper.v1.ExecResponse
-	17, // [17:19] is the sub-list for method output_type
-	15, // [15:17] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	0,  // 0: agents_in_the_cloud.workspace_helper.v1.ReadFileRequest.user:type_name -> agents_in_the_cloud.workspace_helper.v1.User
+	5,  // 1: agents_in_the_cloud.workspace_helper.v1.WriteFileRequest.start:type_name -> agents_in_the_cloud.workspace_helper.v1.WriteFileStart
+	0,  // 2: agents_in_the_cloud.workspace_helper.v1.WriteFileStart.user:type_name -> agents_in_the_cloud.workspace_helper.v1.User
+	8,  // 3: agents_in_the_cloud.workspace_helper.v1.ExecRequest.start:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart
+	15, // 4: agents_in_the_cloud.workspace_helper.v1.ExecRequest.close_stdin:type_name -> agents_in_the_cloud.workspace_helper.v1.CloseStdin
+	1,  // 5: agents_in_the_cloud.workspace_helper.v1.ExecRequest.signal:type_name -> agents_in_the_cloud.workspace_helper.v1.Signal
+	14, // 6: agents_in_the_cloud.workspace_helper.v1.ExecRequest.resize:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
+	13, // 7: agents_in_the_cloud.workspace_helper.v1.ExecRequest.acknowledge:type_name -> agents_in_the_cloud.workspace_helper.v1.Acknowledge
+	0,  // 8: agents_in_the_cloud.workspace_helper.v1.ExecStart.user:type_name -> agents_in_the_cloud.workspace_helper.v1.User
+	19, // 9: agents_in_the_cloud.workspace_helper.v1.ExecStart.env:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
+	9,  // 10: agents_in_the_cloud.workspace_helper.v1.ExecStart.pipes:type_name -> agents_in_the_cloud.workspace_helper.v1.Pipes
+	14, // 11: agents_in_the_cloud.workspace_helper.v1.ExecStart.terminal:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
+	10, // 12: agents_in_the_cloud.workspace_helper.v1.ExecStart.detached:type_name -> agents_in_the_cloud.workspace_helper.v1.Detached
+	12, // 13: agents_in_the_cloud.workspace_helper.v1.AttachRequest.attach:type_name -> agents_in_the_cloud.workspace_helper.v1.Attach
+	1,  // 14: agents_in_the_cloud.workspace_helper.v1.AttachRequest.signal:type_name -> agents_in_the_cloud.workspace_helper.v1.Signal
+	13, // 15: agents_in_the_cloud.workspace_helper.v1.AttachRequest.acknowledge:type_name -> agents_in_the_cloud.workspace_helper.v1.Acknowledge
+	17, // 16: agents_in_the_cloud.workspace_helper.v1.ExecResponse.exited:type_name -> agents_in_the_cloud.workspace_helper.v1.Exited
+	18, // 17: agents_in_the_cloud.workspace_helper.v1.Exited.unknown:type_name -> agents_in_the_cloud.workspace_helper.v1.Unknown
+	7,  // 18: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:input_type -> agents_in_the_cloud.workspace_helper.v1.ExecRequest
+	11, // 19: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Attach:input_type -> agents_in_the_cloud.workspace_helper.v1.AttachRequest
+	2,  // 20: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.ReadFile:input_type -> agents_in_the_cloud.workspace_helper.v1.ReadFileRequest
+	4,  // 21: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.WriteFile:input_type -> agents_in_the_cloud.workspace_helper.v1.WriteFileRequest
+	16, // 22: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:output_type -> agents_in_the_cloud.workspace_helper.v1.ExecResponse
+	16, // 23: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Attach:output_type -> agents_in_the_cloud.workspace_helper.v1.ExecResponse
+	3,  // 24: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.ReadFile:output_type -> agents_in_the_cloud.workspace_helper.v1.FileData
+	6,  // 25: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.WriteFile:output_type -> agents_in_the_cloud.workspace_helper.v1.WriteFileResponse
+	22, // [22:26] is the sub-list for method output_type
+	18, // [18:22] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_workspace_helper_proto_init() }
@@ -1227,7 +1522,11 @@ func file_workspace_helper_proto_init() {
 	if File_workspace_helper_proto != nil {
 		return
 	}
-	file_workspace_helper_proto_msgTypes[0].OneofWrappers = []any{
+	file_workspace_helper_proto_msgTypes[2].OneofWrappers = []any{
+		(*WriteFileRequest_Start)(nil),
+		(*WriteFileRequest_Data)(nil),
+	}
+	file_workspace_helper_proto_msgTypes[5].OneofWrappers = []any{
 		(*ExecRequest_Start)(nil),
 		(*ExecRequest_Stdin)(nil),
 		(*ExecRequest_CloseStdin)(nil),
@@ -1235,23 +1534,23 @@ func file_workspace_helper_proto_init() {
 		(*ExecRequest_Resize)(nil),
 		(*ExecRequest_Acknowledge)(nil),
 	}
-	file_workspace_helper_proto_msgTypes[1].OneofWrappers = []any{
+	file_workspace_helper_proto_msgTypes[6].OneofWrappers = []any{
 		(*ExecStart_Pipes)(nil),
 		(*ExecStart_Terminal)(nil),
 		(*ExecStart_Detached)(nil),
 	}
-	file_workspace_helper_proto_msgTypes[4].OneofWrappers = []any{
+	file_workspace_helper_proto_msgTypes[9].OneofWrappers = []any{
 		(*AttachRequest_Attach)(nil),
 		(*AttachRequest_Stdin)(nil),
 		(*AttachRequest_Signal)(nil),
 		(*AttachRequest_Acknowledge)(nil),
 	}
-	file_workspace_helper_proto_msgTypes[9].OneofWrappers = []any{
+	file_workspace_helper_proto_msgTypes[14].OneofWrappers = []any{
 		(*ExecResponse_Stdout)(nil),
 		(*ExecResponse_Stderr)(nil),
 		(*ExecResponse_Exited)(nil),
 	}
-	file_workspace_helper_proto_msgTypes[10].OneofWrappers = []any{
+	file_workspace_helper_proto_msgTypes[15].OneofWrappers = []any{
 		(*Exited_ExitCode)(nil),
 		(*Exited_Signal)(nil),
 		(*Exited_Unknown)(nil),
@@ -1262,7 +1561,7 @@ func file_workspace_helper_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workspace_helper_proto_rawDesc), len(file_workspace_helper_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   13,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

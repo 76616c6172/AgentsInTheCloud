@@ -1,6 +1,5 @@
-import { dirname, posix } from "node:path";
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { execWorkspaceCommand, execWorkspaceCommandBuffer, execWorkspaceShell, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { posix } from "node:path";
+import { checkFileInWorkspace, execWorkspaceCommand, readFileInWorkspace, workspaceRoot, writeFileInWorkspace } from "@agents-in-the-cloud/workspace";
 import type { ReadToolOptions, WriteToolOptions, EditToolOptions } from "@earendil-works/pi-coding-agent";
 
 export function normalizeWorkspacePath(path: string): string {
@@ -18,21 +17,19 @@ async function detectWorkspaceImageMimeType(workspaceId: string, absolutePath: s
   return supportedImageMimeTypes.has(mimeType) ? mimeType : null;
 }
 
-async function readFileBuffer(workspaceId: string, absolutePath: string): Promise<Buffer> {
-  const result = await execWorkspaceCommandBuffer(workspaceId, ["cat", absolutePath]);
-  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `could not read ${absolutePath}`);
-  return result.stdout;
+/** Larger files fail to read; the agent can still page through them with bash. */
+const maxReadBytes = 64 * 1024 * 1024;
+
+function readFileBuffer(workspaceId: string, absolutePath: string): Promise<Buffer> {
+  return readFileInWorkspace(workspaceId, { user: "agents-in-the-cloud", path: absolutePath }, { maxBytes: maxReadBytes });
 }
 
-async function writeFile(workspaceId: string, absolutePath: string, content: string): Promise<void> {
-  const dir = dirname(absolutePath);
-  const result = await execWorkspaceShell(workspaceId, `mkdir -p ${shellQuote(dir)} && cat > ${shellQuote(absolutePath)}`, { stdin: content });
-  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || result.stdout.trim() || `could not write ${absolutePath}`);
+function writeFile(workspaceId: string, absolutePath: string, content: string): Promise<void> {
+  return writeFileInWorkspace(workspaceId, { user: "agents-in-the-cloud", path: absolutePath }, content);
 }
 
-async function accessFile(workspaceId: string, absolutePath: string): Promise<void> {
-  const result = await execWorkspaceCommand(workspaceId, ["test", "-r", absolutePath]);
-  if (result.exitCode !== 0) throw new Error(`file is not readable: ${absolutePath}`);
+function accessFile(workspaceId: string, absolutePath: string): Promise<void> {
+  return checkFileInWorkspace(workspaceId, { user: "agents-in-the-cloud", path: absolutePath });
 }
 
 export function workspaceFileToolOptions(workspaceId: string) {
@@ -46,10 +43,8 @@ export function workspaceFileToolOptions(workspaceId: string) {
   const write: WriteToolOptions = {
     operations: {
       writeFile: (path, content) => writeFile(workspaceId, normalizeWorkspacePath(path), content),
-      mkdir: async (path) => {
-        const result = await execWorkspaceCommand(workspaceId, ["mkdir", "-p", normalizeWorkspacePath(path)]);
-        if (result.exitCode !== 0) throw new Error(result.stderr.trim() || `could not create ${path}`);
-      },
+      // Writing creates missing folders.
+      mkdir: async () => {},
     },
   };
   const edit: EditToolOptions = {

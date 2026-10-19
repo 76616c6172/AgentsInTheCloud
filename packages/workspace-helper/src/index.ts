@@ -1,4 +1,4 @@
-import { Client, credentials, Metadata, status, type ClientDuplexStream, type ServiceDefinition, type ServiceError } from "@grpc/grpc-js";
+import { Client, credentials, Metadata, status, type ClientDuplexStream, type ClientWritableStream, type ServiceDefinition, type ServiceError } from "@grpc/grpc-js";
 import { loadSync } from "@grpc/proto-loader";
 import { fileURLToPath } from "node:url";
 
@@ -103,12 +103,15 @@ type ExecResponse =
   | { response: "stderr"; stderr: Buffer }
   | { response: "exited"; exited: Exited };
 type HelperCall<Request> = ClientDuplexStream<Request, ExecResponse>;
+type WriteFileRequest = { start: { user: string; path: string } } | { data: Uint8Array };
 
 const definition = loadSync(fileURLToPath(new URL("../proto/workspace_helper.proto", import.meta.url)), { longs: Number, enums: String, defaults: false, oneofs: true });
 // SAFETY: workspace_helper.proto defines WorkspaceHelper as a service whose Exec and Attach stream ExecRequest and AttachRequest to ExecResponse, decoded with the options above.
 const service = definition["agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper"] as ServiceDefinition;
 const execMethod = service.Exec!;
 const attachMethod = service.Attach!;
+const readFileMethod = service.ReadFile!;
+const writeFileMethod = service.WriteFile!;
 
 const users = { "agents-in-the-cloud": "USER_AGENT", root: "USER_ROOT" } satisfies Record<WorkspaceHelperUser, string>;
 const signals = { SIGHUP: "SIGNAL_HUP", SIGINT: "SIGNAL_INT", SIGTERM: "SIGNAL_TERM", SIGKILL: "SIGNAL_KILL" } satisfies Record<WorkspaceHelperSignal, string>;
@@ -136,6 +139,11 @@ export function closeWorkspaceHelper(socketPath: string): void {
 
 function openCall<Request>(socketPath: string, method: typeof execMethod, waitForReady: boolean | undefined): HelperCall<Request> {
   return client(socketPath).makeBidiStreamRequest(method.path, method.requestSerialize, method.responseDeserialize, new Metadata({ waitForReady }), {});
+}
+
+function callError(error: ServiceError, signal: AbortSignal | undefined): Error {
+  if (error.code === status.CANCELLED && signal?.aborted) return signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason));
+  return new WorkspaceHelperError(error.code, error.details || error.message);
 }
 
 /** The output and exit of one Exec or Attach call. */
@@ -195,13 +203,7 @@ function receive<Request>(call: HelperCall<Request>, signal: AbortSignal | undef
         }
       }
     });
-    call.on("error", (error: ServiceError) => {
-      if (error.code === status.CANCELLED && signal?.aborted) {
-        finish(signal.reason instanceof Error ? signal.reason : new Error(String(signal.reason)));
-        return;
-      }
-      finish(new WorkspaceHelperError(error.code, error.details || error.message));
-    });
+    call.on("error", (error: ServiceError) => finish(callError(error, signal)));
     call.on("end", () => finish());
   });
   // Callers that only use the output streams still learn about failures there.
@@ -296,6 +298,85 @@ export async function runWorkspaceProcess(socketPath: string, start: Omit<Worksp
   }
   const [stdout, stderr, exit] = await Promise.all([new Response(process.stdout).arrayBuffer(), new Response(process.stderr).arrayBuffer(), process.exited]);
   return { exitCode: exitStatus(exit), stdout: Buffer.from(stdout), stderr: Buffer.from(stderr) };
+}
+
+/** A file in a workspace, accessed with `user`'s permissions. Symlinks are followed. */
+export interface WorkspaceFile {
+  user: WorkspaceHelperUser;
+  /** Absolute. */
+  path: string;
+}
+
+/** Streams a regular file. Cancelling the stream ends the call; a failure, e.g. NOT_FOUND, errors it. */
+export function readWorkspaceFileStream(socketPath: string, file: WorkspaceFile, options: { signal?: AbortSignal } = {}): ReadableStream<Uint8Array> {
+  options.signal?.throwIfAborted();
+  const call = client(socketPath).makeServerStreamRequest(readFileMethod.path, readFileMethod.requestSerialize, readFileMethod.responseDeserialize, { user: users[file.user], path: file.path });
+  // Set once the stream is cancelled or settled; grpc-js emits `end` even after `error`.
+  let finished = false;
+  const abort = () => call.cancel();
+  options.signal?.addEventListener("abort", abort, { once: true });
+  return new ReadableStream<Uint8Array>({
+    start: (controller) => {
+      const finish = (settle: () => void) => {
+        if (finished) return;
+        finished = true;
+        options.signal?.removeEventListener("abort", abort);
+        settle();
+      };
+      call.on("data", (chunk: { data: Buffer }) => {
+        if (finished) return;
+        controller.enqueue(new Uint8Array(chunk.data));
+        if (controller.desiredSize! <= 0) call.pause();
+      });
+      call.on("error", (error: ServiceError) => finish(() => controller.error(callError(error, options.signal))));
+      call.on("end", () => finish(() => controller.close()));
+    },
+    pull: () => { call.resume(); },
+    cancel: () => {
+      finished = true;
+      options.signal?.removeEventListener("abort", abort);
+      call.cancel();
+    },
+  }, new ByteLengthQueuingStrategy({ highWaterMark: 1024 * 1024 }));
+}
+
+/** Reads a whole regular file, failing with RESOURCE_EXHAUSTED once it exceeds `maxBytes`. */
+export async function readWorkspaceFile(socketPath: string, file: WorkspaceFile, options: { maxBytes: number; signal?: AbortSignal }): Promise<Buffer> {
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of readWorkspaceFileStream(socketPath, file, options)) {
+    size += chunk.byteLength;
+    // Leaving the loop cancels the stream, and with it the call.
+    if (size > options.maxBytes) throw new WorkspaceHelperError(status.RESOURCE_EXHAUSTED, `${file.path} is larger than ${options.maxBytes} bytes`);
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
+const fileChunkBytes = 64 * 1024;
+
+/** Replaces or creates a file atomically, along with any missing folders. */
+export async function writeWorkspaceFile(socketPath: string, file: WorkspaceFile, content: string | Uint8Array, options: { signal?: AbortSignal } = {}): Promise<void> {
+  options.signal?.throwIfAborted();
+  let call!: ClientWritableStream<WriteFileRequest>;
+  const finished = new Promise<void>((resolve, reject) => {
+    call = client(socketPath).makeClientStreamRequest(writeFileMethod.path, writeFileMethod.requestSerialize, writeFileMethod.responseDeserialize, new Metadata(), {}, (error: ServiceError | null) => {
+      options.signal?.removeEventListener("abort", abort);
+      if (error) reject(callError(error, options.signal));
+      else resolve();
+    });
+  });
+  const abort = () => call.cancel();
+  options.signal?.addEventListener("abort", abort, { once: true });
+  // A failed call never drains; `finished` rejects instead.
+  const drained = () => Promise.race([new Promise((resolve) => call.once("drain", resolve)), finished]);
+  call.write({ start: { user: users[file.user], path: file.path } });
+  const bytes = encode(content);
+  for (let offset = 0; offset < bytes.byteLength; offset += fileChunkBytes) {
+    if (!call.write({ data: bytes.subarray(offset, offset + fileChunkBytes) })) await drained();
+  }
+  call.end();
+  await finished;
 }
 
 export { status as WorkspaceHelperStatus } from "@grpc/grpc-js";

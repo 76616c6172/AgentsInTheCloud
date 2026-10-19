@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { posix } from "node:path";
-import { execWorkspaceCommand, execWorkspaceCommandBuffer, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { execWorkspaceCommandBuffer, readFileInWorkspace, workspaceRoot, WorkspaceHelperError, WorkspaceHelperStatus, writeFileInWorkspace } from "@agents-in-the-cloud/workspace";
 import type { EditableFileResponse } from "../protocol.ts";
 
 export const maxEditableFileBytes = 2_000_000;
@@ -56,26 +56,25 @@ cat -- "$1"`;
   return { content, revision: revision(bytes), writable };
 }
 
+function savingError(error: WorkspaceHelperError): Error {
+  if (error.code === WorkspaceHelperStatus.NOT_FOUND) return new EditableFileError("File not found", 404);
+  if (error.code === WorkspaceHelperStatus.FAILED_PRECONDITION) return new EditableFileError("Only regular files can be edited", 422);
+  if (error.code === WorkspaceHelperStatus.PERMISSION_DENIED) return new EditableFileError("File is read-only", 403);
+  // Grew past what the editor could have opened, so it changed.
+  if (error.code === WorkspaceHelperStatus.RESOURCE_EXHAUSTED) return new EditableFileError("File changed on disk", 409);
+  return error;
+}
+
 export async function writeEditableFile(workspaceId: string, inputPath: string | null, content: string, expectedRevision: string, force: boolean): Promise<string> {
   const bytes = new TextEncoder().encode(content);
   if (bytes.byteLength > maxEditableFileBytes) throw new EditableFileError("Files larger than 2 MB cannot be edited", 413);
   if (content.includes("\0")) throw new EditableFileError("Only text files can be edited", 415);
-  const path = await editableTarget(workspaceId, inputPath);
-  const temporary = posix.join(posix.dirname(path), `.agents-in-the-cloud-edit-${crypto.randomUUID()}`);
-  const script = `if ! test -e "$1"; then exit 44; fi
-if test -L "$1" || ! test -f "$1"; then exit 45; fi
-if ! test -w "$1"; then exit 47; fi
-current=$(sha256sum -- "$1" | cut -d ' ' -f 1)
-if test "$4" != 1 && test "$current" != "$3"; then exit 73; fi
-trap 'rm -f -- "$2"' EXIT
-cat > "$2"
-chmod --reference="$1" -- "$2"
-mv -fT -- "$2" "$1"`;
-  const result = await execWorkspaceCommand(workspaceId, ["sh", "-c", script, "sh", path, temporary, expectedRevision, force ? "1" : "0"], { stdin: content });
-  if (result.exitCode === 44) throw new EditableFileError("File not found", 404);
-  if (result.exitCode === 45) throw new EditableFileError("Only regular files can be edited", 422);
-  if (result.exitCode === 47) throw new EditableFileError("File is read-only", 403);
-  if (result.exitCode === 73) throw new EditableFileError("File changed on disk", 409);
-  if (result.exitCode !== 0) throw new Error(result.stderr.trim() || "Unable to save file");
+  const file = { user: "agents-in-the-cloud", path: await editableTarget(workspaceId, inputPath) } as const;
+  try {
+    if (!force && revision(await readFileInWorkspace(workspaceId, file, { maxBytes: maxEditableFileBytes })) !== expectedRevision) throw new EditableFileError("File changed on disk", 409);
+    await writeFileInWorkspace(workspaceId, file, bytes);
+  } catch (error) {
+    throw error instanceof WorkspaceHelperError ? savingError(error) : error;
+  }
   return revision(bytes);
 }
