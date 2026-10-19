@@ -64,6 +64,9 @@ Restart=always
 RestartSec=1s
 # Processes the app started, such as servers, outlive a helper restart.
 KillMode=process
+# Those processes, agents included, count against this unit. systemd's default
+# is 15% of the workspace's process limit; the workloads cgroup is the budget.
+TasksMax=infinity
 [Install]
 WantedBy=multi-user.target
 `,
