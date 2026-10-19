@@ -21,7 +21,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkspaceHelper_Exec_FullMethodName = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Exec"
+	WorkspaceHelper_Exec_FullMethodName   = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Exec"
+	WorkspaceHelper_Attach_FullMethodName = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Attach"
 )
 
 // WorkspaceHelperClient is the client API for WorkspaceHelper service.
@@ -38,7 +39,20 @@ type WorkspaceHelperClient interface {
 	// exceeding its deadline kills the process's whole process group, so nothing
 	// outlives an abandoned call. A process that can't start fails the call
 	// instead, e.g. with NOT_FOUND for a missing executable.
+	//
+	// A detached process (see `ExecStart.detached`) is the exception: it
+	// outlives the call, and the call behaves like an Attach from the start of
+	// its output.
 	Exec(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[ExecRequest, ExecResponse], error)
+	// Reconnects to a detached process. The first request must be `attach`. Output
+	// streams from the requested offsets and then follows the process live; the
+	// last response is `exited`, sent once the process has exited and all its
+	// output has been sent. After that the process is gone. Ending the call in
+	// any other way leaves the process running, and so does closing the request
+	// stream. Fails with NOT_FOUND when there is no such process: it was never
+	// started, its exit was already reported, or the workspace stopped. A later
+	// call to the same process, Exec or Attach, ends this one with ABORTED.
+	Attach(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AttachRequest, ExecResponse], error)
 }
 
 type workspaceHelperClient struct {
@@ -62,6 +76,19 @@ func (c *workspaceHelperClient) Exec(ctx context.Context, opts ...grpc.CallOptio
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type WorkspaceHelper_ExecClient = grpc.BidiStreamingClient[ExecRequest, ExecResponse]
 
+func (c *workspaceHelperClient) Attach(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[AttachRequest, ExecResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &WorkspaceHelper_ServiceDesc.Streams[1], WorkspaceHelper_Attach_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[AttachRequest, ExecResponse]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkspaceHelper_AttachClient = grpc.BidiStreamingClient[AttachRequest, ExecResponse]
+
 // WorkspaceHelperServer is the server API for WorkspaceHelper service.
 // All implementations must embed UnimplementedWorkspaceHelperServer
 // for forward compatibility.
@@ -76,7 +103,20 @@ type WorkspaceHelperServer interface {
 	// exceeding its deadline kills the process's whole process group, so nothing
 	// outlives an abandoned call. A process that can't start fails the call
 	// instead, e.g. with NOT_FOUND for a missing executable.
+	//
+	// A detached process (see `ExecStart.detached`) is the exception: it
+	// outlives the call, and the call behaves like an Attach from the start of
+	// its output.
 	Exec(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error
+	// Reconnects to a detached process. The first request must be `attach`. Output
+	// streams from the requested offsets and then follows the process live; the
+	// last response is `exited`, sent once the process has exited and all its
+	// output has been sent. After that the process is gone. Ending the call in
+	// any other way leaves the process running, and so does closing the request
+	// stream. Fails with NOT_FOUND when there is no such process: it was never
+	// started, its exit was already reported, or the workspace stopped. A later
+	// call to the same process, Exec or Attach, ends this one with ABORTED.
+	Attach(grpc.BidiStreamingServer[AttachRequest, ExecResponse]) error
 	mustEmbedUnimplementedWorkspaceHelperServer()
 }
 
@@ -89,6 +129,9 @@ type UnimplementedWorkspaceHelperServer struct{}
 
 func (UnimplementedWorkspaceHelperServer) Exec(grpc.BidiStreamingServer[ExecRequest, ExecResponse]) error {
 	return status.Error(codes.Unimplemented, "method Exec not implemented")
+}
+func (UnimplementedWorkspaceHelperServer) Attach(grpc.BidiStreamingServer[AttachRequest, ExecResponse]) error {
+	return status.Error(codes.Unimplemented, "method Attach not implemented")
 }
 func (UnimplementedWorkspaceHelperServer) mustEmbedUnimplementedWorkspaceHelperServer() {}
 func (UnimplementedWorkspaceHelperServer) testEmbeddedByValue()                         {}
@@ -118,6 +161,13 @@ func _WorkspaceHelper_Exec_Handler(srv interface{}, stream grpc.ServerStream) er
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type WorkspaceHelper_ExecServer = grpc.BidiStreamingServer[ExecRequest, ExecResponse]
 
+func _WorkspaceHelper_Attach_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(WorkspaceHelperServer).Attach(&grpc.GenericServerStream[AttachRequest, ExecResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type WorkspaceHelper_AttachServer = grpc.BidiStreamingServer[AttachRequest, ExecResponse]
+
 // WorkspaceHelper_ServiceDesc is the grpc.ServiceDesc for WorkspaceHelper service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -129,6 +179,12 @@ var WorkspaceHelper_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Exec",
 			Handler:       _WorkspaceHelper_Exec_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Attach",
+			Handler:       _WorkspaceHelper_Attach_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

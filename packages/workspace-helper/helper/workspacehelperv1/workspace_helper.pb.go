@@ -137,6 +137,7 @@ type ExecRequest struct {
 	//	*ExecRequest_CloseStdin
 	//	*ExecRequest_Signal
 	//	*ExecRequest_Resize
+	//	*ExecRequest_Acknowledge
 	Request       isExecRequest_Request `protobuf_oneof:"request"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -224,6 +225,15 @@ func (x *ExecRequest) GetResize() *TerminalSize {
 	return nil
 }
 
+func (x *ExecRequest) GetAcknowledge() *Acknowledge {
+	if x != nil {
+		if x, ok := x.Request.(*ExecRequest_Acknowledge); ok {
+			return x.Acknowledge
+		}
+	}
+	return nil
+}
+
 type isExecRequest_Request interface {
 	isExecRequest_Request()
 }
@@ -238,8 +248,8 @@ type ExecRequest_Stdin struct {
 }
 
 type ExecRequest_CloseStdin struct {
-	// Closes stdin, so the process sees EOF. Not allowed with a terminal; send
-	// `signal` HUP to hang one up.
+	// Closes stdin, so the process sees EOF. Only allowed with pipes; send
+	// `signal` HUP to hang up a terminal.
 	CloseStdin *CloseStdin `protobuf:"bytes,3,opt,name=close_stdin,json=closeStdin,proto3,oneof"`
 }
 
@@ -253,6 +263,11 @@ type ExecRequest_Resize struct {
 	Resize *TerminalSize `protobuf:"bytes,5,opt,name=resize,proto3,oneof"`
 }
 
+type ExecRequest_Acknowledge struct {
+	// Only allowed with a detached process.
+	Acknowledge *Acknowledge `protobuf:"bytes,6,opt,name=acknowledge,proto3,oneof"`
+}
+
 func (*ExecRequest_Start) isExecRequest_Request() {}
 
 func (*ExecRequest_Stdin) isExecRequest_Request() {}
@@ -263,6 +278,8 @@ func (*ExecRequest_Signal) isExecRequest_Request() {}
 
 func (*ExecRequest_Resize) isExecRequest_Request() {}
 
+func (*ExecRequest_Acknowledge) isExecRequest_Request() {}
+
 type ExecStart struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// argv[0] is resolved through PATH, as `docker exec` does. Must not be empty.
@@ -272,11 +289,15 @@ type ExecStart struct {
 	Workdir string `protobuf:"bytes,3,opt,name=workdir,proto3" json:"workdir,omitempty"`
 	// Added to the workspace's environment. The helper sets HOME, USER and LOGNAME for `user`.
 	Env map[string]string `protobuf:"bytes,4,rep,name=env,proto3" json:"env,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	// Gives the process a stdin pipe; without one it reads /dev/null. Must be
-	// unset with a terminal, which always takes input.
-	Stdin bool `protobuf:"varint,5,opt,name=stdin,proto3" json:"stdin,omitempty"`
-	// Runs the process in a new session on a PTY. Output then arrives only as `stdout`.
-	Terminal      *TerminalSize `protobuf:"bytes,6,opt,name=terminal,proto3,oneof" json:"terminal,omitempty"`
+	// How the process's stdio connects to the call, and so whether it outlives
+	// it. Required.
+	//
+	// Types that are valid to be assigned to Stdio:
+	//
+	//	*ExecStart_Pipes
+	//	*ExecStart_Terminal
+	//	*ExecStart_Detached
+	Stdio         isExecStart_Stdio `protobuf_oneof:"stdio"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -339,18 +360,406 @@ func (x *ExecStart) GetEnv() map[string]string {
 	return nil
 }
 
-func (x *ExecStart) GetStdin() bool {
+func (x *ExecStart) GetStdio() isExecStart_Stdio {
+	if x != nil {
+		return x.Stdio
+	}
+	return nil
+}
+
+func (x *ExecStart) GetPipes() *Pipes {
+	if x != nil {
+		if x, ok := x.Stdio.(*ExecStart_Pipes); ok {
+			return x.Pipes
+		}
+	}
+	return nil
+}
+
+func (x *ExecStart) GetTerminal() *TerminalSize {
+	if x != nil {
+		if x, ok := x.Stdio.(*ExecStart_Terminal); ok {
+			return x.Terminal
+		}
+	}
+	return nil
+}
+
+func (x *ExecStart) GetDetached() *Detached {
+	if x != nil {
+		if x, ok := x.Stdio.(*ExecStart_Detached); ok {
+			return x.Detached
+		}
+	}
+	return nil
+}
+
+type isExecStart_Stdio interface {
+	isExecStart_Stdio()
+}
+
+type ExecStart_Pipes struct {
+	Pipes *Pipes `protobuf:"bytes,5,opt,name=pipes,proto3,oneof"`
+}
+
+type ExecStart_Terminal struct {
+	// Runs the process in a new session on a PTY, which always takes input.
+	// Output then arrives only as `stdout`.
+	Terminal *TerminalSize `protobuf:"bytes,6,opt,name=terminal,proto3,oneof"`
+}
+
+type ExecStart_Detached struct {
+	Detached *Detached `protobuf:"bytes,7,opt,name=detached,proto3,oneof"`
+}
+
+func (*ExecStart_Pipes) isExecStart_Stdio() {}
+
+func (*ExecStart_Terminal) isExecStart_Stdio() {}
+
+func (*ExecStart_Detached) isExecStart_Stdio() {}
+
+// Stdio flows over the call, which the process can't outlive.
+type Pipes struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Gives the process a stdin pipe; without one it reads /dev/null.
+	Stdin         bool `protobuf:"varint,1,opt,name=stdin,proto3" json:"stdin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Pipes) Reset() {
+	*x = Pipes{}
+	mi := &file_workspace_helper_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Pipes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Pipes) ProtoMessage() {}
+
+func (x *Pipes) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Pipes.ProtoReflect.Descriptor instead.
+func (*Pipes) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Pipes) GetStdin() bool {
 	if x != nil {
 		return x.Stdin
 	}
 	return false
 }
 
-func (x *ExecStart) GetTerminal() *TerminalSize {
+// The process outlives its call, so Attach can reconnect to it, e.g. after
+// the app restarts. Its stdout and stderr go straight to files on the
+// workspace's disk, and its stdin is a FIFO that never reports EOF, so
+// nothing about the process depends on the call or on the helper itself.
+// Stop it with `signal`.
+type Detached struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// How Attach finds the process: letters, digits and `._:-`, at most 128
+	// characters, not starting with a dot. Fails with ALREADY_EXISTS while a
+	// process with this name is running; one that has exited is replaced, along
+	// with any output it left unread.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Gives the process stdin; without it, it reads /dev/null.
+	Stdin         bool `protobuf:"varint,2,opt,name=stdin,proto3" json:"stdin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Detached) Reset() {
+	*x = Detached{}
+	mi := &file_workspace_helper_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Detached) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Detached) ProtoMessage() {}
+
+func (x *Detached) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[3]
 	if x != nil {
-		return x.Terminal
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Detached.ProtoReflect.Descriptor instead.
+func (*Detached) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *Detached) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Detached) GetStdin() bool {
+	if x != nil {
+		return x.Stdin
+	}
+	return false
+}
+
+type AttachRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Request:
+	//
+	//	*AttachRequest_Attach
+	//	*AttachRequest_Stdin
+	//	*AttachRequest_Signal
+	//	*AttachRequest_Acknowledge
+	Request       isAttachRequest_Request `protobuf_oneof:"request"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AttachRequest) Reset() {
+	*x = AttachRequest{}
+	mi := &file_workspace_helper_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AttachRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AttachRequest) ProtoMessage() {}
+
+func (x *AttachRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AttachRequest.ProtoReflect.Descriptor instead.
+func (*AttachRequest) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *AttachRequest) GetRequest() isAttachRequest_Request {
+	if x != nil {
+		return x.Request
 	}
 	return nil
+}
+
+func (x *AttachRequest) GetAttach() *Attach {
+	if x != nil {
+		if x, ok := x.Request.(*AttachRequest_Attach); ok {
+			return x.Attach
+		}
+	}
+	return nil
+}
+
+func (x *AttachRequest) GetStdin() []byte {
+	if x != nil {
+		if x, ok := x.Request.(*AttachRequest_Stdin); ok {
+			return x.Stdin
+		}
+	}
+	return nil
+}
+
+func (x *AttachRequest) GetSignal() Signal {
+	if x != nil {
+		if x, ok := x.Request.(*AttachRequest_Signal); ok {
+			return x.Signal
+		}
+	}
+	return Signal_SIGNAL_UNSPECIFIED
+}
+
+func (x *AttachRequest) GetAcknowledge() *Acknowledge {
+	if x != nil {
+		if x, ok := x.Request.(*AttachRequest_Acknowledge); ok {
+			return x.Acknowledge
+		}
+	}
+	return nil
+}
+
+type isAttachRequest_Request interface {
+	isAttachRequest_Request()
+}
+
+type AttachRequest_Attach struct {
+	Attach *Attach `protobuf:"bytes,1,opt,name=attach,proto3,oneof"`
+}
+
+type AttachRequest_Stdin struct {
+	// Written to the process's stdin; fails the call when it has none.
+	Stdin []byte `protobuf:"bytes,2,opt,name=stdin,proto3,oneof"`
+}
+
+type AttachRequest_Signal struct {
+	// Delivered to the process group.
+	Signal Signal `protobuf:"varint,3,opt,name=signal,proto3,enum=agents_in_the_cloud.workspace_helper.v1.Signal,oneof"`
+}
+
+type AttachRequest_Acknowledge struct {
+	Acknowledge *Acknowledge `protobuf:"bytes,4,opt,name=acknowledge,proto3,oneof"`
+}
+
+func (*AttachRequest_Attach) isAttachRequest_Request() {}
+
+func (*AttachRequest_Stdin) isAttachRequest_Request() {}
+
+func (*AttachRequest_Signal) isAttachRequest_Request() {}
+
+func (*AttachRequest_Acknowledge) isAttachRequest_Request() {}
+
+type Attach struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Name  string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Byte offsets to continue from: how much output the client had read before
+	// it last left. They acknowledge the output before them, as `acknowledge`
+	// does, so an acknowledgement lost when a call ends needs no resending.
+	// Fails with OUT_OF_RANGE before an acknowledged offset or beyond the output
+	// written so far.
+	StdoutOffset  uint64 `protobuf:"varint,2,opt,name=stdout_offset,json=stdoutOffset,proto3" json:"stdout_offset,omitempty"`
+	StderrOffset  uint64 `protobuf:"varint,3,opt,name=stderr_offset,json=stderrOffset,proto3" json:"stderr_offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Attach) Reset() {
+	*x = Attach{}
+	mi := &file_workspace_helper_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Attach) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Attach) ProtoMessage() {}
+
+func (x *Attach) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Attach.ProtoReflect.Descriptor instead.
+func (*Attach) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Attach) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *Attach) GetStdoutOffset() uint64 {
+	if x != nil {
+		return x.StdoutOffset
+	}
+	return 0
+}
+
+func (x *Attach) GetStderrOffset() uint64 {
+	if x != nil {
+		return x.StderrOffset
+	}
+	return 0
+}
+
+// The client no longer needs the output before these offsets, so the helper
+// may free its disk space. Lets a long-lived call free output as it goes.
+// Offsets never move backwards, and must not go beyond the output written so far.
+type Acknowledge struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	StdoutOffset  uint64                 `protobuf:"varint,1,opt,name=stdout_offset,json=stdoutOffset,proto3" json:"stdout_offset,omitempty"`
+	StderrOffset  uint64                 `protobuf:"varint,2,opt,name=stderr_offset,json=stderrOffset,proto3" json:"stderr_offset,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Acknowledge) Reset() {
+	*x = Acknowledge{}
+	mi := &file_workspace_helper_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Acknowledge) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Acknowledge) ProtoMessage() {}
+
+func (x *Acknowledge) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Acknowledge.ProtoReflect.Descriptor instead.
+func (*Acknowledge) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *Acknowledge) GetStdoutOffset() uint64 {
+	if x != nil {
+		return x.StdoutOffset
+	}
+	return 0
+}
+
+func (x *Acknowledge) GetStderrOffset() uint64 {
+	if x != nil {
+		return x.StderrOffset
+	}
+	return 0
 }
 
 type TerminalSize struct {
@@ -363,7 +772,7 @@ type TerminalSize struct {
 
 func (x *TerminalSize) Reset() {
 	*x = TerminalSize{}
-	mi := &file_workspace_helper_proto_msgTypes[2]
+	mi := &file_workspace_helper_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -375,7 +784,7 @@ func (x *TerminalSize) String() string {
 func (*TerminalSize) ProtoMessage() {}
 
 func (x *TerminalSize) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[2]
+	mi := &file_workspace_helper_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -388,7 +797,7 @@ func (x *TerminalSize) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TerminalSize.ProtoReflect.Descriptor instead.
 func (*TerminalSize) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{2}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *TerminalSize) GetCols() uint32 {
@@ -413,7 +822,7 @@ type CloseStdin struct {
 
 func (x *CloseStdin) Reset() {
 	*x = CloseStdin{}
-	mi := &file_workspace_helper_proto_msgTypes[3]
+	mi := &file_workspace_helper_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -425,7 +834,7 @@ func (x *CloseStdin) String() string {
 func (*CloseStdin) ProtoMessage() {}
 
 func (x *CloseStdin) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[3]
+	mi := &file_workspace_helper_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -438,7 +847,7 @@ func (x *CloseStdin) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CloseStdin.ProtoReflect.Descriptor instead.
 func (*CloseStdin) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{3}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{8}
 }
 
 type ExecResponse struct {
@@ -455,7 +864,7 @@ type ExecResponse struct {
 
 func (x *ExecResponse) Reset() {
 	*x = ExecResponse{}
-	mi := &file_workspace_helper_proto_msgTypes[4]
+	mi := &file_workspace_helper_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -467,7 +876,7 @@ func (x *ExecResponse) String() string {
 func (*ExecResponse) ProtoMessage() {}
 
 func (x *ExecResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[4]
+	mi := &file_workspace_helper_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -480,7 +889,7 @@ func (x *ExecResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ExecResponse.ProtoReflect.Descriptor instead.
 func (*ExecResponse) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{4}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ExecResponse) GetResponse() isExecResponse_Response {
@@ -546,6 +955,7 @@ type Exited struct {
 	//
 	//	*Exited_ExitCode
 	//	*Exited_Signal
+	//	*Exited_Unknown
 	Status        isExited_Status `protobuf_oneof:"status"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -553,7 +963,7 @@ type Exited struct {
 
 func (x *Exited) Reset() {
 	*x = Exited{}
-	mi := &file_workspace_helper_proto_msgTypes[5]
+	mi := &file_workspace_helper_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -565,7 +975,7 @@ func (x *Exited) String() string {
 func (*Exited) ProtoMessage() {}
 
 func (x *Exited) ProtoReflect() protoreflect.Message {
-	mi := &file_workspace_helper_proto_msgTypes[5]
+	mi := &file_workspace_helper_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -578,7 +988,7 @@ func (x *Exited) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Exited.ProtoReflect.Descriptor instead.
 func (*Exited) Descriptor() ([]byte, []int) {
-	return file_workspace_helper_proto_rawDescGZIP(), []int{5}
+	return file_workspace_helper_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Exited) GetStatus() isExited_Status {
@@ -606,6 +1016,15 @@ func (x *Exited) GetSignal() int32 {
 	return 0
 }
 
+func (x *Exited) GetUnknown() *Unknown {
+	if x != nil {
+		if x, ok := x.Status.(*Exited_Unknown); ok {
+			return x.Unknown
+		}
+	}
+	return nil
+}
+
 type isExited_Status interface {
 	isExited_Status()
 }
@@ -619,34 +1038,98 @@ type Exited_Signal struct {
 	Signal int32 `protobuf:"varint,2,opt,name=signal,proto3,oneof"`
 }
 
+type Exited_Unknown struct {
+	// Only for a detached process that exited while a restarted helper was no
+	// longer its parent, so nothing recorded how it ended.
+	Unknown *Unknown `protobuf:"bytes,3,opt,name=unknown,proto3,oneof"`
+}
+
 func (*Exited_ExitCode) isExited_Status() {}
 
 func (*Exited_Signal) isExited_Status() {}
+
+func (*Exited_Unknown) isExited_Status() {}
+
+type Unknown struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Unknown) Reset() {
+	*x = Unknown{}
+	mi := &file_workspace_helper_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Unknown) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Unknown) ProtoMessage() {}
+
+func (x *Unknown) ProtoReflect() protoreflect.Message {
+	mi := &file_workspace_helper_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Unknown.ProtoReflect.Descriptor instead.
+func (*Unknown) Descriptor() ([]byte, []int) {
+	return file_workspace_helper_proto_rawDescGZIP(), []int{11}
+}
 
 var File_workspace_helper_proto protoreflect.FileDescriptor
 
 const file_workspace_helper_proto_rawDesc = "" +
 	"\n" +
-	"\x16workspace_helper.proto\x12'agents_in_the_cloud.workspace_helper.v1\"\xf0\x02\n" +
+	"\x16workspace_helper.proto\x12'agents_in_the_cloud.workspace_helper.v1\"\xca\x03\n" +
 	"\vExecRequest\x12J\n" +
 	"\x05start\x18\x01 \x01(\v22.agents_in_the_cloud.workspace_helper.v1.ExecStartH\x00R\x05start\x12\x16\n" +
 	"\x05stdin\x18\x02 \x01(\fH\x00R\x05stdin\x12V\n" +
 	"\vclose_stdin\x18\x03 \x01(\v23.agents_in_the_cloud.workspace_helper.v1.CloseStdinH\x00R\n" +
 	"closeStdin\x12I\n" +
 	"\x06signal\x18\x04 \x01(\x0e2/.agents_in_the_cloud.workspace_helper.v1.SignalH\x00R\x06signal\x12O\n" +
-	"\x06resize\x18\x05 \x01(\v25.agents_in_the_cloud.workspace_helper.v1.TerminalSizeH\x00R\x06resizeB\t\n" +
-	"\arequest\"\xfe\x02\n" +
+	"\x06resize\x18\x05 \x01(\v25.agents_in_the_cloud.workspace_helper.v1.TerminalSizeH\x00R\x06resize\x12X\n" +
+	"\vacknowledge\x18\x06 \x01(\v24.agents_in_the_cloud.workspace_helper.v1.AcknowledgeH\x00R\vacknowledgeB\t\n" +
+	"\arequest\"\xfa\x03\n" +
 	"\tExecStart\x12\x12\n" +
 	"\x04argv\x18\x01 \x03(\tR\x04argv\x12A\n" +
 	"\x04user\x18\x02 \x01(\x0e2-.agents_in_the_cloud.workspace_helper.v1.UserR\x04user\x12\x18\n" +
 	"\aworkdir\x18\x03 \x01(\tR\aworkdir\x12M\n" +
-	"\x03env\x18\x04 \x03(\v2;.agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntryR\x03env\x12\x14\n" +
-	"\x05stdin\x18\x05 \x01(\bR\x05stdin\x12V\n" +
-	"\bterminal\x18\x06 \x01(\v25.agents_in_the_cloud.workspace_helper.v1.TerminalSizeH\x00R\bterminal\x88\x01\x01\x1a6\n" +
+	"\x03env\x18\x04 \x03(\v2;.agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntryR\x03env\x12F\n" +
+	"\x05pipes\x18\x05 \x01(\v2..agents_in_the_cloud.workspace_helper.v1.PipesH\x00R\x05pipes\x12S\n" +
+	"\bterminal\x18\x06 \x01(\v25.agents_in_the_cloud.workspace_helper.v1.TerminalSizeH\x00R\bterminal\x12O\n" +
+	"\bdetached\x18\a \x01(\v21.agents_in_the_cloud.workspace_helper.v1.DetachedH\x00R\bdetached\x1a6\n" +
 	"\bEnvEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\v\n" +
-	"\t_terminal\"6\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01B\a\n" +
+	"\x05stdio\"\x1d\n" +
+	"\x05Pipes\x12\x14\n" +
+	"\x05stdin\x18\x01 \x01(\bR\x05stdin\"4\n" +
+	"\bDetached\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
+	"\x05stdin\x18\x02 \x01(\bR\x05stdin\"\xa2\x02\n" +
+	"\rAttachRequest\x12I\n" +
+	"\x06attach\x18\x01 \x01(\v2/.agents_in_the_cloud.workspace_helper.v1.AttachH\x00R\x06attach\x12\x16\n" +
+	"\x05stdin\x18\x02 \x01(\fH\x00R\x05stdin\x12I\n" +
+	"\x06signal\x18\x03 \x01(\x0e2/.agents_in_the_cloud.workspace_helper.v1.SignalH\x00R\x06signal\x12X\n" +
+	"\vacknowledge\x18\x04 \x01(\v24.agents_in_the_cloud.workspace_helper.v1.AcknowledgeH\x00R\vacknowledgeB\t\n" +
+	"\arequest\"f\n" +
+	"\x06Attach\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12#\n" +
+	"\rstdout_offset\x18\x02 \x01(\x04R\fstdoutOffset\x12#\n" +
+	"\rstderr_offset\x18\x03 \x01(\x04R\fstderrOffset\"W\n" +
+	"\vAcknowledge\x12#\n" +
+	"\rstdout_offset\x18\x01 \x01(\x04R\fstdoutOffset\x12#\n" +
+	"\rstderr_offset\x18\x02 \x01(\x04R\fstderrOffset\"6\n" +
 	"\fTerminalSize\x12\x12\n" +
 	"\x04cols\x18\x01 \x01(\rR\x04cols\x12\x12\n" +
 	"\x04rows\x18\x02 \x01(\rR\x04rows\"\f\n" +
@@ -657,11 +1140,13 @@ const file_workspace_helper_proto_rawDesc = "" +
 	"\x06stderr\x18\x03 \x01(\fH\x00R\x06stderr\x12I\n" +
 	"\x06exited\x18\x04 \x01(\v2/.agents_in_the_cloud.workspace_helper.v1.ExitedH\x00R\x06exitedB\n" +
 	"\n" +
-	"\bresponseJ\x04\b\x01\x10\x02\"K\n" +
+	"\bresponseJ\x04\b\x01\x10\x02\"\x99\x01\n" +
 	"\x06Exited\x12\x1d\n" +
 	"\texit_code\x18\x01 \x01(\x05H\x00R\bexitCode\x12\x18\n" +
-	"\x06signal\x18\x02 \x01(\x05H\x00R\x06signalB\b\n" +
-	"\x06status*;\n" +
+	"\x06signal\x18\x02 \x01(\x05H\x00R\x06signal\x12L\n" +
+	"\aunknown\x18\x03 \x01(\v20.agents_in_the_cloud.workspace_helper.v1.UnknownH\x00R\aunknownB\b\n" +
+	"\x06status\"\t\n" +
+	"\aUnknown*;\n" +
 	"\x04User\x12\x14\n" +
 	"\x10USER_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
@@ -674,9 +1159,10 @@ const file_workspace_helper_proto_rawDesc = "" +
 	"\n" +
 	"SIGNAL_INT\x10\x02\x12\x0f\n" +
 	"\vSIGNAL_TERM\x10\x03\x12\x0f\n" +
-	"\vSIGNAL_KILL\x10\x042\x8a\x01\n" +
+	"\vSIGNAL_KILL\x10\x042\x87\x02\n" +
 	"\x0fWorkspaceHelper\x12w\n" +
-	"\x04Exec\x124.agents_in_the_cloud.workspace_helper.v1.ExecRequest\x1a5.agents_in_the_cloud.workspace_helper.v1.ExecResponse(\x010\x01B8Z6agents-in-the-cloud/workspace-helper/workspacehelperv1b\x06proto3"
+	"\x04Exec\x124.agents_in_the_cloud.workspace_helper.v1.ExecRequest\x1a5.agents_in_the_cloud.workspace_helper.v1.ExecResponse(\x010\x01\x12{\n" +
+	"\x06Attach\x126.agents_in_the_cloud.workspace_helper.v1.AttachRequest\x1a5.agents_in_the_cloud.workspace_helper.v1.ExecResponse(\x010\x01B8Z6agents-in-the-cloud/workspace-helper/workspacehelperv1b\x06proto3"
 
 var (
 	file_workspace_helper_proto_rawDescOnce sync.Once
@@ -691,34 +1177,49 @@ func file_workspace_helper_proto_rawDescGZIP() []byte {
 }
 
 var file_workspace_helper_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_workspace_helper_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_workspace_helper_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_workspace_helper_proto_goTypes = []any{
-	(User)(0),            // 0: agents_in_the_cloud.workspace_helper.v1.User
-	(Signal)(0),          // 1: agents_in_the_cloud.workspace_helper.v1.Signal
-	(*ExecRequest)(nil),  // 2: agents_in_the_cloud.workspace_helper.v1.ExecRequest
-	(*ExecStart)(nil),    // 3: agents_in_the_cloud.workspace_helper.v1.ExecStart
-	(*TerminalSize)(nil), // 4: agents_in_the_cloud.workspace_helper.v1.TerminalSize
-	(*CloseStdin)(nil),   // 5: agents_in_the_cloud.workspace_helper.v1.CloseStdin
-	(*ExecResponse)(nil), // 6: agents_in_the_cloud.workspace_helper.v1.ExecResponse
-	(*Exited)(nil),       // 7: agents_in_the_cloud.workspace_helper.v1.Exited
-	nil,                  // 8: agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
+	(User)(0),             // 0: agents_in_the_cloud.workspace_helper.v1.User
+	(Signal)(0),           // 1: agents_in_the_cloud.workspace_helper.v1.Signal
+	(*ExecRequest)(nil),   // 2: agents_in_the_cloud.workspace_helper.v1.ExecRequest
+	(*ExecStart)(nil),     // 3: agents_in_the_cloud.workspace_helper.v1.ExecStart
+	(*Pipes)(nil),         // 4: agents_in_the_cloud.workspace_helper.v1.Pipes
+	(*Detached)(nil),      // 5: agents_in_the_cloud.workspace_helper.v1.Detached
+	(*AttachRequest)(nil), // 6: agents_in_the_cloud.workspace_helper.v1.AttachRequest
+	(*Attach)(nil),        // 7: agents_in_the_cloud.workspace_helper.v1.Attach
+	(*Acknowledge)(nil),   // 8: agents_in_the_cloud.workspace_helper.v1.Acknowledge
+	(*TerminalSize)(nil),  // 9: agents_in_the_cloud.workspace_helper.v1.TerminalSize
+	(*CloseStdin)(nil),    // 10: agents_in_the_cloud.workspace_helper.v1.CloseStdin
+	(*ExecResponse)(nil),  // 11: agents_in_the_cloud.workspace_helper.v1.ExecResponse
+	(*Exited)(nil),        // 12: agents_in_the_cloud.workspace_helper.v1.Exited
+	(*Unknown)(nil),       // 13: agents_in_the_cloud.workspace_helper.v1.Unknown
+	nil,                   // 14: agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
 }
 var file_workspace_helper_proto_depIdxs = []int32{
-	3, // 0: agents_in_the_cloud.workspace_helper.v1.ExecRequest.start:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart
-	5, // 1: agents_in_the_cloud.workspace_helper.v1.ExecRequest.close_stdin:type_name -> agents_in_the_cloud.workspace_helper.v1.CloseStdin
-	1, // 2: agents_in_the_cloud.workspace_helper.v1.ExecRequest.signal:type_name -> agents_in_the_cloud.workspace_helper.v1.Signal
-	4, // 3: agents_in_the_cloud.workspace_helper.v1.ExecRequest.resize:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
-	0, // 4: agents_in_the_cloud.workspace_helper.v1.ExecStart.user:type_name -> agents_in_the_cloud.workspace_helper.v1.User
-	8, // 5: agents_in_the_cloud.workspace_helper.v1.ExecStart.env:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
-	4, // 6: agents_in_the_cloud.workspace_helper.v1.ExecStart.terminal:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
-	7, // 7: agents_in_the_cloud.workspace_helper.v1.ExecResponse.exited:type_name -> agents_in_the_cloud.workspace_helper.v1.Exited
-	2, // 8: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:input_type -> agents_in_the_cloud.workspace_helper.v1.ExecRequest
-	6, // 9: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:output_type -> agents_in_the_cloud.workspace_helper.v1.ExecResponse
-	9, // [9:10] is the sub-list for method output_type
-	8, // [8:9] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	3,  // 0: agents_in_the_cloud.workspace_helper.v1.ExecRequest.start:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart
+	10, // 1: agents_in_the_cloud.workspace_helper.v1.ExecRequest.close_stdin:type_name -> agents_in_the_cloud.workspace_helper.v1.CloseStdin
+	1,  // 2: agents_in_the_cloud.workspace_helper.v1.ExecRequest.signal:type_name -> agents_in_the_cloud.workspace_helper.v1.Signal
+	9,  // 3: agents_in_the_cloud.workspace_helper.v1.ExecRequest.resize:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
+	8,  // 4: agents_in_the_cloud.workspace_helper.v1.ExecRequest.acknowledge:type_name -> agents_in_the_cloud.workspace_helper.v1.Acknowledge
+	0,  // 5: agents_in_the_cloud.workspace_helper.v1.ExecStart.user:type_name -> agents_in_the_cloud.workspace_helper.v1.User
+	14, // 6: agents_in_the_cloud.workspace_helper.v1.ExecStart.env:type_name -> agents_in_the_cloud.workspace_helper.v1.ExecStart.EnvEntry
+	4,  // 7: agents_in_the_cloud.workspace_helper.v1.ExecStart.pipes:type_name -> agents_in_the_cloud.workspace_helper.v1.Pipes
+	9,  // 8: agents_in_the_cloud.workspace_helper.v1.ExecStart.terminal:type_name -> agents_in_the_cloud.workspace_helper.v1.TerminalSize
+	5,  // 9: agents_in_the_cloud.workspace_helper.v1.ExecStart.detached:type_name -> agents_in_the_cloud.workspace_helper.v1.Detached
+	7,  // 10: agents_in_the_cloud.workspace_helper.v1.AttachRequest.attach:type_name -> agents_in_the_cloud.workspace_helper.v1.Attach
+	1,  // 11: agents_in_the_cloud.workspace_helper.v1.AttachRequest.signal:type_name -> agents_in_the_cloud.workspace_helper.v1.Signal
+	8,  // 12: agents_in_the_cloud.workspace_helper.v1.AttachRequest.acknowledge:type_name -> agents_in_the_cloud.workspace_helper.v1.Acknowledge
+	12, // 13: agents_in_the_cloud.workspace_helper.v1.ExecResponse.exited:type_name -> agents_in_the_cloud.workspace_helper.v1.Exited
+	13, // 14: agents_in_the_cloud.workspace_helper.v1.Exited.unknown:type_name -> agents_in_the_cloud.workspace_helper.v1.Unknown
+	2,  // 15: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:input_type -> agents_in_the_cloud.workspace_helper.v1.ExecRequest
+	6,  // 16: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Attach:input_type -> agents_in_the_cloud.workspace_helper.v1.AttachRequest
+	11, // 17: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Exec:output_type -> agents_in_the_cloud.workspace_helper.v1.ExecResponse
+	11, // 18: agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper.Attach:output_type -> agents_in_the_cloud.workspace_helper.v1.ExecResponse
+	17, // [17:19] is the sub-list for method output_type
+	15, // [15:17] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_workspace_helper_proto_init() }
@@ -732,16 +1233,28 @@ func file_workspace_helper_proto_init() {
 		(*ExecRequest_CloseStdin)(nil),
 		(*ExecRequest_Signal)(nil),
 		(*ExecRequest_Resize)(nil),
+		(*ExecRequest_Acknowledge)(nil),
 	}
-	file_workspace_helper_proto_msgTypes[1].OneofWrappers = []any{}
+	file_workspace_helper_proto_msgTypes[1].OneofWrappers = []any{
+		(*ExecStart_Pipes)(nil),
+		(*ExecStart_Terminal)(nil),
+		(*ExecStart_Detached)(nil),
+	}
 	file_workspace_helper_proto_msgTypes[4].OneofWrappers = []any{
+		(*AttachRequest_Attach)(nil),
+		(*AttachRequest_Stdin)(nil),
+		(*AttachRequest_Signal)(nil),
+		(*AttachRequest_Acknowledge)(nil),
+	}
+	file_workspace_helper_proto_msgTypes[9].OneofWrappers = []any{
 		(*ExecResponse_Stdout)(nil),
 		(*ExecResponse_Stderr)(nil),
 		(*ExecResponse_Exited)(nil),
 	}
-	file_workspace_helper_proto_msgTypes[5].OneofWrappers = []any{
+	file_workspace_helper_proto_msgTypes[10].OneofWrappers = []any{
 		(*Exited_ExitCode)(nil),
 		(*Exited_Signal)(nil),
+		(*Exited_Unknown)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -749,7 +1262,7 @@ func file_workspace_helper_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_workspace_helper_proto_rawDesc), len(file_workspace_helper_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   7,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

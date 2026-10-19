@@ -35,6 +35,7 @@ type helper struct {
 	users map[pb.User]string
 	// Only a root helper can run processes as another user.
 	switchUser bool
+	detached   *registry
 }
 
 type identity struct {
@@ -169,7 +170,8 @@ func (p *process) signal(signal syscall.Signal) error {
 	return syscall.Kill(-p.command.Process.Pid, signal)
 }
 
-func startProcess(start *pb.ExecStart, account identity, switchUser bool) (*process, error) {
+// Validates the start request and builds its command, without stdio.
+func newCommand(start *pb.ExecStart, account identity, switchUser bool) (*exec.Cmd, error) {
 	if len(start.Argv) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "argv must not be empty")
 	}
@@ -180,9 +182,6 @@ func startProcess(start *pb.ExecStart, account identity, switchUser bool) (*proc
 	if !filepath.IsAbs(workdir) {
 		return nil, status.Errorf(codes.InvalidArgument, "workdir must be absolute: %q", workdir)
 	}
-	if start.Terminal != nil && start.Stdin {
-		return nil, status.Error(codes.InvalidArgument, "stdin must be unset with a terminal")
-	}
 	env := environment(account, start.Env)
 	executable, err := lookPath(start.Argv[0], env)
 	if err != nil {
@@ -192,8 +191,16 @@ func startProcess(start *pb.ExecStart, account identity, switchUser bool) (*proc
 	if switchUser {
 		command.SysProcAttr.Credential = &syscall.Credential{Uid: account.uid, Gid: account.gid, Groups: account.groups}
 	}
-	if start.Terminal != nil {
-		return startTerminalProcess(command, start.Terminal, account, switchUser)
+	return command, nil
+}
+
+func startProcess(start *pb.ExecStart, account identity, switchUser bool) (*process, error) {
+	command, err := newCommand(start, account, switchUser)
+	if err != nil {
+		return nil, err
+	}
+	if terminal := start.GetTerminal(); terminal != nil {
+		return startTerminalProcess(command, terminal, account, switchUser)
 	}
 	command.SysProcAttr.Setpgid = true
 	result := &process{command: command}
@@ -211,7 +218,7 @@ func startProcess(start *pb.ExecStart, account identity, switchUser bool) (*proc
 		}
 		return reader, writer, err
 	}
-	if start.Stdin {
+	if start.GetPipes().Stdin {
 		reader, writer, err := pipe()
 		if err != nil {
 			return nil, err
@@ -280,6 +287,12 @@ func (s *helper) Exec(stream pb.WorkspaceHelper_ExecServer) error {
 	account, err := s.lookupUser(start.User)
 	if err != nil {
 		return err
+	}
+	switch start.Stdio.(type) {
+	case *pb.ExecStart_Detached:
+		return s.execDetached(stream, start, account)
+	case nil:
+		return status.Error(codes.InvalidArgument, "start must say how to connect stdio: pipes, terminal or detached")
 	}
 	running, err := startProcess(start, account, s.switchUser)
 	if err != nil {
@@ -377,14 +390,15 @@ func (s *helper) Exec(stream pb.WorkspaceHelper_ExecServer) error {
 	if wait != nil && !errors.As(wait, &exitError) {
 		return status.Errorf(codes.Internal, "wait for process: %v", wait)
 	}
-	result := &pb.Exited{}
-	waitStatus := running.command.ProcessState.Sys().(syscall.WaitStatus)
+	return send(&pb.ExecResponse{Response: &pb.ExecResponse_Exited{Exited: exitedStatus(running.command.ProcessState)}})
+}
+
+func exitedStatus(state *os.ProcessState) *pb.Exited {
+	waitStatus := state.Sys().(syscall.WaitStatus)
 	if waitStatus.Signaled() {
-		result.Status = &pb.Exited_Signal{Signal: int32(waitStatus.Signal())}
-	} else {
-		result.Status = &pb.Exited_ExitCode{ExitCode: int32(waitStatus.ExitStatus())}
+		return &pb.Exited{Status: &pb.Exited_Signal{Signal: int32(waitStatus.Signal())}}
 	}
-	return send(&pb.ExecResponse{Response: &pb.ExecResponse_Exited{Exited: result}})
+	return &pb.Exited{Status: &pb.Exited_ExitCode{ExitCode: int32(waitStatus.ExitStatus())}}
 }
 
 // Applies requests after start until the client closes its side or the call ends.
@@ -434,6 +448,9 @@ func (s *helper) receive(stream pb.WorkspaceHelper_ExecServer, running *process,
 				fail(err)
 				return
 			}
+		case *pb.ExecRequest_Acknowledge:
+			fail(status.Error(codes.FailedPrecondition, "acknowledge needs a detached process"))
+			return
 		case *pb.ExecRequest_Start:
 			fail(status.Error(codes.InvalidArgument, "start was already sent"))
 			return

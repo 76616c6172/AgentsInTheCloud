@@ -8,6 +8,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -21,17 +22,35 @@ import (
 
 func client(t *testing.T) pb.WorkspaceHelperClient {
 	t.Helper()
+	return clientWithState(t, t.TempDir())
+}
+
+// A helper keeping detached processes in state, which a later helper can share as if it restarted.
+func clientWithState(t *testing.T, state string) pb.WorkspaceHelperClient {
+	t.Helper()
 	current, err := user.Current()
 	if err != nil {
 		t.Fatal(err)
 	}
+	detached, err := openRegistry(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Detached processes outlive their calls, and would outlive a failed test too.
+	t.Cleanup(func() {
+		detached.mu.Lock()
+		defer detached.mu.Unlock()
+		for _, process := range detached.processes {
+			syscall.Kill(-process.pid, syscall.SIGKILL)
+		}
+	})
 	socket := filepath.Join(t.TempDir(), "helper.sock")
 	listener, err := net.Listen("unix", socket)
 	if err != nil {
 		t.Fatal(err)
 	}
 	server := grpc.NewServer()
-	pb.RegisterWorkspaceHelperServer(server, &helper{users: map[pb.User]string{pb.User_USER_AGENT: current.Username}})
+	pb.RegisterWorkspaceHelperServer(server, &helper{users: map[pb.User]string{pb.User_USER_AGENT: current.Username}, detached: detached})
 	go server.Serve(listener)
 	t.Cleanup(server.Stop)
 	connection, err := grpc.NewClient("unix://"+socket, grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -42,12 +61,19 @@ func client(t *testing.T) pb.WorkspaceHelperClient {
 	return pb.NewWorkspaceHelperClient(connection)
 }
 
+var pipesWithStdin = &pb.ExecStart_Pipes{Pipes: &pb.Pipes{Stdin: true}}
+
+// Exec and Attach calls both answer with ExecResponses.
+type responses interface {
+	Recv() (*pb.ExecResponse, error)
+}
+
 type result struct {
 	stdout, stderr string
 	exited         *pb.Exited
 }
 
-func collect(t *testing.T, stream pb.WorkspaceHelper_ExecClient) (result, error) {
+func collect(t *testing.T, stream responses) (result, error) {
 	t.Helper()
 	var collected result
 	for {
@@ -87,6 +113,9 @@ func run(t *testing.T, ctx context.Context, helper pb.WorkspaceHelperClient, sta
 	if start.Workdir == "" {
 		start.Workdir = t.TempDir()
 	}
+	if start.Stdio == nil {
+		start.Stdio = &pb.ExecStart_Pipes{Pipes: &pb.Pipes{}}
+	}
 	for _, request := range append([]*pb.ExecRequest{{Request: &pb.ExecRequest_Start{Start: start}}}, requests...) {
 		if err := stream.Send(request); err != nil {
 			t.Fatal(err)
@@ -109,7 +138,7 @@ func TestSeparatesOutputAndReportsExitCode(t *testing.T) {
 }
 
 func TestStdinEndsWhenTheRequestStreamCloses(t *testing.T) {
-	got, err := run(t, context.Background(), client(t), &pb.ExecStart{Argv: []string{"cat"}, Stdin: true},
+	got, err := run(t, context.Background(), client(t), &pb.ExecStart{Argv: []string{"cat"}, Stdio: pipesWithStdin},
 		&pb.ExecRequest{Request: &pb.ExecRequest_Stdin{Stdin: []byte("hello ")}},
 		&pb.ExecRequest{Request: &pb.ExecRequest_Stdin{Stdin: []byte("world")}})
 	if err != nil {
@@ -175,7 +204,7 @@ func TestCancellingKillsTheProcessGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	stream.Send(&pb.ExecRequest{Request: &pb.ExecRequest_Start{Start: &pb.ExecStart{
-		User: pb.User_USER_AGENT, Workdir: directory,
+		User: pb.User_USER_AGENT, Workdir: directory, Stdio: &pb.ExecStart_Pipes{Pipes: &pb.Pipes{}},
 		Argv: []string{"sh", "-c", "(sleep 1; touch late) & touch started; wait"},
 	}}})
 	for {
@@ -198,8 +227,8 @@ func TestCancellingKillsTheProcessGroup(t *testing.T) {
 
 func TestTerminal(t *testing.T) {
 	got, err := run(t, context.Background(), client(t), &pb.ExecStart{
-		Argv:     []string{"sh", "-c", "stty size; read line; echo got:$line; stty size"},
-		Terminal: &pb.TerminalSize{Cols: 80, Rows: 24},
+		Argv:  []string{"sh", "-c", "stty size; read line; echo got:$line; stty size"},
+		Stdio: &pb.ExecStart_Terminal{Terminal: &pb.TerminalSize{Cols: 80, Rows: 24}},
 	},
 		&pb.ExecRequest{Request: &pb.ExecRequest_Resize{Resize: &pb.TerminalSize{Cols: 100, Rows: 30}}},
 		&pb.ExecRequest{Request: &pb.ExecRequest_Stdin{Stdin: []byte("hi\n")}})
@@ -211,9 +240,13 @@ func TestTerminal(t *testing.T) {
 	}
 }
 
-func TestTerminalRejectsStdinPipe(t *testing.T) {
-	_, err := run(t, context.Background(), client(t), &pb.ExecStart{Argv: []string{"true"}, Stdin: true, Terminal: &pb.TerminalSize{Cols: 80, Rows: 24}})
-	if status.Code(err) != codes.InvalidArgument {
+func TestStartMustSayHowToConnectStdio(t *testing.T) {
+	stream, err := client(t).Exec(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	stream.Send(&pb.ExecRequest{Request: &pb.ExecRequest_Start{Start: &pb.ExecStart{Argv: []string{"true"}, User: pb.User_USER_AGENT}}})
+	if _, err := stream.Recv(); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("got %v", err)
 	}
 }

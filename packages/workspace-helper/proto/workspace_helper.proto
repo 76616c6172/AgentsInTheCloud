@@ -15,7 +15,21 @@ service WorkspaceHelper {
   // exceeding its deadline kills the process's whole process group, so nothing
   // outlives an abandoned call. A process that can't start fails the call
   // instead, e.g. with NOT_FOUND for a missing executable.
+  //
+  // A detached process (see `ExecStart.detached`) is the exception: it
+  // outlives the call, and the call behaves like an Attach from the start of
+  // its output.
   rpc Exec(stream ExecRequest) returns (stream ExecResponse);
+
+  // Reconnects to a detached process. The first request must be `attach`. Output
+  // streams from the requested offsets and then follows the process live; the
+  // last response is `exited`, sent once the process has exited and all its
+  // output has been sent. After that the process is gone. Ending the call in
+  // any other way leaves the process running, and so does closing the request
+  // stream. Fails with NOT_FOUND when there is no such process: it was never
+  // started, its exit was already reported, or the workspace stopped. A later
+  // call to the same process, Exec or Attach, ends this one with ABORTED.
+  rpc Attach(stream AttachRequest) returns (stream ExecResponse);
 }
 
 message ExecRequest {
@@ -23,13 +37,15 @@ message ExecRequest {
     ExecStart start = 1;
     // Written to the process's stdin, or typed into its terminal.
     bytes stdin = 2;
-    // Closes stdin, so the process sees EOF. Not allowed with a terminal; send
-    // `signal` HUP to hang one up.
+    // Closes stdin, so the process sees EOF. Only allowed with pipes; send
+    // `signal` HUP to hang up a terminal.
     CloseStdin close_stdin = 3;
     // Delivered to the process group.
     Signal signal = 4;
     // Only allowed with a terminal.
     TerminalSize resize = 5;
+    // Only allowed with a detached process.
+    Acknowledge acknowledge = 6;
   }
 }
 
@@ -41,11 +57,66 @@ message ExecStart {
   string workdir = 3;
   // Added to the workspace's environment. The helper sets HOME, USER and LOGNAME for `user`.
   map<string, string> env = 4;
-  // Gives the process a stdin pipe; without one it reads /dev/null. Must be
-  // unset with a terminal, which always takes input.
-  bool stdin = 5;
-  // Runs the process in a new session on a PTY. Output then arrives only as `stdout`.
-  optional TerminalSize terminal = 6;
+  // How the process's stdio connects to the call, and so whether it outlives
+  // it. Required.
+  oneof stdio {
+    Pipes pipes = 5;
+    // Runs the process in a new session on a PTY, which always takes input.
+    // Output then arrives only as `stdout`.
+    TerminalSize terminal = 6;
+    Detached detached = 7;
+  }
+}
+
+// Stdio flows over the call, which the process can't outlive.
+message Pipes {
+  // Gives the process a stdin pipe; without one it reads /dev/null.
+  bool stdin = 1;
+}
+
+// The process outlives its call, so Attach can reconnect to it, e.g. after
+// the app restarts. Its stdout and stderr go straight to files on the
+// workspace's disk, and its stdin is a FIFO that never reports EOF, so
+// nothing about the process depends on the call or on the helper itself.
+// Stop it with `signal`.
+message Detached {
+  // How Attach finds the process: letters, digits and `._:-`, at most 128
+  // characters, not starting with a dot. Fails with ALREADY_EXISTS while a
+  // process with this name is running; one that has exited is replaced, along
+  // with any output it left unread.
+  string name = 1;
+  // Gives the process stdin; without it, it reads /dev/null.
+  bool stdin = 2;
+}
+
+message AttachRequest {
+  oneof request {
+    Attach attach = 1;
+    // Written to the process's stdin; fails the call when it has none.
+    bytes stdin = 2;
+    // Delivered to the process group.
+    Signal signal = 3;
+    Acknowledge acknowledge = 4;
+  }
+}
+
+message Attach {
+  string name = 1;
+  // Byte offsets to continue from: how much output the client had read before
+  // it last left. They acknowledge the output before them, as `acknowledge`
+  // does, so an acknowledgement lost when a call ends needs no resending.
+  // Fails with OUT_OF_RANGE before an acknowledged offset or beyond the output
+  // written so far.
+  uint64 stdout_offset = 2;
+  uint64 stderr_offset = 3;
+}
+
+// The client no longer needs the output before these offsets, so the helper
+// may free its disk space. Lets a long-lived call free output as it goes.
+// Offsets never move backwards, and must not go beyond the output written so far.
+message Acknowledge {
+  uint64 stdout_offset = 1;
+  uint64 stderr_offset = 2;
 }
 
 enum User {
@@ -85,5 +156,10 @@ message Exited {
     int32 exit_code = 1;
     // Linux number of the signal that terminated the process, e.g. 9 for SIGKILL.
     int32 signal = 2;
+    // Only for a detached process that exited while a restarted helper was no
+    // longer its parent, so nothing recorded how it ended.
+    Unknown unknown = 3;
   }
 }
+
+message Unknown {}
