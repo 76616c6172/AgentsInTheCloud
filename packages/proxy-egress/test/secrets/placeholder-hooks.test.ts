@@ -77,8 +77,8 @@ describe("secret placeholder hooks", () => {
       A: { value: "allowed", hosts: ["example.com"], placeholder: "PLACEHOLDER_A", allowInPath: true },
       B: { value: "header-only", hosts: ["example.com"], placeholder: "PLACEHOLDER_B" },
     } });
-    const result = await httpHooks.onRequest(new Request("https://example.com/PLACEHOLDER_A/PLACEHOLDER_B?token=PLACEHOLDER_A", { headers: { authorization: "Bearer PLACEHOLDER_B" } }));
-    expect(result.url).toBe("https://example.com/allowed/PLACEHOLDER_B?token=PLACEHOLDER_A");
+    const result = await httpHooks.onRequest(new Request("https://example.com/PLACEHOLDER_A/PLACEHOLDER_B?token=PLACEHOLDER_A&other=PLACEHOLDER_B", { headers: { authorization: "Bearer PLACEHOLDER_B" } }));
+    expect(result.url).toBe("https://example.com/allowed/PLACEHOLDER_B?token=allowed&other=PLACEHOLDER_B");
     expect(result.headers.get("authorization")).toBe("Bearer header-only");
   });
 
@@ -96,15 +96,15 @@ describe("secret placeholder hooks", () => {
     expect(result.url).toBe("https://api.example.com/token/secret%20value%3F%23");
   });
 
-  test("does not replace query string by default", async () => {
+  test("does not replace query string unless the secret allows URLs", async () => {
     const hooks = createHttpHooks({ secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
     const result = await hooks.httpHooks.onRequest!(new Request("https://github.com/?token=AGENTSINTHECLOUD_SECRET_fake"));
     expectRequest(result);
     expect(result.url).toContain("AGENTSINTHECLOUD_SECRET_fake");
   });
 
-  test("optionally replaces query string only for a matching host", async () => {
-    const hooks = createHttpHooks({ replaceSecretsInQuery: true, secrets: { GH_TOKEN: { value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
+  test("replaces query string only for a matching host when the secret allows URLs", async () => {
+    const hooks = createHttpHooks({ secrets: { GH_TOKEN: { allowInPath: true, value: "real-secret", hosts: ["github.com"], placeholder: "AGENTSINTHECLOUD_SECRET_fake" } } });
     const matching = await hooks.httpHooks.onRequest!(new Request("https://github.com/?token=AGENTSINTHECLOUD_SECRET_fake"));
     const nonmatching = await hooks.httpHooks.onRequest!(new Request("https://example.com/?token=AGENTSINTHECLOUD_SECRET_fake"));
     expectRequest(matching);

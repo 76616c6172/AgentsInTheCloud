@@ -30,7 +30,6 @@ export type CreateHttpHooksOptions = {
   allowedHosts?: string[];
   allowedInternalHosts?: string[];
   secrets?: Record<string, SecretDefinition>;
-  replaceSecretsInQuery?: boolean;
   blockInternalRanges?: boolean;
   isRequestAllowed?: HttpHooks["isRequestAllowed"];
   isIpAllowed?: HttpHooks["isIpAllowed"];
@@ -77,14 +76,14 @@ export function createHttpHooks(options: CreateHttpHooksOptions = {}): CreateHtt
     const resolvedEntries = await Promise.all(entries.map(async (entry) => {
       if (!entry.resolve) return entry;
       const usedInHeaders = requestContainsSecretValuesInHeaders(request.headers, [entry.placeholder]);
-      const usedInUrl = (entry.allowInPath && new URL(request.url).pathname.includes(entry.placeholder))
-        || (options.replaceSecretsInQuery && requestContainsSecretValuesInQuery(request.url, [entry.placeholder]));
+      const usedInUrl = entry.allowInPath
+        && (new URL(request.url).pathname.includes(entry.placeholder) || requestContainsSecretValuesInQuery(request.url, [entry.placeholder]));
       const resolve = matchesAnyHost(hostname, entry.hosts) && (usedInHeaders || usedInUrl);
       return { ...entry, value: resolve ? await entry.resolve() : entry.value };
     }));
-    assertSecretValuesAllowedForHost(request, hostname, resolvedEntries, options.replaceSecretsInQuery ?? false);
+    assertSecretValuesAllowedForHost(request, hostname, resolvedEntries);
     const headers = replaceSecretPlaceholdersInHeaders(request.headers, hostname, resolvedEntries);
-    const url = replaceSecretPlaceholdersInUrl(request.url, hostname, resolvedEntries, options.replaceSecretsInQuery ?? false);
+    const url = replaceSecretPlaceholdersInUrl(request.url, hostname, resolvedEntries);
     const transformed = url === request.url ? request : cloneRequestWith(request, { url, headers });
     if (transformed === request && headers !== request.headers) headers.forEach((value, name) => request.headers.set(name, value));
     const knownValues = [...injectedSecrets, ...resolvedEntries.map(entry => entry.value)].filter(Boolean);
@@ -152,10 +151,10 @@ function getHostname(url: string): string {
   return new URL(url).hostname.toLowerCase();
 }
 
-function assertSecretValuesAllowedForHost(request: Request, hostname: string, entries: SecretEntry[], checkQuery: boolean) {
+function assertSecretValuesAllowedForHost(request: Request, hostname: string, entries: SecretEntry[]) {
   for (const entry of entries) {
     if (matchesAnyHost(hostname, entry.hosts)) continue;
-    if (requestContainsSecretValuesInHeaders(request.headers, [entry.value]) || (checkQuery && requestContainsSecretValuesInQuery(request.url, [entry.value]))) throw new HttpRequestBlockedError(`secret ${entry.name} not allowed for host: ${hostname || "unknown"}`);
+    if (requestContainsSecretValuesInHeaders(request.headers, [entry.value]) || (entry.allowInPath && requestContainsSecretValuesInQuery(request.url, [entry.value]))) throw new HttpRequestBlockedError(`secret ${entry.name} not allowed for host: ${hostname || "unknown"}`);
   }
 }
 
@@ -212,24 +211,23 @@ function replaceSecretPlaceholdersInHeaders(incomingHeaders: Headers, hostname: 
   }
   return headers ?? incomingHeaders;
 }
-function replaceSecretPlaceholdersInUrl(url: string, hostname: string, entries: SecretEntry[], replaceQuery: boolean): string {
-  if (!entries.some(entry => entry.allowInPath) && !replaceQuery) return url;
+// allowInPath covers the whole URL: path and query string.
+function replaceSecretPlaceholdersInUrl(url: string, hostname: string, entries: SecretEntry[]): string {
+  const urlEntries = entries.filter((entry) => entry.allowInPath && matchesAnyHost(hostname, entry.hosts));
+  if (urlEntries.length === 0) return url;
   const parsed = new URL(url);
-  const matchingEntries = entries.filter((entry) => matchesAnyHost(hostname, entry.hosts));
   let changed = false;
-  const pathname = replaceSecretPlaceholdersInString(parsed.pathname, hostname, matchingEntries.filter(entry => entry.allowInPath));
+  const pathname = replaceSecretPlaceholdersInString(parsed.pathname, hostname, urlEntries);
   if (pathname !== parsed.pathname) { parsed.pathname = pathname; changed = true; }
-  if (replaceQuery) {
-    let queryChanged = false;
-    const params = new URLSearchParams();
-    for (const [name, value] of parsed.searchParams) {
-      const nextName = replaceSecretPlaceholdersInString(name, hostname, matchingEntries);
-      const nextValue = replaceSecretPlaceholdersInString(value, hostname, matchingEntries);
-      queryChanged ||= nextName !== name || nextValue !== value;
-      params.append(nextName, nextValue);
-    }
-    if (queryChanged) { parsed.search = params.toString(); changed = true; }
+  let queryChanged = false;
+  const params = new URLSearchParams();
+  for (const [name, value] of parsed.searchParams) {
+    const nextName = replaceSecretPlaceholdersInString(name, hostname, urlEntries);
+    const nextValue = replaceSecretPlaceholdersInString(value, hostname, urlEntries);
+    queryChanged ||= nextName !== name || nextValue !== value;
+    params.append(nextName, nextValue);
   }
+  if (queryChanged) { parsed.search = params.toString(); changed = true; }
   return changed ? parsed.toString() : url;
 }
 function replaceBasicAuthSecretPlaceholders(headerName: string, headerValue: string, hostname: string, entries: SecretEntry[]): string {
