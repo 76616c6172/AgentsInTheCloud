@@ -108,4 +108,12 @@ describe("renderMarkdown", () => {
   test("ordinary Markdown images retain their normal behavior", () => {
     expect(renderMarkdown("work 1", "![alt](https://example.com/a.png)")).toContain('<img src="https://example.com/a.png" alt="alt">');
   });
+
+  test("workspace file images open fullscreen", () => {
+    const named = renderMarkdown("work-1", "| a |\n|---|\n| ![red](/work/red.png) |");
+    expect(named).toContain('data-controller="agents-in-the-cloud-fullscreen"');
+    expect(named).toContain('data-agents-in-the-cloud-fullscreen-mode-value="media"');
+    expect(named).toContain('data-agents-in-the-cloud-fullscreen-title-value="red"');
+    expect(renderMarkdown("work-1", "![](/work/shots/blue.png?v=2)")).toContain('data-agents-in-the-cloud-fullscreen-title-value="blue.png"');
+  });
 });
