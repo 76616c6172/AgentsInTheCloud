@@ -5,7 +5,7 @@ import { renderStreamingMarkdownSnapshot } from "@agents-in-the-cloud/markdown";
 import type { ModelRef } from "@agents-in-the-cloud/llm/server";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 import { agentPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
-import { codeBlockHtml, detailFullscreen, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow } from "./render-markup.ts";
+import { codeBlockHtml, detailFullscreen, detailTableHtml, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";
 import { formatDuration, formatTokens, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
 
@@ -74,7 +74,7 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
       ? transcriptRow(renderStreamingTextBody(ctx, item.key, item.text, className))
       : renderMarkdownRow(ctx, item.text, className);
   } else if (item.type === "tool") body = transcriptRow(renderToolCard(ctx, item.key, item.tool, { ...options, open: options.open || Boolean(ctx.revealTarget && (item.anchor === ctx.revealTarget || item.key === ctx.revealTarget)) }));
-  else if (item.type === "extension") body = item.render(ctx);
+  else if (item.type === "message") body = renderMessage(ctx, item);
   else if (item.type === "note") {
     body = item.tone === "summary"
       ? transcriptRow(disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: "Compaction summary" } }, bodyHtml: `<div class="markdown">${markdown(ctx, item.text)}</div>` }))
@@ -82,6 +82,12 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
   }
   else body = transcriptRow(`<div class="agent-error">${escapeHtml(item.text)}</div>`);
   return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}>${body}</div>`;
+}
+
+function renderMessage(ctx: AgentRenderContext, message: Extract<TranscriptItem, { type: "message" }>): string {
+  const details = Object.entries(message.details).map(([label, text]) => ({ label, html: escapeHtml(text) }));
+  const body = `${message.bodyMarkdown ? `<div class="markdown agent-message-body">${markdown(ctx, message.bodyMarkdown)}</div>` : ""}${details.length ? detailTableHtml(details) : ""}`;
+  return transcriptRow(`<div class="agent-message">${disclosureHtml({ summary: transcriptRowContent({ kind: "text", text: `Incoming Message: ${message.sender} · ${message.title}` }), bodyHtml: body })}</div>`);
 }
 
 function renderWorkingContent(ctx: AgentRenderContext, section: WorkingTranscriptItem, options: { live?: boolean; open?: boolean } = {}): string {
@@ -95,9 +101,10 @@ function renderWorkingItems(ctx: AgentRenderContext, section: WorkingTranscriptI
   return `<div id="${ids.workingItems(ctx, section.key)}">${items}</div>`;
 }
 
+/** What a collapsed turn shows of its work until it answers: its text and the messages that reached it. */
 export function workingCommentaryItems(section: WorkingTranscriptItem): TranscriptItem[] {
   if (section.completedAt !== undefined && section.hasFinalAnswer) return [];
-  return section.items.filter((item) => item.type === "text");
+  return section.items.filter((item) => item.type === "text" || item.type === "message");
 }
 
 /** Live renderers pass the commentary collection's islands so morphing the turn keeps its rows mounted. */

@@ -311,7 +311,10 @@ export class ClaudeRuntime {
     } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && this.backgroundTasks.includes(message.task_id)) {
       // Claude reports on finished background work in its running turn, or else in a turn of its own.
       // Foreground commands notify too, but were never background work.
-      this.state.add({ kind: "task", uuid: message.uuid, timestamp: Date.now(), runId: message.run_id ?? message.uuid, summary: message.summary });
+      this.state.add({
+        kind: "task", uuid: message.uuid, timestamp: Date.now(), runId: message.run_id ?? message.uuid, toolUseId: message.tool_use_id, status: message.status, summary: message.summary,
+        usage: message.usage && { tokens: message.usage.total_tokens, toolUses: message.usage.tool_uses, durationMs: message.usage.duration_ms },
+      });
       // The finished task leaves the background set before that turn starts.
       this.running = true;
     } else if (message.type === "result") {

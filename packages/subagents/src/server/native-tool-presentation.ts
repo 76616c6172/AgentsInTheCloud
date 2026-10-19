@@ -3,7 +3,8 @@ import { Value } from "typebox/value";
 import { isJsonObject } from "@agents-in-the-cloud/core";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 import type { AgentToolPresentation } from "@agents-in-the-cloud/agent/server";
-import { communicationCardHtml, communicationTraceHtml } from "./render-markup.ts";
+import { detailTableHtml } from "@agents-in-the-cloud/agent/server/render-markup";
+import { communicationTraceHtml } from "./render-markup.ts";
 
 const detailsSchema = Type.Object({ recipientId: Type.String(), receiptId: Type.String(), path: Type.String(), message: Type.String() });
 const communication: AgentToolPresentation = {
@@ -16,7 +17,7 @@ const communication: AgentToolPresentation = {
   detail(ctx, tool) {
     if (!Value.Check(detailsSchema, tool.details)) return undefined;
     const { recipientId, receiptId, path, message } = tool.details;
-    return communicationCardHtml([
+    return detailTableHtml([
       { label: "Body", html: `<div class="agent-communication-body">${escapeHtml(message)}</div>` },
       { label: "Recipient", html: communicationTraceHtml(ctx, recipientId, receiptId, `Find message recipient · ${path}`) },
     ]);

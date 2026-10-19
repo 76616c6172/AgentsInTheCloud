@@ -1,4 +1,6 @@
-import type { ToolView, TranscriptItem, WorkingTranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import { formatDuration, formatTokens, type ToolView, type TranscriptItem, type WorkingTranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
 import { claudeToolCall } from "@agents-in-the-cloud/claude-cli-agent/transcript";
 import { claudeImageSources, claudeText, claudeUserIntent, type ClaudeBlock } from "./rows.ts";
 import type { ClaudeState } from "./state.ts";
@@ -6,6 +8,29 @@ import type { ClaudeState } from "./state.ts";
 function resultText(block: ClaudeBlock): string {
   if (!Array.isArray(block.content)) return block.content ?? "";
   return block.content.filter(part => part.type === "text").map(part => part.text ?? "").filter(Boolean).join("\n");
+}
+
+const dispatchArgsSchema = Type.Object({ description: Type.Optional(Type.String()), command: Type.Optional(Type.String()), subagent_type: Type.Optional(Type.String()) });
+
+/** A finished background command or subagent, named after the call that started it. */
+function taskMessage(task: Extract<ClaudeState["rows"][number], { kind: "task" }>, dispatch: ToolView | undefined): TranscriptItem {
+  // Claude's tool input is untrusted.
+  const args = dispatch && Value.Check(dispatchArgsSchema, dispatch.args) ? dispatch.args : {};
+  const durationMs = task.usage?.durationMs ?? (dispatch?.issuedAt ? task.timestamp - dispatch.issuedAt : undefined);
+  const message: Extract<TranscriptItem, { type: "message" }> = {
+    type: "message", key: task.uuid, timestamp: task.timestamp,
+    sender: (dispatch?.name === "bash" ? args.command : args.description)?.trim() || "Background task",
+    title: task.status === "completed" ? "finished" : task.status,
+    bodyMarkdown: task.result, details: {}, dispatchedByToolCallId: task.toolUseId,
+  };
+  if (task.summary) message.details.Summary = task.summary;
+  if (args.subagent_type) message.details.Type = args.subagent_type;
+  if (durationMs !== undefined) message.details.Duration = formatDuration(durationMs);
+  if (task.usage) {
+    message.details["Tool uses"] = String(task.usage.toolUses);
+    message.details.Tokens = formatTokens(task.usage.tokens);
+  }
+  return message;
 }
 
 /** Claude retries failed requests itself and records an error only once it gives up, ending the turn. */
@@ -21,7 +46,7 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
     if (!turn) return;
     const { working } = turn;
     // The last reply after its final tool call answers the prompt; earlier text was commentary.
-    const index = working.items.findLastIndex(item => item.type !== "note");
+    const index = working.items.findLastIndex(item => item.type !== "note" && item.type !== "message");
     const final = !live && !turn.error && working.items[index]?.type === "text" ? working.items.splice(index, 1)[0] : undefined;
     if (final?.type === "text") final.final = true;
     working.hasFinalAnswer = Boolean(final);
@@ -65,9 +90,9 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
   };
   rows.forEach((row, index) => {
     if (row.kind === "task") {
-      const note: TranscriptItem = { type: "note", key: row.uuid, text: row.summary, tone: "system" };
-      if (answering) activity(note, row.timestamp);
-      else begin(note, row.uuid, row.timestamp);
+      const message = taskMessage(row, row.toolUseId ? tools.get(row.toolUseId) : undefined);
+      if (answering) activity(message, row.timestamp);
+      else begin(message, row.uuid, row.timestamp);
     } else if (row.kind === "user") {
       const intent = claudeUserIntent(row);
       if (intent?.kind === "prompt") begin({ type: "user", key: row.uuid, text: intent.text, images: intent.images }, row.uuid, row.timestamp);

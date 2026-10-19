@@ -43,9 +43,12 @@ export type ClaudeRow =
   | { kind: "assistant"; uuid: string; timestamp: number; messageId: string; content: ClaudeBlock[]; stopReason: string | null; usage?: Static<typeof usageSchema>; error: boolean }
   /** A prompt sent while Claude worked, absorbed into its running turn. */
   | { kind: "steer"; uuid: string; timestamp: number; text: string }
-  /** A background command or subagent finished; Claude reports on it in a turn of its own. A resumed subagent finishes again, in a new run. */
-  | { kind: "task"; uuid: string; timestamp: number; runId: string; summary: string }
+  /** A background command or subagent finished, during Claude's turn or before a turn reporting on it. A resumed subagent finishes again, in a new run. */
+  | { kind: "task"; uuid: string; timestamp: number; runId: string; toolUseId?: string; status: string; summary: string; result?: string; usage?: ClaudeTaskUsage }
   | { kind: "compact"; uuid: string; timestamp: number };
+
+/** What a background subagent spent. */
+export interface ClaudeTaskUsage { tokens: number; toolUses: number; durationMs: number }
 
 /** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents. */
 export function claudeRows(jsonl: string): ClaudeRow[] {
@@ -71,7 +74,13 @@ export function claudeRows(jsonl: string): ClaudeRow[] {
 function taskRow(uuid: string, timestamp: number, text: string, runId: string | undefined): ClaudeRow | undefined {
   const value = text.trim();
   if (!value.startsWith("<task-notification>")) return undefined;
-  return { kind: "task", uuid, timestamp, runId: runId ?? uuid, summary: tag(value, "summary")?.trim() || "A background task finished." };
+  const usage = tag(value, "usage");
+  const count = (name: string) => Number(tag(usage!, name) ?? 0);
+  return {
+    kind: "task", uuid, timestamp, runId: runId ?? uuid, toolUseId: tag(value, "tool-use-id"), status: tag(value, "status") ?? "completed",
+    summary: tag(value, "summary")?.trim() ?? "", result: tag(value, "result")?.trim() || undefined,
+    usage: usage ? { tokens: count("subagent_tokens"), toolUses: count("tool_uses"), durationMs: count("duration_ms") } : undefined,
+  };
 }
 
 /** The Agent's own Claude config directory keeps its conversations apart from the Claude Code CLI's. */

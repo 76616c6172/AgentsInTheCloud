@@ -21,6 +21,11 @@ export function transcriptRowContent(label: ContentRowLabel, options: { leadingH
   };
 }
 
+/** Labelled facts in the standard tool card. */
+export function detailTableHtml(rows: Array<{ label: string; html: string }>): string {
+  return `<div class="agent-tool-detail"><table class="agent-detail-table"><tbody>${rows.map((row) => `<tr><th scope="row">${escapeHtml(row.label)}</th><td>${row.html}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
 export function renderMarkdownRow(ctx: AgentRenderContext, text: string, className: string): string {
   const body = markdown(ctx, text);
   return body ? transcriptRow(`<div class="${className}">${body}</div>`) : "";

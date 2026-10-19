@@ -131,7 +131,7 @@ test("background work keeps Claude from settling until it has reported on it, th
   expect(finished).toEqual([]);
   connection.message(system("task_notification", { task_id: "suite", run_id: "run-1", status: "completed", output_file: "", summary: "Suite passed" }));
   expect(runtime.isTurnRunning).toBe(true);
-  expect(runtime.state.rows.at(-1)).toMatchObject({ kind: "task", runId: "run-1", summary: "Suite passed" });
+  expect(runtime.state.rows.at(-1)).toMatchObject({ kind: "task", runId: "run-1", status: "completed", summary: "Suite passed" });
   connection.message(tasks([{ task_id: "watcher", task_type: "monitor", description: "Watch", ambient: true }]));
   expect(runtime.isBusy).toBe(true);
   connection.message({ type: "stream_event", event: { type: "message_start", message: { id: "follow-up" } }, parent_tool_use_id: null, uuid: crypto.randomUUID(), session_id: "s" });

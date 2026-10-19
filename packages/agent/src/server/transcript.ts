@@ -1,4 +1,3 @@
-import type { AgentRenderContext } from "./render-context.ts";
 /** Renderer-friendly transcript model for the pi-backed runtime. */
 
 import type { TurnTimingSummary } from "./turn-timing.ts";
@@ -113,7 +112,6 @@ export type WorkingTranscriptItem = TranscriptItemBase & {
 };
 
 export type TranscriptItem =
-  | (TranscriptItemBase & { type: "extension"; render(ctx: AgentRenderContext): string })
   | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; pending?: boolean; queuedSubmissionId?: string })
   | (TranscriptItemBase & { type: "inherited-context"; source: string; messageCount: number; items: TranscriptItem[] })
   | WorkingTranscriptItem
@@ -121,6 +119,19 @@ export type TranscriptItem =
   | (TranscriptItemBase & { type: "text"; text: string; final: boolean; live?: boolean })
   | (TranscriptItemBase & { type: "tool"; tool: ToolView })
   | (TranscriptItemBase & { type: "note"; text: string; tone: NoteTone })
+  /** Something that reached the Agent from elsewhere, such as a subagent's report or a finished background command. */
+  | (TranscriptItemBase & {
+    type: "message";
+    /** Who sent it, such as a subagent or a command. */
+    sender: string;
+    /** What happened, shown after the sender while collapsed. */
+    title: string;
+    bodyMarkdown?: string;
+    /** Further facts, in order. */
+    details: Record<string, string>;
+    /** The tool call that started the sender. */
+    dispatchedByToolCallId?: string;
+  })
   | (TranscriptItemBase & { type: "error"; text: string });
 
 export function findTranscriptItem(items: TranscriptItem[], key: string): TranscriptItem | undefined {

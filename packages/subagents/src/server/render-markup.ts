@@ -1,11 +1,6 @@
 import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 
-/** Communication details share the standard tool card, with labelled data rows. */
-export function communicationCardHtml(rows: Array<{ label: string; html: string }>): string {
-  return `<div class="agent-tool-detail"><table class="agent-communication-table"><tbody>${rows.map((row) => `<tr><th scope="row">${escapeHtml(row.label)}</th><td>${row.html}</td></tr>`).join("")}</tbody></table></div>`;
-}
-
 export function communicationTraceHtml(ctx: AgentRenderContext, agentId: string, messageId: string, label: string): string {
   const query = new URLSearchParams({ child: agentId, message: messageId });
   return `<a href="/workspaces/${encodeURIComponent(ctx.workspaceId)}/subagents/reveal?${escapeHtml(query.toString())}" data-turbo="false" class="agent-trace-link">${escapeHtml(label)}</a>`;
