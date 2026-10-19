@@ -13,16 +13,20 @@
   <a href="https://agentsinthecloud.com/">Website</a> · <a href="#installation">Install AgentsInTheCloud</a> · <a href="#contributing">Contributing</a>
 </p>
 
-> **Nox fork:** this repository includes Nox Oscura and a separate, reviewed release channel. For this deployment, follow [Nox releases and upgrades](#nox-releases-and-upgrades) below; the installer in the upstream instructions installs upstream images.
+> **Nox fork:** the `nox` branch adds custom navigation, Nox Oscura, workspace tools, and bundled Pi extensions. The installation command below selects Nox images, not upstream images. See [Nox releases and upgrades](#nox-releases-and-upgrades) for the reviewed release workflow.
 
 ## Installation
 
-1. **Connect to your server.** SSH into a Linux server that will only be used for AgentsInTheCloud.
-2. **Install AgentsInTheCloud.** Run:
+1. **Connect to your server.** SSH into an x86-64 Linux server dedicated to AgentsInTheCloud. Nox releases currently support `linux/amd64` only.
+2. **Install Nox.** For a fresh installation, run:
 
    ```sh
-   curl -fsSL https://agentsinthecloud.com/install.sh | bash
+   curl -fsSL https://agentsinthecloud.com/install.sh | bash -s -- \
+     --app-image ghcr.io/76616c6172/agents-in-the-cloud:latest \
+     --system-image ghcr.io/76616c6172/agents-in-the-cloud-system:latest
    ```
+
+Both Nox update channels, `latest` and `stable`, move only after promotion. This command installs the published images; cloning the repository does not install unreleased changes. For an existing installation, follow [Deploy and roll back](#deploy-and-roll-back).
 
 ## Contributing
 
@@ -36,7 +40,25 @@ We're all just figuring out this new world in real time :-). Hope you like the p
 
 ## Nox releases and upgrades
 
-`main` tracks upstream without personal changes; `nox` carries our theme and release integration. Keep these histories separate, and merge upstream rather than rebasing published releases. The shared distribution identity lives in `packages/shared/src/distribution.ts`. Personal Pi instructions, extensions, and credentials stay in persistent storage, outside release images.
+`main` tracks upstream without personal changes; `nox` carries the fork's UI, workspace defaults, and release integration. Keep these histories separate, and merge upstream rather than rebasing published releases. The shared distribution identity lives in `packages/shared/src/distribution.ts`.
+
+### Bundled workspace defaults
+
+The Nox workspace image includes Neovim with pinned plugins, Bash comforts, and tools such as `fzf`, `eza`, `zoxide`, `lazygit`, and `btop`. Fresh installations also get the [Nox Oscura Pi theme](packages/nox-workspace/home-defaults/.pi/agent/themes/nox-oscura.json), `nvim` as Pi's external editor, and these extensions:
+
+| Extension | Purpose |
+| --- | --- |
+| `pi-tool-display` | Custom tool-call formatting and `/tool-display` preferences. |
+| `exhash-tools` | Hash-verified reading, editing, and code navigation with `exhash_read`, `exhash_edit`, and `exhash_open`. |
+| `follow-on-type` | Resumes transcript auto-scrolling when you edit your prompt. |
+| `notify` | Completion notifications in supported terminals. |
+| `window-title-status` | Working status and elapsed time in the terminal title. |
+
+The [extension bundle](packages/nox-workspace/home-defaults/.pi/agent/nox-extensions/bundled/) is vendored from `76616c6172/dotvulpix` at commit `39ebd45d88f50acbb8c740ad63a10fc777071bed`, with source checksums and licenses included. Building or installing Nox does not require access to that private repository or a separate `pi-cloud` deployment.
+
+[Pi defaults](packages/nox-workspace/home-defaults/.pi/agent/settings.json) load the local bundle, and [tool-display defaults](packages/nox-workspace/home-defaults/.pi/agent/extensions/pi-tool-display/config.json) supply its preferences. The image seeds the persistent shared home only on a fresh installation. Updates do not overwrite an existing home's settings, themes, or separately installed extensions, or add this bundle to it automatically. These defaults are available in published images once a release containing them is promoted.
+
+Credentials, session history, and personal instructions are not bundled. Connect your own model provider after installation.
 
 ### Bring in upstream improvements
 
@@ -49,9 +71,26 @@ bun scripts/nox-upstream.ts --publish  # recheck, then push main+nox atomically
 
 The helper fetches both remotes, refuses diverged `main` or an outdated `nox`, fast-forwards `main`, merges into `nox`, installs locked dependencies, and runs checks and focused tests. It never stashes, force-pushes, promotes, or deploys. Conflicts remain for you to resolve and commit (or `git merge --abort`); rerun after resolution. Fix and commit any check failures before rerunning. Publishing both branches keeps the release manifest's upstream base accurate.
 
-The fork uses **Ctrl+K** for the command palette, **Ctrl+N** to create a new workspace, **Ctrl+T** to create a terminal, **Ctrl+Tab** for the next Work view, **Ctrl+F** for Files, **Ctrl+B** for Browser, **Ctrl+O** for the composer, **Ctrl+P** for terminal/transcript. **Ctrl+, / Ctrl+.** select previous/next workspaces, **Ctrl+[** selects the previous Work view, and **Ctrl+/** selects the oldest workspace needing attention. App shortcuts take precedence when the browser delivers key events to the app; embedded websites and editors retain control while their iframe has focus. Copy/paste and word-deletion shortcuts remain untouched. The remaining actions are available from the command palette. Personal Pi extensions are maintained separately using `pi-cloud` in the `dotvulpix` repository, without rebuilding these images.
+### Keyboard shortcuts
 
-A push to `nox` runs the **Nox release** workflow: checks, focused tests, and production builds for this server's `linux/amd64` platform. It publishes a **candidate** GitHub release named `nox-<12-character-commit>` with a `release.json` asset pinning app, System, and workspace images by digest. It does not change either update channel or the server. On a new fork, GHCR packages must be public for anonymous installation/update access.
+| Shortcut | Action |
+| --- | --- |
+| **Ctrl+P**, **Ctrl+K**, **Ctrl+O** | Open the command palette. |
+| **Ctrl+N** | Create a workspace. |
+| **Ctrl+T** | Open the first Terminal view, or create one if none exists. |
+| **Ctrl+B** / **Ctrl+E** / **Ctrl+X** | Open Browser / Files / Changes. |
+| **Ctrl+1** / **Ctrl+2** / **Ctrl+3** / **Ctrl+4** | Open Changes / Browser / Terminal / Files. |
+| **Ctrl+F** | Toggle Work pane focus. |
+| **Ctrl+Tab** / **Ctrl+Shift+Tab** | Select the next / previous Agent. |
+| **Ctrl+,** / **Ctrl+.** | Select the previous / next workspace. |
+| **Ctrl+[** | Select the previous Work view. |
+| **Ctrl+/** | Select the oldest workspace needing attention. |
+
+App shortcuts apply when the browser delivers key events to the app; browser-reserved shortcuts may not reach it. Embedded websites and editors retain control while their iframe has focus. Copy/paste and word-deletion shortcuts remain untouched. Other actions are available from the command palette.
+
+### Build and promote
+
+A push to `nox` runs the **Nox release** workflow: checks, focused tests (including bundle integrity and Exhash operation), and production builds for `linux/amd64`. It publishes a **candidate** GitHub release named `nox-<12-character-commit>` with a `release.json` asset pinning app, installer/runtime, and workspace images by digest. It does not change either update channel or the server. On a new fork, GHCR packages must be public for anonymous installation/update access.
 
 Review the candidate in an isolated installation, including relevant acceptance scripts and a manual visual check. Then promote **that same current `nox` revision**, without rebuilding:
 
@@ -73,4 +112,4 @@ This interrupts running workspaces. Run it when agents are idle. It pulls pinned
 
 The command prints a private backup directory under `/var/backups/agents-in-the-cloud/` containing the data archive, checksum, previous image IDs, deployment status, and a runnable `rollback.sh`. Run that rollback script as root on the server to restore the previous images while retaining current data. If an upstream release changes persisted data incompatibly, image rollback alone is insufficient: stop System and restore the matching data backup as well. Backups and retained image containers are intentionally not automatically deleted; monitor disk space and keep backups off-host too.
 
-The in-app **Update** button now follows our approved channel, but updates only the app. Use the deployment command for full app/System upgrades. The installer and first-install defaults remain upstream tooling; the Nox deployment command deliberately avoids their upstream channel update.
+The in-app **Update** button follows the approved Nox channel, but updates only the app. Use the deployment command for full app/runtime upgrades. The installation command above reuses the bootstrap installer with explicit Nox image references; its `--app-image` option does not replace an existing installation's saved app selection.
