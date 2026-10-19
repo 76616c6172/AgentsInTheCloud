@@ -1,10 +1,8 @@
 import { contentText } from "@earendil-works/pi-ai";
 import type { SessionEntry } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { Value } from "typebox/value";
-import { isToolViewDetails, type SessionImageRef, type TranscriptRecord } from "./transcript.ts";
-
-import { turnStartEntryType, turnStartSchema, turnTimingEntryType, turnTimingRecordSchema } from "./turn-timing.ts";
+import { Compile } from "typebox/compile";
+import { isToolViewDetails, type SessionImageRef, type TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
 
 interface ImageDimensions {
   width: number;
@@ -35,13 +33,13 @@ function imageDimensions(data: Uint8Array, mimeType: string): ImageDimensions | 
   return undefined;
 }
 
-const sessionImagePartSchema = Type.Object({
+// Long sessions hold tens of thousands of entries; compiled checks are much faster than interpreted ones.
+const sessionImagePart = Compile(Type.Object({
   type: Type.Literal("image"),
   mimeType: Type.Optional(Type.Unknown()),
   data: Type.Optional(Type.Unknown()),
-});
-const sessionImageStringSchema = Type.String();
-const sessionTextSignatureSchema = Type.String();
+}));
+const sessionString = Compile(Type.String());
 
 // Persisted Pi entries are external input. Validate the fields this projection
 // reads without requiring unrelated SDK metadata or rejecting older sessions.
@@ -66,7 +64,6 @@ const messageSchema = Type.Union([
 const entryFields = { id: Type.String(), timestamp: Type.Optional(Type.String()) };
 const sessionEntrySchema = Type.Union([
   Type.Object({ ...entryFields, type: Type.Literal("message"), parentId: Type.Optional(Type.Union([Type.String(), Type.Null()])), message: messageSchema }),
-  Type.Object({ timestamp: entryFields.timestamp, type: Type.Literal("custom"), customType: Type.String(), data: Type.Optional(Type.Unknown()) }),
   Type.Object({ ...entryFields, type: Type.Literal("branch_summary"), summary: Type.Optional(Type.String()) }),
   Type.Object({ ...entryFields, type: Type.Literal("usage"), kind: Type.String(), note: Type.Optional(Type.String()),
     usage: Type.Object({ input: Type.Number(), cacheRead: Type.Number(), cacheWrite: Type.Number(), cost: Type.Object({ total: Type.Number() }) }),
@@ -76,11 +73,14 @@ const sessionEntrySchema = Type.Union([
   Type.Object({ ...entryFields, type: Type.Literal("model_change"), provider: Type.String(), modelId: Type.String() }),
   Type.Object({ ...entryFields, type: Type.Literal("thinking_level_change"), thinkingLevel: Type.String() }),
 ]);
+const sessionEntry = Compile(sessionEntrySchema);
+const textPart = Compile(textPartSchema);
+const assistantPart = Compile(assistantPartSchema);
 
 type CacheWarmUsage = Extract<SessionEntry, { type: "usage" }>["usage"];
 function sessionContentText(content: string | readonly unknown[]): string {
-  if (Value.Check(sessionImageStringSchema, content)) return content;
-  return contentText(content.filter(part => Value.Check(textPartSchema, part)).map(part => ({ type: "text", text: part.text ?? "" })));
+  if (sessionString.Check(content)) return content;
+  return contentText(content.filter(part => textPart.Check(part)).map(part => ({ type: "text", text: part.text ?? "" })));
 }
 
 
@@ -91,12 +91,12 @@ interface SessionAssistantTextPart {
 }
 
 function sessionContentImages(entryId: string, content: string | readonly unknown[]): SessionImageRef[] {
-  if (Value.Check(sessionImageStringSchema, content)) return [];
+  if (sessionString.Check(content)) return [];
   const images: SessionImageRef[] = [];
   content.forEach((part, contentIndex) => {
-    if (!Value.Check(sessionImagePartSchema, part)) return;
-    const mimeType = Value.Check(sessionImageStringSchema, part.mimeType) ? part.mimeType : undefined;
-    const data = Value.Check(sessionImageStringSchema, part.data) ? part.data : undefined;
+    if (!sessionImagePart.Check(part)) return;
+    const mimeType = sessionString.Check(part.mimeType) ? part.mimeType : undefined;
+    const data = sessionString.Check(part.data) ? part.data : undefined;
     const dimensions = data && mimeType ? imageDimensions(Buffer.from(data.slice(0, 87_384), "base64"), mimeType) : undefined;
     images.push({ entryId, contentIndex, mimeType, ...dimensions });
   });
@@ -119,16 +119,7 @@ export function recordsFromSessionEntries(entries: readonly unknown[]): Transcri
   const records: TranscriptRecord[] = [];
   let lastSettingChange: { type: "model_change" | "thinking_level_change"; record: TranscriptRecord } | undefined;
   for (const entry of entries) {
-    if (!Value.Check(sessionEntrySchema, entry)) continue;
-    if (entry.type === "custom" && entry.customType === turnStartEntryType && Value.Check(turnStartSchema, entry.data)) {
-      records.push({ kind: "runStart", ...entry.data, timestamp: entryTimestamp(entry) });
-      continue;
-    }
-    if (entry.type === "custom" && entry.customType === turnTimingEntryType && Value.Check(turnTimingRecordSchema, entry.data)) {
-      const { turnEntryId, outcome, ...timing } = entry.data;
-      records.push({ kind: "timing", timing, turnEntryId, outcome, timestamp: entryTimestamp(entry) });
-      continue;
-    }
+    if (!sessionEntry.Check(entry)) continue;
     if (entry.type === "message") {
       const message = entry.message;
       if (message.role === "user") {
@@ -136,11 +127,11 @@ export function recordsFromSessionEntries(entries: readonly unknown[]): Transcri
       } else if (message.role === "assistant") {
         const parts: Extract<TranscriptRecord, { kind: "assistant" }>["parts"] = [];
         for (const part of message.content ?? []) {
-          if (!Value.Check(assistantPartSchema, part)) continue;
+          if (!assistantPart.Check(part)) continue;
           if (part.type === "thinking") parts.push({ type: "thinking", text: part.thinking ?? "" });
           else if (part.type === "text") {
             const textPart: SessionAssistantTextPart = { type: "text", text: part.text ?? "" };
-            if (Value.Check(sessionTextSignatureSchema, part.textSignature)) textPart.textSignature = part.textSignature;
+            if (sessionString.Check(part.textSignature)) textPart.textSignature = part.textSignature;
             parts.push(textPart);
           }
           else if (part.type === "toolCall") parts.push({ type: "toolCall", callId: part.id, name: part.name, args: part.arguments });

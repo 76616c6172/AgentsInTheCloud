@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { recordsFromSessionEntries } from "../../src/server/session-records.ts";
-import { buildTranscript } from "../../src/server/transcript.ts";
+import { recordsFromSessionEntries } from "../src/server/session-records.ts";
+import { buildTranscript } from "@agents-in-the-cloud/agent/server/transcript";
 
 describe("recordsFromSessionEntries", () => {
   test("maps pi session message entries to transcript records", () => {
@@ -124,22 +124,6 @@ describe("recordsFromSessionEntries", () => {
       ],
     });
   });
-});
-
-test("persisted run starts survive reconstruction before and after the summary", () => {
-  const entries = [
-    { type: "message", id: "start", timestamp: new Date(1000).toISOString(), message: { role: "user", content: "Initial" } },
-    { type: "custom", customType: "agents-in-the-cloud.turn-start", data: { turnEntryId: "start", startedAt: 900 }, timestamp: new Date(1001).toISOString() },
-    { type: "message", id: "steer", timestamp: new Date(2000).toISOString(), message: { role: "user", content: "Steer" } },
-  ];
-  const restored = recordsFromSessionEntries(JSON.parse(JSON.stringify(entries)));
-  expect(restored[1]).toEqual({ kind: "runStart", turnEntryId: "start", startedAt: 900, timestamp: 1001 });
-  expect(buildTranscript(restored).map((item) => item.type)).toEqual(["user", "working"]);
-  expect(buildTranscript(restored)[1]).toMatchObject({ items: [{ type: "user", key: "steer", steering: true }] });
-  const completed = recordsFromSessionEntries([...entries,
-    { type: "custom", customType: "agents-in-the-cloud.turn-timing", timestamp: new Date(3000).toISOString(), data: { turnEntryId: "start", outcome: "completed", elapsedMs: 2100, toolMs: 0, inferenceMs: 2100, outputTokens: 4, usageComplete: true } },
-  ]);
-  expect(buildTranscript(completed)[1]).toMatchObject({ key: "start:working", completedAt: 3000, timing: { outputTokens: 4 } });
 });
 
 test("validates persisted entry fields and assistant parts before projection", () => {
