@@ -1,0 +1,13 @@
+{
+  "upstream": "https://github.com/AnswerDotAI/exhash",
+  "upstreamVersion": "0.4.19",
+  "upstreamCommit": "47dd5b49ad6ce77279062229e4138b2b905f906c",
+  "target": "wasm32-wasip1",
+  "rust": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "wasiSdk": "34.0",
+  "wasiSdkDetails": "34.0\nwasi-libc: 2e6fb9d8ee0c\nllvm: 895aa2c896ad\nllvm-version: 23.1.0\nconfig: f992bcc08219",
+  "sha256": "41aec8dafa778abd1433c9c179547a156fc644509faf046ee01a2b44f4119d2e",
+  "cargoLockSha256": "fec7ddcd0246171aa00f4d98d5fb7922a438b3a9444f7249515363f6d7a8a1d7",
+  "cargoTomlSha256": "bae114abe214e7674dcab1c8bd5ad1e251b551b4c70c84022cfbfdf85b5dba40",
+  "adapterSha256": "6e29047441ff8209b58b06d1f5d5db3e1cb3abee664207f461ac961fea6264bb"
+}

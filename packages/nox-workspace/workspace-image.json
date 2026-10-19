@@ -66,13 +66,8 @@
       "afterRun": true
     },
     {
-      "from": "home-defaults/.pi/agent/settings.json",
-      "to": "/opt/agents-in-the-cloud/home-defaults/.pi/agent/settings.json",
-      "afterRun": true
-    },
-    {
-      "from": "home-defaults/.pi/agent/themes/nox-oscura.json",
-      "to": "/opt/agents-in-the-cloud/home-defaults/.pi/agent/themes/nox-oscura.json",
+      "from": "home-defaults/.pi",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.pi",
       "afterRun": true
     }
   ],

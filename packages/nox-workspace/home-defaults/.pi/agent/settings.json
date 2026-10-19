@@ -1,4 +1,5 @@
 {
   "externalEditor": "nvim",
-  "theme": "nox-oscura"
+  "theme": "nox-oscura",
+  "packages": ["./nox-extensions/bundled"]
 }

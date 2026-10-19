@@ -1,3 +1,10 @@
+Nox bundles the Pi cloud extensions from https://github.com/76616c6172/dotvulpix,
+commit 39ebd45d88f50acbb8c740ad63a10fc777071bed (MIT, copyright 2025 valar).
+The loader is adapted to allow independently updated Pi versions, matching the
+existing Nox installation. The bundled snapshot retains its LICENSE and the
+pi-tool-display and exhash third-party notices under
+packages/nox-workspace/home-defaults/.pi/agent/nox-extensions/bundled/.
+
 AgentsInTheCloud includes portions adapted from @earendil-works/gondolin.
 
 Source: https://github.com/earendil-works/gondolin

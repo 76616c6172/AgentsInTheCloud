@@ -1,0 +1,22 @@
+{
+  "name": "nox-cloud-extensions",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "pi": { "extensions": ["./loader.ts"] },
+  "nox": {
+    "extensions": [
+      "./extensions/pi-tool-display/index.ts",
+      "./extensions/exhash-tools/index.ts",
+      "./extensions/follow-on-type.ts",
+      "./extensions/notify.ts",
+      "./extensions/window-title-status.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  }
+}

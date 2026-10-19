@@ -24,6 +24,8 @@ export default defineConfig({
     ".roo/**",
     ".windsurf/**",
     "tools/oxlint/anti-slop/**",
+    // Vendored Pi resources run in the independently installed CLI, not the app.
+    "packages/nox-workspace/home-defaults/.pi/agent/nox-extensions/bundled/**",
   ],
   jsPlugins: [
     { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/index.ts" },
