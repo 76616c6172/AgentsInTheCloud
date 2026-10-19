@@ -134,6 +134,11 @@ export type TranscriptItem =
   })
   | (TranscriptItemBase & { type: "error"; text: string });
 
+/** Whether a reveal request for `target`, an item key, anchor or tool call ID, points at this item. */
+export function isTranscriptTarget(item: TranscriptItem, target: string): boolean {
+  return item.key === target || item.anchor === target || (item.type === "tool" && item.tool.callId === target);
+}
+
 export function findTranscriptItem(items: TranscriptItem[], key: string): TranscriptItem | undefined {
   for (const item of items) {
     if (item.key === key) return item;

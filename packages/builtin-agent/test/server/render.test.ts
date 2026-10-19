@@ -59,6 +59,12 @@ describe("transcript rendering", () => {
     expect(html).toContain('data-agent-user-text="**bold** &amp; quoted &quot;text&quot;"');
   });
 
+  test("a message links to the tool call that started its sender, which a reveal finds by its call ID", () => {
+    const html = renderTranscriptItem(ctx, { type: "message", key: "report", sender: "reviewer", title: "completion", details: {}, dispatchedByToolCallId: "call_1" });
+    expect(html).toContain(`<th scope="row">Started by</th><td><a href="/workspaces/ws?agent=${agent.agentId}&amp;agentTarget=call_1" class="agent-trace-link" data-action="agent-pane#reveal" data-agent-pane-item-param="call_1">Tool call</a>`);
+    expect(renderTranscriptItem(ctx, { type: "tool", key: "tool:call_1", tool: tool({ callId: "call_1" }) })).toContain('data-tool-call-id="call_1"');
+  });
+
   test("completed activity with no items is omitted", () => {
     const html = renderTranscriptItem(ctx, { type: "working", key: "worked", startedAt: 1000, completedAt: 3500, items: [] });
     expect(html).toBe("");

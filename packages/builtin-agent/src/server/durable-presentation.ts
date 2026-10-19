@@ -7,7 +7,7 @@ import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/rende
 import { LiveTranscriptRenderer } from "./render-live-transcript.ts";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame, type AgentModelContextView } from "@agents-in-the-cloud/agent/server/render-transcript";
 import type { AgentLivePresentationListener, AgentLivePresentationSubscription } from "./runtime-types.ts";
-import { findTranscriptItem, type TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import { findTranscriptItem, isTranscriptTarget, type TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 import { durableViewState, projectDurableTranscript } from "./durable-transcript.ts";
 
 /**
@@ -147,7 +147,7 @@ export class DurableAgentPresentation {
 
   revealTurn(target: string): string | undefined {
     this.assertOpen();
-    return this.items.find(item => item.type === "working" && item.items.some(child => child.key === target || child.anchor === target))?.key;
+    return this.items.find(item => item.type === "working" && item.items.some(child => isTranscriptTarget(child, target)))?.key;
   }
 
   private clearTurns() {

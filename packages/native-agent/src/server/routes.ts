@@ -7,7 +7,7 @@ import { listFileCompletions, renderFileCompletionMenu } from "@agents-in-the-cl
 import { runAgentNameCommand } from "@agents-in-the-cloud/agent/server/agent-name-command";
 import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
 import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@agents-in-the-cloud/prompt/server";
-import { findTranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
+import { findTranscriptItem, isTranscriptTarget } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame } from "@agents-in-the-cloud/agent/server/render-transcript";
 import { response, textResponse } from "@agents-in-the-cloud/shared/http";
 import { turboStream, workspaceModuleModalFrameId, turboStreamResponse } from "@agents-in-the-cloud/shared";
@@ -106,7 +106,7 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
     }
     if (operation.startsWith("reveal/") && request.method === "GET") {
       const key = decodeURIComponent(operation.slice("reveal/".length));
-      const section = rendering.transcriptItems(runtime).find(item => item.type === "working" && findTranscriptItem(item.items, key));
+      const section = rendering.transcriptItems(runtime).find(item => item.type === "working" && item.items.some(child => isTranscriptTarget(child, key)));
       return Response.json({ turnId: section?.key ?? null });
     }
     if (operation.startsWith("session-images/") && request.method === "GET") {

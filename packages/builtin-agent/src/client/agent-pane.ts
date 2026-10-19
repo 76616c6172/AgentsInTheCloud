@@ -4,6 +4,7 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { agentComposerPrimaryAction, agentComposerTextStorageKey, PromptHistoryNavigator } from "@agents-in-the-cloud/agent/client/composer-state";
 import { TranscriptNavigation } from "@agents-in-the-cloud/agent/client/transcript-navigation";
+import { transcriptTargetSelector } from "./turn-controller.ts";
 
 const admissionSchema = Type.Object({ payload: Type.String(), requestId: Type.String({ pattern: "^[a-zA-Z0-9_-]{1,128}$" }) });
 
@@ -187,26 +188,45 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       if (!this.cableSubscription) this.subscribe();
     }
 
+    /** Follow a link to another place in this transcript without leaving the page. */
+    reveal(event: Event & { params: { item: string } }): void {
+      event.preventDefault();
+      void this.revealTarget(event.params.item);
+    }
+
     private revealedTranscriptTarget?: string;
     private async revealTranscriptTarget(): Promise<void> {
       const params = new URL(location.href).searchParams;
-      const message = params.get("agentTarget");
-      if (params.get("agent") !== this.agentIdValue || !message || message === this.revealedTranscriptTarget) return;
-      this.revealedTranscriptTarget = message;
-      const response = await fetch(new URL(`reveal/${encodeURIComponent(message)}`, this.formTarget.action), { headers: { Accept: "application/json" } });
+      const target = params.get("agentTarget");
+      if (params.get("agent") !== this.agentIdValue || !target || target === this.revealedTranscriptTarget) return;
+      this.revealedTranscriptTarget = target;
+      await this.revealTarget(target);
+    }
+
+    private async revealTarget(target: string): Promise<void> {
+      const response = await fetch(new URL(`reveal/${encodeURIComponent(target)}`, this.formTarget.action), { headers: { Accept: "application/json" } });
       if (!response.ok) throw new Error(`Could not reveal transcript target: ${response.status}`);
       const { turnId } = Value.Parse(Type.Object({ turnId: Type.Union([Type.String(), Type.Null()]) }), await response.json());
-      if (turnId !== null) {
-        const turn = this.transcriptTarget.querySelector<HTMLDetailsElement>(`[data-agent-turn-turn-id-value="${CSS.escape(turnId)}"]`);
-        if (turn) {
-          turn.dataset.agentTurnRevealValue = message;
-          turn.open = true;
-        }
-      }
-      requestAnimationFrame(() => {
-        const target = this.transcriptTarget.querySelector<HTMLElement>(`[data-transcript-anchor="${CSS.escape(message)}"], [data-transcript-key="${CSS.escape(message)}"]`);
-        if (!target) return;
-        this.navigation.reveal(target);
+      const turn = turnId === null ? null : this.transcriptTarget.querySelector<HTMLDetailsElement>(`[data-agent-turn-turn-id-value="${CSS.escape(turnId)}"]`);
+      if (turn) turn.open = true;
+      // Opening a turn loads its items, the target among them.
+      const element = await this.appeared(transcriptTargetSelector(target));
+      for (const detail of element.querySelectorAll("details")) detail.open = true;
+      this.navigation.reveal(element);
+    }
+
+    private appeared(selector: string): Promise<HTMLElement> {
+      return new Promise(resolve => {
+        const find = () => this.transcriptTarget.querySelector<HTMLElement>(selector);
+        const found = find();
+        if (found) { resolve(found); return; }
+        const observer = new MutationObserver(() => {
+          const element = find();
+          if (!element) return;
+          observer.disconnect();
+          resolve(element);
+        });
+        observer.observe(this.transcriptTarget, { childList: true, subtree: true });
       });
     }
 

@@ -7,7 +7,6 @@ export interface AgentRenderContext {
   workspaceId: string;
   agentId: string;
   model?: ModelRef;
-  revealTarget?: string;
   branchId?: string;
   /** Distinct DOM identities for the collapsed commentary projection. */
   commentary?: boolean;

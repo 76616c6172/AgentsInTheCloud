@@ -9,7 +9,4 @@
 .subagent-state { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; font-size: var(--text-code); color: var(--text-muted); }
 .subagent-branch .agent-transcript { height: auto; overflow: visible; padding: 0; }
 .builtin-agent-shell .agent-row:has(> [data-controller~="agent-lazy-detail"]) + .agent-row:has(> [data-controller~="agent-lazy-detail"]) { margin-top: 0; }
-.agent-trace-link { text-decoration: none; appearance: none; background: none; border: 0; padding: 4px 0; color: var(--text-muted); font: inherit; cursor: pointer; text-align: left; }
-.agent-trace-link:hover { color: var(--text); text-decoration: underline; }
-.agent-detail-table .agent-trace-link { padding: 0; }
 .agent-communication-body { white-space: pre-wrap; }
