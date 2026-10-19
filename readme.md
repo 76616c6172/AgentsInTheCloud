@@ -13,12 +13,12 @@
   <a href="https://agentsinthecloud.com/">Website</a> · <a href="#installation">Install AgentsInTheCloud</a> · <a href="#contributing">Contributing</a>
 </p>
 
-> **Nox fork:** the `nox` branch adds custom navigation, Nox Oscura, workspace tools, and bundled Pi extensions. The installation command below selects Nox images, not upstream images. See [Nox releases and upgrades](#nox-releases-and-upgrades) for the reviewed release workflow.
+> **AgentsInTheCloud (nox fork):** the `nox` branch adds custom navigation, Nox Oscura, workspace tools, and bundled Pi extensions. The installation command below selects this fork's images, not upstream images. See [nox fork releases and upgrades](#nox-fork-releases-and-upgrades) for the reviewed release workflow.
 
 ## Installation
 
-1. **Connect to your server.** SSH into an x86-64 Linux server dedicated to AgentsInTheCloud. Nox releases currently support `linux/amd64` only.
-2. **Install Nox.** For a fresh installation, run:
+1. **Connect to your server.** SSH into an x86-64 Linux server dedicated to AgentsInTheCloud. This fork's releases currently support `linux/amd64` only.
+2. **Install AgentsInTheCloud (nox fork).** For a fresh installation, run:
 
    ```sh
    curl -fsSL https://agentsinthecloud.com/install.sh | bash -s -- \
@@ -26,7 +26,7 @@
      --system-image ghcr.io/76616c6172/agents-in-the-cloud-system:latest
    ```
 
-Both Nox update channels, `latest` and `stable`, move only after promotion. This command installs the published images; cloning the repository does not install unreleased changes. For an existing installation, follow [Deploy and roll back](#deploy-and-roll-back).
+Both of this fork's update channels, `latest` and `stable`, move only after promotion. This command installs the published images; cloning the repository does not install unreleased changes. For an existing installation, follow [Deploy and roll back](#deploy-and-roll-back).
 
 ## Contributing
 
@@ -38,13 +38,13 @@ For now, please don't send pull requests. Telling me exactly how the product cou
 
 We're all just figuring out this new world in real time :-). Hope you like the product, I had a lot of fun building it.
 
-## Nox releases and upgrades
+## nox fork releases and upgrades
 
 `main` tracks upstream without personal changes; `nox` carries the fork's UI, workspace defaults, and release integration. Keep these histories separate, and merge upstream rather than rebasing published releases. The shared distribution identity lives in `packages/shared/src/distribution.ts`.
 
 ### Bundled workspace defaults
 
-The Nox workspace image includes Neovim with pinned plugins, Bash comforts, and tools such as `fzf`, `eza`, `zoxide`, `lazygit`, and `btop`. Fresh installations also get the [Nox Oscura Pi theme](packages/nox-workspace/home-defaults/.pi/agent/themes/nox-oscura.json), `nvim` as Pi's external editor, and these extensions:
+This fork's workspace image includes Neovim with pinned plugins, Bash comforts, and tools such as `fzf`, `eza`, `zoxide`, `lazygit`, and `btop`. Fresh installations also get the [Nox Oscura Pi theme](packages/nox-workspace/home-defaults/.pi/agent/themes/nox-oscura.json), `nvim` as Pi's external editor, and these extensions:
 
 | Extension | Purpose |
 | --- | --- |
@@ -54,7 +54,7 @@ The Nox workspace image includes Neovim with pinned plugins, Bash comforts, and 
 | `notify` | Completion notifications in supported terminals. |
 | `window-title-status` | Working status and elapsed time in the terminal title. |
 
-The [extension bundle](packages/nox-workspace/home-defaults/.pi/agent/nox-extensions/bundled/) is vendored from `76616c6172/dotvulpix` at commit `39ebd45d88f50acbb8c740ad63a10fc777071bed`, with source checksums and licenses included. Building or installing Nox does not require access to that private repository or a separate `pi-cloud` deployment.
+The [extension bundle](packages/nox-workspace/home-defaults/.pi/agent/nox-extensions/bundled/) is vendored from `76616c6172/dotvulpix` at commit `39ebd45d88f50acbb8c740ad63a10fc777071bed`, with source checksums and licenses included. Building or installing AgentsInTheCloud (nox fork) does not require access to that private repository or a separate `pi-cloud` deployment.
 
 [Pi defaults](packages/nox-workspace/home-defaults/.pi/agent/settings.json) load the local bundle, and [tool-display defaults](packages/nox-workspace/home-defaults/.pi/agent/extensions/pi-tool-display/config.json) supply its preferences. The image seeds the persistent shared home only on a fresh installation. Updates do not overwrite an existing home's settings, themes, or separately installed extensions, or add this bundle to it automatically. These defaults are available in published images once a release containing them is promoted.
 
@@ -112,4 +112,4 @@ This interrupts running workspaces. Run it when agents are idle. It pulls pinned
 
 The command prints a private backup directory under `/var/backups/agents-in-the-cloud/` containing the data archive, checksum, previous image IDs, deployment status, and a runnable `rollback.sh`. Run that rollback script as root on the server to restore the previous images while retaining current data. If an upstream release changes persisted data incompatibly, image rollback alone is insufficient: stop System and restore the matching data backup as well. Backups and retained image containers are intentionally not automatically deleted; monitor disk space and keep backups off-host too.
 
-The in-app **Update** button follows the approved Nox channel, but updates only the app. Use the deployment command for full app/runtime upgrades. The installation command above reuses the bootstrap installer with explicit Nox image references; its `--app-image` option does not replace an existing installation's saved app selection.
+The in-app **Update** button follows this fork's approved channel, but updates only the app. Use the deployment command for full app/runtime upgrades. The installation command above reuses the bootstrap installer with explicit image references for this fork; its `--app-image` option does not replace an existing installation's saved app selection.
