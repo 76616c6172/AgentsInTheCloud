@@ -37,17 +37,31 @@ svg.brand-icon path[fill] { fill: currentColor; }
 .nox-phone-header,
 .nox-workspace-group,
 .nox-workspace-scrim { display: none; }
-.fixed-shell-agent-pane .floating-stack :is(.agent-composer-opener, [data-cli-transcript-button]) { display: none; }
+.fixed-shell-agent-pane .floating-stack [data-cli-transcript-button] { display: none; }
 .nox-agent-composer-action { position: relative; flex: none; }
 .nox-agent-composer-action > .agent-composer-draft-dot { display: none; }
 .fixed-workspace-presentation:has(.fixed-shell-surface.is-active .agent-composer-opener[data-draft]) .nox-agent-composer-action > .agent-composer-draft-dot { display: block; }
 
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .agent-composer-pane:not(.agent-composer-open) [data-agent-composer-target="opener"]) .nox-phone-header .nox-agent-composer-action,
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active [data-cli-transcript-button="transcript"]) .nox-phone-header .nox-agent-transcript-action,
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-mode) .nox-phone-header .nox-agent-terminal-action,
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-pending) .nox-phone-header .nox-agent-pending-action { display: flex; }
   .fixed-workspace-presentation:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .nox-phone-header .nox-agent-transcript-action { display: none; }
+
+  /* Open composer and Follow latest are ghost tiles in the bottom-right corner: the header's
+   * quiet Button at a 44px touch target instead of the large popular floating buttons. */
+  .fixed-shell-agent-pane .floating-stack { right: 4px; bottom: 4px; gap: 4px; }
+  .fixed-shell-agent-pane .floating-stack .button.icon-only {
+    --button-icon-size: 17.85px;
+    --button-border: transparent;
+    --button-hover-border: color-mix(in srgb, var(--text-muted) 45%, transparent);
+    --button-background: transparent;
+    --button-hover-background: var(--accent-soft);
+    --button-background-image: none;
+    --button-lighting-content: none;
+    --button-engaged-lighting-content: none;
+    width: 44px; height: 44px; min-height: 44px; border-radius: var(--radius-control);
+  }
 
   /* Keep horizontal sidebar gestures with the app; native vertical scrolling stays available. */
   .fixed-shell-workspace-pane { touch-action: pan-y pinch-zoom; }
@@ -251,8 +265,9 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .nox-workspace-rail-entries > * { flex-shrink: 0; }
   .nox-workspace-rail-entries form { margin: 0; }
 
-  /* Desktop view actions share the toolbar. Mobile uses the navbar and More menu.
-     Only Follow latest floats over the content. */
+  /* Desktop view actions share the toolbar; only Follow latest floats over the content.
+     Phones float Open composer too and keep the view switch in More. */
+  .fixed-shell-agent-pane .floating-stack .agent-composer-opener { display: none; }
   .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active [data-cli-transcript-button="transcript"]) .nox-agent-transcript-action,
   .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active .cli-transcript-mode) .nox-agent-terminal-action,
   .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active .cli-transcript-pending) .nox-agent-pending-action,

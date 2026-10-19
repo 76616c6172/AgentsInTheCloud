@@ -152,12 +152,8 @@ export function renderAgentViewSwitch(menu = false): string {
   }) : barButton(label, commandAction, icon, 'data-command-id="cli-agent.toggle-mode"')}</span>`).join("");
 }
 
-export function renderAgentComposerAction(menu = false): string {
-  const commandAction = "click->agents-in-the-cloud-shortcuts#runCommand";
-  const action = menu ? contentRowHtml({
-    kind: "compact", width: "fill", label: { kind: "text", text: "Open composer" }, leadingHtml: Icons.Keyboard,
-    element: { tag: "button", attributesHtml: `type="button" role="menuitem" data-action="${commandAction}" data-command-id="agent.toggle-composer"` },
-  }) : barButton("Open composer", commandAction, Icons.Keyboard, 'data-command-id="agent.toggle-composer"');
+function renderAgentComposerAction(): string {
+  const action = barButton("Open composer", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Keyboard, 'data-command-id="agent.toggle-composer"');
   return `<span class="nox-agent-action nox-agent-composer-action">${action}<span class="status-dot attention agent-composer-draft-dot" aria-hidden="true"></span></span>`;
 }
 

@@ -12,7 +12,7 @@ import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
 import { tabHtml, tabStripHtml } from "@agents-in-the-cloud/design-system/tab-strip";
 import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@agents-in-the-cloud/shared";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
-import { renderAgentComposerAction, renderAgentViewSwitch, renderAgentPane, renderMobileAgentAttention, renderPhoneAgentTypeOptions, renderPhoneWorkspaceActions, type AgentPaneContribution } from "./agent-pane.ts";
+import { renderAgentViewSwitch, renderAgentPane, renderMobileAgentAttention, renderPhoneAgentTypeOptions, renderPhoneWorkspaceActions, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
 import type { WorkspaceDeletionState } from "./workspace-registry.ts";
 import type { WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
@@ -439,7 +439,7 @@ function renderMobileMoreMenu(presentation: WorkspacePresentation): string {
     id: moreMenuId, label: "More", placement: "below",
     trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-mobile-more" },
     menuAttributesHtml: 'data-workspace-presentation-target="moreMenu" data-action="toggle->workspace-presentation#syncMore"',
-    contentHtml: `${renderPhoneMoreHeading(presentation)}${renderAgentComposerAction(true)}${renderAgentViewSwitch(true)}${renderPhoneNewTabOptions(presentation)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
+    contentHtml: `${renderPhoneMoreHeading(presentation)}${renderAgentViewSwitch(true)}${renderPhoneNewTabOptions(presentation)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
       <div id="${workViewDomId(presentation.workspace.id, "mobile_closers")}" class="fixed-shell-more-close-section">${closers}</div>`,
   });
 }
