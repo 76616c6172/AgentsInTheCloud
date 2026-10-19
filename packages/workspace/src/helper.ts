@@ -25,9 +25,11 @@ export async function refreshWorkspaceHelper(
   const writable = await docker(["inspect", "--format", `{{range .Mounts}}{{if eq .Destination "${workspaceParentSocketDirectory}"}}{{.RW}}{{end}}{{end}}`, container]);
   if (writable.stdout.trim() === "true") {
     // The directory bind mount updates the executable's path, but a running
-    // service keeps the old inode until it is restarted.
+    // service keeps the old inode until it is restarted. Docker reports a new
+    // container running before its bootstrap process has execed systemd.
     // oxlint-disable-next-line agents-in-the-cloud/no-docker-exec
-    await docker(["exec", "--user", "root", container, "systemctl", "restart", "agents-in-the-cloud-helper.service"]);
+    await docker(["exec", "--user", "root", container, "sh", "-c",
+      `deadline=$(( $(date +%s) + 30 )); while ! test -S /run/systemd/private; do if test "$(date +%s)" -ge "$deadline"; then echo "systemd did not start within 30 seconds" >&2; exit 1; fi; sleep 0.05; done; exec systemctl restart agents-in-the-cloud-helper.service`]);
     closeWorkspaceHelperConnection(id);
     return;
   }

@@ -16,8 +16,9 @@ test("a running workspace restarts the app-mounted helper before readiness check
     });
     expect(calls).toEqual([
       ["inspect", "--format", `{{range .Mounts}}{{if eq .Destination "${workspaceParentSocketDirectory}"}}{{.RW}}{{end}}{{end}}`, "agents-in-the-cloud-01234567"],
-      ["exec", "--user", "root", "agents-in-the-cloud-01234567", "systemctl", "restart", "agents-in-the-cloud-helper.service"],
+      ["exec", "--user", "root", "agents-in-the-cloud-01234567", "sh", "-c", expect.stringContaining("while ! test -S /run/systemd/private")],
     ]);
+    expect(calls[1]?.at(-1)).toContain("exec systemctl restart agents-in-the-cloud-helper.service");
   } finally {
     if (previous === undefined) delete process.env.ATELIER_DATA_DIR;
     else process.env.ATELIER_DATA_DIR = previous;
