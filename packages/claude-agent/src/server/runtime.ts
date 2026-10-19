@@ -308,10 +308,11 @@ export class ClaudeRuntime {
     } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
       // Ambient tasks, such as watchers, are not work Claude will report back on.
       this.backgroundTasks = message.tasks.filter(task => !task.ambient).map(task => task.task_id);
-    } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && !message.ambient) {
-      // The finished task leaves the background set before Claude starts the turn that reports on it.
-      // A turn already running absorbs it instead.
-      if (!this.running) this.state.add({ kind: "task", uuid: message.uuid, timestamp: Date.now(), runId: message.run_id ?? message.uuid, summary: message.summary });
+    } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && this.backgroundTasks.includes(message.task_id)) {
+      // Claude reports on finished background work in its running turn, or else in a turn of its own.
+      // Foreground commands notify too, but were never background work.
+      this.state.add({ kind: "task", uuid: message.uuid, timestamp: Date.now(), runId: message.run_id ?? message.uuid, summary: message.summary });
+      // The finished task leaves the background set before that turn starts.
       this.running = true;
     } else if (message.type === "result") {
       this.running = (message.queued_turn_count ?? 0) > 0;

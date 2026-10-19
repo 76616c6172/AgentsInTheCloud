@@ -122,7 +122,7 @@ test("background work that finishes mid-turn is absorbed into it", () => {
     user("prompt", 0, [{ type: "text", text: "Build, then test" }]),
     assistant("a1", 1, "msg_1", [{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command: "bun run build" } }]),
     user("result", 4, [{ type: "tool_result", tool_use_id: "toolu_1", content: "Built", is_error: false }]),
-    user("task", 5, notification("watcher", "Background command \"sleep 3\" completed")),
+    { type: "attachment", uuid: "task", timestamp: time(5), attachment: { type: "queued_command", prompt: notification("sleeper", "Background command \"sleep 3\" completed"), source_uuid: "queued", runId: "run-1" } },
     assistant("a2", 6, "msg_2", [{ type: "text", text: "Built and slept." }]),
   )), false);
   expect(items.map(item => item.type)).toEqual(["user", "working", "text"]);

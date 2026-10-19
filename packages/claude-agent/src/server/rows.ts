@@ -28,7 +28,7 @@ const rowSchema = Type.Object({
     id: Type.Optional(Type.String()), content: Type.Union([Type.String(), Type.Array(blockSchema)]),
     stop_reason: Type.Optional(Type.Union([Type.String(), Type.Null()])), usage: Type.Optional(usageSchema),
   })),
-  attachment: Type.Optional(Type.Object({ type: Type.String(), prompt: Type.Optional(Type.Union([Type.String(), Type.Array(blockSchema)])), source_uuid: Type.Optional(Type.String()) })),
+  attachment: Type.Optional(Type.Object({ type: Type.String(), prompt: Type.Optional(Type.Union([Type.String(), Type.Array(blockSchema)])), source_uuid: Type.Optional(Type.String()), runId: Type.Optional(Type.String()) })),
   customTitle: Type.Optional(Type.String()), aiTitle: Type.Optional(Type.String()),
 });
 export type ClaudeBlock = Static<typeof blockSchema>;
@@ -54,18 +54,24 @@ export function claudeRows(jsonl: string): ClaudeRow[] {
     if (row.isSidechain === true) continue;
     const timestamp = nativeTimestamp(row.timestamp);
     if (row.type === "attachment" && row.attachment?.type === "queued_command" && row.uuid) {
-      rows.push({ kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, text: claudeText(claudeBlocks(row.attachment.prompt ?? "")) });
+      // Background work that finishes mid-turn is delivered into it, like a prompt sent while Claude works.
+      const text = claudeText(claudeBlocks(row.attachment.prompt ?? ""));
+      rows.push(taskRow(row.uuid, timestamp, text, row.attachment.runId) ?? { kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, text });
     } else if (!row.uuid || !row.message) {
       if (row.type === "system" && row.subtype === "compact_boundary" && row.uuid) rows.push({ kind: "compact", uuid: row.uuid, timestamp });
     } else if (row.type === "user") {
-      const text = claudeText(claudeBlocks(row.message.content)).trim();
-      if (text.startsWith("<task-notification>")) rows.push({ kind: "task", uuid: row.uuid, timestamp, runId: row.origin?.runId ?? row.uuid, summary: tag(text, "summary")?.trim() || "A background task finished." });
-      else rows.push({ kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
+      rows.push(taskRow(row.uuid, timestamp, claudeText(claudeBlocks(row.message.content)), row.origin?.runId) ?? { kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
     } else if (row.type === "assistant") {
       rows.push({ kind: "assistant", uuid: row.uuid, timestamp, messageId: row.message.id ?? row.uuid, content: claudeBlocks(row.message.content), stopReason: row.message.stop_reason ?? null, usage: row.message.usage, error: row.isApiErrorMessage === true });
     }
   }
   return rows;
+}
+
+function taskRow(uuid: string, timestamp: number, text: string, runId: string | undefined): ClaudeRow | undefined {
+  const value = text.trim();
+  if (!value.startsWith("<task-notification>")) return undefined;
+  return { kind: "task", uuid, timestamp, runId: runId ?? uuid, summary: tag(value, "summary")?.trim() || "A background task finished." };
 }
 
 /** The Agent's own Claude config directory keeps its conversations apart from the Claude Code CLI's. */
