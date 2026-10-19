@@ -24,7 +24,9 @@ export async function startLegacyWorkspaceHelper(id: string, container: string):
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await rm(workspaceHelperSocketPath(id), { force: true });
   await symlink(join(directory, "helper.sock"), workspaceHelperSocketPath(id));
+  // Nothing else can start the helper in these workspaces.
   // Not runDocker: its cancellable exec wrapper would kill the detached helper.
+  // oxlint-disable-next-line agents-in-the-cloud/no-docker-exec
   const started = await runCommand(["docker", "exec", "--detach", "--user", "root", container, "sh", "-c",
     `pgrep -x aitc-workspace- >/dev/null || exec /opt/agents-in-the-cloud/bin/aitc-workspace-helper --listen /home/agents-in-the-cloud/${state}/helper.sock`]);
   if (started.exitCode !== 0) throw new AgentsInTheCloudCoreError("workspace_helper_unavailable", `Couldn’t start the helper in workspace ${id}: ${started.stderr.trim()}`);

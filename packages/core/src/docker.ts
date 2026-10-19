@@ -20,6 +20,8 @@ export async function runDocker(args: string[], options: CommandOptions = {}): P
     if (execution && signal?.aborted) {
       // Killing a Docker CLI does not kill the process inside the container.
       await withCommandSignal(AbortSignal.timeout(10_000), async () => {
+        // Stops what the caller's own `docker exec` started.
+        // oxlint-disable-next-line agents-in-the-cloud/no-docker-exec
         const stopped = await runCommand(["docker", "exec", "--user", "root", execution.container, "sh", "-c", `touch ${execution.pidFile}.cancel; if test -f ${execution.pidFile}; then kill -9 -"$(cat ${execution.pidFile})" 2>/dev/null || true; rm -f ${execution.pidFile}; fi`]);
         if (stopped.exitCode !== 0) throw new Error(`Could not stop cancelled container command: ${stopped.stderr}`);
       });
