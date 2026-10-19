@@ -115,6 +115,23 @@ func TestOutputWrittenWhileDetachedIsReplayed(t *testing.T) {
 	}
 }
 
+func TestOutputStreamsWithoutWaitingForANewline(t *testing.T) {
+	helper := client(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	stream := startDetached(t, ctx, helper, "partial", true, "cat")
+	for _, chunk := range []string{"a", "b", "c"} {
+		if err := stream.Send(&pb.ExecRequest{Request: &pb.ExecRequest_Stdin{Stdin: []byte(chunk)}}); err != nil {
+			t.Fatal(err)
+		}
+		readStdout(t, stream, chunk)
+	}
+	stream.Send(&pb.ExecRequest{Request: &pb.ExecRequest_Signal{Signal: pb.Signal_SIGNAL_KILL}})
+	if _, err := collect(t, stream); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRestartedHelperFindsTheProcess(t *testing.T) {
 	state := t.TempDir()
 	first := clientWithState(t, state)
@@ -217,7 +234,7 @@ func TestANewerCallDisplacesTheOlderOne(t *testing.T) {
 	}
 }
 
-// Echoes each line it reads, unlike some cats, which buffer.
+// Echoes each line it reads.
 const echoLines = "while read -r line; do echo \"$line\"; done"
 
 func TestAcknowledgedOutputIsFreed(t *testing.T) {

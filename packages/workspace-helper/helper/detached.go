@@ -227,7 +227,10 @@ func launch(command *exec.Cmd, directory string, detached *pb.Detached) (*detach
 		}
 	}()
 	for index, name := range outputFiles {
-		file, err := os.OpenFile(filepath.Join(directory, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_APPEND, 0o600)
+		// Not O_APPEND: the process and its children share this one open file and
+		// its offset anyway, and splice() refuses appending files, so tools that
+		// splice, such as uutils cat, would fall back to line-buffered writes.
+		file, err := os.OpenFile(filepath.Join(directory, name), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 		if err != nil {
 			return nil, err
 		}
