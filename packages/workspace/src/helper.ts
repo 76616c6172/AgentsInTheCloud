@@ -11,25 +11,40 @@ export function workspaceHelperSocketPath(id: string): string {
 }
 
 /**
- * Migration: workspaces created before the helper have no unit to start it and
- * mount the parent socket directory read-only. Start it by hand, listening in
- * their per-workspace state directory, and link its socket where the app looks.
+ * Restarts the helper mounted from the app so a running workspace picks up the
+ * app's current binary. Workspaces created before the helper have no unit to
+ * restart and mount the parent socket directory read-only; start their embedded
+ * helper by hand instead.
  */
-export async function startLegacyWorkspaceHelper(id: string, container: string): Promise<void> {
-  const writable = await requireDocker(["inspect", "--format", `{{range .Mounts}}{{if eq .Destination "${workspaceParentSocketDirectory}"}}{{.RW}}{{end}}{{end}}`, container]);
-  if (writable.stdout.trim() === "true") return;
+export async function refreshWorkspaceHelper(
+  id: string,
+  container: string,
+  docker: typeof requireDocker = requireDocker,
+  command: typeof runCommand = runCommand,
+): Promise<void> {
+  const writable = await docker(["inspect", "--format", `{{range .Mounts}}{{if eq .Destination "${workspaceParentSocketDirectory}"}}{{.RW}}{{end}}{{end}}`, container]);
+  if (writable.stdout.trim() === "true") {
+    // The directory bind mount updates the executable's path, but a running
+    // service keeps the old inode until it is restarted.
+    // oxlint-disable-next-line agents-in-the-cloud/no-docker-exec
+    await docker(["exec", "--user", "root", container, "systemctl", "restart", "agents-in-the-cloud-helper.service"]);
+    closeWorkspaceHelperConnection(id);
+    return;
+  }
   const state = ".local/state/agents-in-the-cloud-helper";
   // The helper gives its socket to this directory's owner: the app.
   const directory = agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "workspaces", id, "home-local", state);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await rm(workspaceHelperSocketPath(id), { force: true });
   await symlink(join(directory, "helper.sock"), workspaceHelperSocketPath(id));
-  // Nothing else can start the helper in these workspaces.
+  // Nothing else restarts the helper in these workspaces. The executable is
+  // still app-mounted, so replace any process retaining its previous inode.
   // Not runDocker: its cancellable exec wrapper would kill the detached helper.
   // oxlint-disable-next-line agents-in-the-cloud/no-docker-exec
-  const started = await runCommand(["docker", "exec", "--detach", "--user", "root", container, "sh", "-c",
-    `pgrep -x aitc-workspace- >/dev/null || exec /opt/agents-in-the-cloud/bin/aitc-workspace-helper --listen /home/agents-in-the-cloud/${state}/helper.sock`]);
+  const started = await command(["docker", "exec", "--detach", "--user", "root", container, "sh", "-c",
+    `pkill -TERM -x aitc-workspace- 2>/dev/null || true; while pgrep -x aitc-workspace- >/dev/null; do sleep 0.05; done; exec /opt/agents-in-the-cloud/bin/aitc-workspace-helper --listen /home/agents-in-the-cloud/${state}/helper.sock`]);
   if (started.exitCode !== 0) throw new AgentsInTheCloudCoreError("workspace_helper_unavailable", `Couldn’t start the helper in workspace ${id}: ${started.stderr.trim()}`);
+  closeWorkspaceHelperConnection(id);
 }
 
 export function closeWorkspaceHelperConnection(id: string): void {

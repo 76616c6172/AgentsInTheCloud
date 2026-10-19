@@ -10,7 +10,7 @@ import { runHostObservableCommand, stripTerminalControls, tailTerminalText } fro
 import { errorMessage, isWorkspaceAppPort, workspaceGatewayPort, type WorkspaceGateway, type WorkspaceHttpAppBackend, type WorkspaceServerProvisioningHook } from "@agents-in-the-cloud/shared";
 import { inspectWorkspaceImage, resolveWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 import { prepareWorkspaceSystemd } from "./systemd.ts";
-import { closeWorkspaceHelperConnection, requireRootInWorkspace, runInWorkspace, startLegacyWorkspaceHelper, workspaceHelperSocketPath, workspaceParentSocketDirectory } from "./helper.ts";
+import { closeWorkspaceHelperConnection, refreshWorkspaceHelper, requireRootInWorkspace, runInWorkspace, workspaceHelperSocketPath, workspaceParentSocketDirectory } from "./helper.ts";
 import { workspaceHelperCliPath } from "@agents-in-the-cloud/workspace-helper";
 import { createWorkspaceContainerLifecycle, workspaceConfigurationLabel } from "./container-lifecycle.ts";
 import { Type } from "typebox";
@@ -610,7 +610,7 @@ function workspaceContainerLifecycle(id: string, checkpointRequired: boolean) {
   return createWorkspaceContainerLifecycle({
     directory: agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "workspaces", id, "configuration"),
     container: workspaceContainerName(id), checkpointRequired,
-    started: () => startLegacyWorkspaceHelper(id, workspaceContainerName(id)),
+    started: () => refreshWorkspaceHelper(id, workspaceContainerName(id)),
     waitForStartup: () => waitForWorkspaceStartup(id),
   });
 }
