@@ -192,6 +192,77 @@ test("Claude's background tasks become activities: commands and monitors open in
   await agents.disposeAll();
 `));
 
+test("a workflow's page shows its phases, each linking to its agents that have started, which have pages of their own", () => scenario(`
+  const { claudeBackgroundActivities, claudeBackgroundDetail, claudeBackgroundRoute } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/background.ts"))});
+  const id = await agents.create("workspace");
+  const runtime = await agents.ready("workspace", id);
+  const [connection] = connections;
+  const system = (subtype, extra) => ({ type: "system", subtype, uuid: crypto.randomUUID(), session_id: "s", ...extra });
+  await runtime.send(input, "first");
+  connection.message(system("background_tasks_changed", { tasks: [{ task_id: "w1", task_type: "local_workflow", description: "review" }] }));
+  connection.message(system("task_started", { task_id: "w1", tool_use_id: "toolu_w1", description: "review", task_type: "local_workflow", workflow_name: "review-changes", prompt: "export const meta = { name: 'review-changes', description: 'Review' }\\nreturn await agent('Find bugs', { label: 'bugs' })" }));
+  const progress = workflow_progress => system("task_progress", { task_id: "w1", description: "Find: bugs", usage: { total_tokens: 900, tool_uses: 3, duration_ms: 5000 }, last_tool_name: "bugs", summary: "Review the diff", ...(workflow_progress && { workflow_progress }) });
+  connection.message(progress([
+    { type: "workflow_phase", index: 1, title: "Find" },
+    { type: "workflow_phase", index: 2, title: "Verify" },
+    { type: "workflow_agent", index: 1, label: "bugs", phaseIndex: 1, phaseTitle: "Find", agentId: "abugs", model: "claude-haiku-5-5", state: "progress", startedAt: 1000, lastToolName: "Bash", lastToolSummary: "git diff", tokens: 900, toolCalls: 3 },
+    { type: "workflow_agent", index: 2, label: "perf", phaseIndex: 1, phaseTitle: "Find", agentId: "aperf", state: "done", startedAt: 1000, tokens: 400, toolCalls: 1, resultPreview: "No slow queries <found>" },
+    // Queued: it has no transcript yet.
+    { type: "workflow_agent", index: 3, label: "style", phaseIndex: 1, phaseTitle: "Find", state: "start", queuedAt: 1000 },
+    // A kind of entry Claude Code may add later.
+    { type: "workflow_log", text: "hello" },
+  ]));
+  // A frame without them changed nothing about the phases and agents.
+  connection.message(progress(undefined));
+  const activities = claudeBackgroundActivities(runtime);
+  expect(activities.map(({ key, kind, opens, title, running, progress, details, parentKey }) => ({ key, kind, opens, title, running, progress, details, parentKey }))).toEqual([
+    { key: "w1", kind: "workflow", opens: "drill-in", title: "review-changes", running: true, progress: undefined, details: { "Tool uses": "3", Tokens: "900" }, parentKey: undefined },
+    { key: "abugs", kind: "workflow agent", opens: "drill-in", title: "bugs", running: true, progress: "Bash: git diff", details: { Phase: "Find", Model: "claude-haiku-5-5", "Tool uses": "3", Tokens: "900" }, parentKey: "w1" },
+    { key: "aperf", kind: "workflow agent", opens: "drill-in", title: "perf", running: false, progress: undefined, details: { Phase: "Find", "Tool uses": "1", Tokens: "400" }, parentKey: "w1" },
+  ]);
+  const ctx = (await import(${JSON.stringify(join(import.meta.dir, "../src/server/render.ts"))})).rendering.renderContext(runtime);
+  const phases = await claudeBackgroundDetail(runtime, activities[0], ctx);
+  expect(phases).toContain('aria-busy="true"><span class="status-list__marker"></span>Find <span class="agent-background-meta">· 1 running, 1 waiting, 1 done</span>');
+  expect(phases).toContain("Verify <span class=\\"agent-background-meta\\">· Not started</span>");
+  // Its agents that have started open their own pages from it.
+  const find = phases.slice(0, phases.indexOf("Verify"));
+  expect(find).toContain('/background/abugs" data-action="agent-background#open"');
+  expect(find).toContain('/background/aperf" data-action="agent-background#open"');
+  // A finished agent's answer shows beside it, cut short; a running one's doesn't have one yet.
+  expect(find).toContain('<span class="agent-background-result" title="No slow queries &lt;found&gt;">No slow queries &lt;found&gt;</span>');
+  expect(find.match(/agent-background-result"/g)?.length).toBe(1);
+  const { renderBackgroundActivities } = await import("@agents-in-the-cloud/agent/server/background-activity");
+  expect(renderBackgroundActivities(ctx, activities)).not.toContain("agent-background-result");
+  // Its script loads once into the detail, so reloading the phases keeps how it shows.
+  expect(phases).toContain('src="/workspaces/workspace/claude-code-agents/' + id + '/background/w1/script" loading="lazy" data-turbo-permanent');
+  const script = await (await claudeBackgroundRoute(runtime, activities[0], "script", new URL("http://x"), ctx)).text();
+  expect(script).toContain('<div class="agent-region-header agent-region-tabs"><span>Script</span>');
+  expect(script).toContain("language-javascript");
+  // An agent's transcript is kept in a folder for the workflow's run.
+  const run = sessions(id) + "/" + runtime.record.sessionId + "/subagents/workflows/wf_1";
+  mkdirSync(run, { recursive: true });
+  const row = (type, uuid, content) => JSON.stringify({ type, uuid, isSidechain: true, timestamp: "2026-10-20T12:00:00.000Z", message: { id: uuid, role: type, content, stop_reason: "end_turn" } });
+  writeFileSync(run + "/agent-abugs.jsonl", [
+    // Claude Code frames the request that started the workflow, and the agent's task, for the model.
+    row("user", "u0", "[Workflow harness — user request] The harness relays the request:\\n  Review my branch\\n  \\n  Carefully"),
+    row("user", "u1", "[Workflow harness — computed task] The computed task text follows:\\n  Find bugs in:\\n  \\n  - auth.ts"),
+    row("assistant", "u2", [{ type: "text", text: "Reading the diff" }]),
+  ].join("\\n"));
+  const page = await claudeBackgroundDetail(runtime, activities[1], ctx);
+  expect(page).toContain("Reading the diff");
+  // Its task is its prompt; the request is in the conversation that started the workflow.
+  expect(page).toContain("<li>auth.ts</li>");
+  expect(page).not.toContain("Workflow harness");
+  expect(page).not.toContain("Review my branch");
+  // The workflow's script is on its agents' pages too, folded away.
+  expect(page).toContain('/background/abugs/script" loading="lazy" data-turbo-permanent');
+  const agentScript = await (await claudeBackgroundRoute(runtime, activities[1], "script", new URL("http://x"), ctx)).text();
+  expect(agentScript).toContain("Workflow script");
+  expect(agentScript).toContain("language-javascript");
+  expect(await claudeBackgroundRoute(runtime, activities[1], "elsewhere", new URL("http://x"), ctx)).toBeUndefined();
+  await agents.disposeAll();
+`));
+
 test("stopping interrupts Claude without reporting its abort as a problem", () => scenario(`
   const id = await agents.create("workspace");
   const runtime = await agents.ready("workspace", id);

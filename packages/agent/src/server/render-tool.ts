@@ -340,12 +340,10 @@ function renderNestedCall(ctx: AgentRenderContext, key: string, call: ToolView):
   return `<div class="agent-tool agent-codemode-call ${toolClass(call.name)}${call.status === "error" ? " error" : ""}" id="${ids.item(ctx, callKey)}">${disclosureHtml({ summary: label, bodyHtml: body })}</div>`;
 }
 
-function renderCodemodeScript(code: string, streaming: boolean): string {
+/** A JavaScript script, highlighted, beside its readable version when there is one. */
+export function scriptSourceRegion(code: string, readable: string | undefined): string {
   const bodyClass = "agent-tool-code agent-tool-region-body";
-  // Like bash commands: keep the source layout while it streams, so lines do not jump.
-  const formatted = streaming ? undefined : formatCodemodeScriptForDisplay(code);
-  return readableSourceRegion("Script", "script", "agent-tool-region agent-codemode-script", codeBlockHtml(code, "codemode.js", bodyClass),
-    formatted === undefined ? undefined : codeBlockHtml(formatted, "codemode.js", bodyClass));
+  return readableSourceRegion("Script", "script", "agent-tool-region agent-script", codeBlockHtml(code, "script.js", bodyClass), readable === undefined ? undefined : codeBlockHtml(readable, "script.js", bodyClass));
 }
 
 /** Text output, or the object or array it holds, such as a script's return value, as indented and highlighted JSON. */
@@ -362,7 +360,9 @@ function outputHtml(output: string, textClass: string, codeClass: string): strin
 }
 
 function renderCodemodeDetail(ctx: AgentRenderContext, key: string, tool: ToolView): string {
-  const script = renderCodemodeScript(stringArg(toolArgs(tool), "code") ?? "", tool.status === "streaming");
+  const code = stringArg(toolArgs(tool), "code") ?? "";
+  // Like bash commands: keep the source layout while it streams, so lines do not jump.
+  const script = scriptSourceRegion(code, tool.status === "streaming" ? undefined : formatCodemodeScriptForDisplay(code));
   const calls = codemodeCalls(tool);
   const callsHtml = calls.length ? `<section class="agent-tool-region agent-codemode-calls"><div class="agent-region-header">Tool calls</div><div class="agent-codemode-call-list">${calls.map((call) => renderNestedCall(ctx, key, call)).join("")}</div></section>` : "";
   const done = tool.status === "ok" || tool.status === "error";

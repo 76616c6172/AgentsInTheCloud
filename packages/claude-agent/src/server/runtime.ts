@@ -12,6 +12,7 @@ import { listPromptTemplates } from "@agents-in-the-cloud/agent/server/prompt-te
 import { renderSlashCommandCatalog } from "@agents-in-the-cloud/agent/server/slash-commands";
 import { claudeAgentCommands, claudeNativeCommands, uuidPattern, type ClaudeCommand, type ClaudeCommandResult } from "./commands.ts";
 import { claudeSessionDirectory, hasClaudeSession, listClaudeSessions, readClaudeRows, type ClaudeBlock } from "./rows.ts";
+import { workflowProgress, workflowProgressSchema, type ClaudeWorkflowProgress } from "./workflow.ts";
 import { ClaudeState } from "./state.ts";
 import { openClaudeTransport, type ClaudeTransport } from "./transport.ts";
 import { agentTypeId, label, prepareClaude, settings } from "./setup.ts";
@@ -31,10 +32,14 @@ export interface ClaudeTask {
   toolUseId?: string;
   startedAt?: number;
   workflowName?: string;
+  /** A workflow's script. */
+  script?: string;
   /** Its latest one-line status, such as a subagent's progress summary. */
   summary?: string;
   lastToolName?: string;
   usage?: { tokens: number; toolUses: number };
+  /** A workflow's phases and agents, as its latest progress frame described them. */
+  workflow?: ClaudeWorkflowProgress;
 }
 
 const taskOutputSchema = Type.Object({ output: Type.String(), total_bytes: Type.Number(), truncated: Type.Boolean() });
@@ -357,8 +362,14 @@ export class ClaudeRuntime {
       }));
     } else if (message.type === "system" && (message.subtype === "task_started" || message.subtype === "task_progress")) {
       const events = this.taskEvents.get(message.task_id) ?? {};
-      if (message.subtype === "task_started") Object.assign(events, { toolUseId: message.tool_use_id, startedAt: Date.now(), workflowName: message.workflow_name });
-      else Object.assign(events, { summary: message.summary, lastToolName: message.last_tool_name, usage: { tokens: message.usage.total_tokens, toolUses: message.usage.tool_uses } });
+      if (message.subtype === "task_started") Object.assign(events, { toolUseId: message.tool_use_id, startedAt: Date.now(), workflowName: message.workflow_name, script: message.task_type === "local_workflow" ? message.prompt : undefined });
+      else {
+        Object.assign(events, { summary: message.summary, lastToolName: message.last_tool_name, usage: { tokens: message.usage.total_tokens, toolUses: message.usage.tool_uses } });
+        // SAFETY: Claude Code sends a workflow's phases and agents on its task_progress, but the SDK doesn't declare the field yet. It is parsed.
+        // A frame without it changed nothing about them.
+        const entries = (message as { workflow_progress?: unknown }).workflow_progress;
+        if (entries !== undefined) events.workflow = workflowProgress(Value.Parse(workflowProgressSchema, entries));
+      }
       this.taskEvents.set(message.task_id, events);
       this.tasks = this.tasks.map(task => task.id === message.task_id ? { ...task, ...events } : task);
     } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && this.reportedTasks.some(task => task.id === message.task_id)) {

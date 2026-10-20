@@ -104,8 +104,10 @@ export async function readClaudeRows(directory: string, sessionId: string): Prom
 }
 
 /** A subagent's own conversation, saved beside the session that started it. */
-export async function readClaudeSubagentRows(directory: string, sessionId: string, agentId: string): Promise<ClaudeRow[]> {
-  const path = join(directory, sessionId, "subagents", `agent-${agentId}.jsonl`);
+export async function readClaudeSubagentRows(directory: string, sessionId: string, agentId: string, inWorkflow = false): Promise<ClaudeRow[]> {
+  const subagents = join(directory, sessionId, "subagents");
+  const path = inWorkflow ? await workflowAgentPath(subagents, agentId) : join(subagents, `agent-${agentId}.jsonl`);
+  if (!path) return [];
   // Its page reloads while it runs; the file is parsed again only once it has grown.
   const file = await stat(path).catch(error => { if (isNotFoundError(error)) return undefined; throw error; });
   if (!file) return [];
@@ -117,6 +119,17 @@ export async function readClaudeSubagentRows(directory: string, sessionId: strin
   return rows;
 }
 const subagentRows = new Map<string, { version: string; rows: ClaudeRow[] }>();
+
+/** A workflow's agents keep their transcripts in a folder for its run, which only their names identify. */
+async function workflowAgentPath(subagents: string, agentId: string): Promise<string | undefined> {
+  const workflows = join(subagents, "workflows");
+  const runs = await readdir(workflows).catch(error => { if (isNotFoundError(error)) return []; throw error; });
+  for (const run of runs) {
+    const path = join(workflows, run, `agent-${agentId}.jsonl`);
+    if (await Bun.file(path).exists()) return path;
+  }
+  return undefined;
+}
 
 export async function hasClaudeSession(directory: string, sessionId: string): Promise<boolean> {
   return Bun.file(join(directory, `${sessionId}.jsonl`)).exists();

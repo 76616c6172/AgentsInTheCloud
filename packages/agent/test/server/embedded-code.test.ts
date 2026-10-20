@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay } from "../../src/server/embedded-code.ts";
+import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay, formatWorkflowScriptForDisplay } from "../../src/server/embedded-code.ts";
 
 const renderEmbedded = (command: string): string => embeddedBashCommand(command)!.html;
 const renderedText = (html: string): string => html.replace(/<[^>]+>/g, "").replaceAll("&gt;", ">").replaceAll("&lt;", "<").replaceAll("&amp;", "&").replaceAll("&quot;", '"').replaceAll("&#39;", "'");
@@ -319,5 +319,32 @@ describe("code mode scripts", () => {
     expect(formatCodemodeScriptForDisplay("const x = ;")).toBeUndefined();
     expect(formatCodemodeScriptForDisplay("for (const a of b) {")).toBeUndefined();
     expect(formatCodemodeScriptForDisplay("return 1;")).toBeUndefined();
+  });
+});
+
+describe("workflow scripts", () => {
+  test("format like a code mode script, keeping meta exported", () => {
+    const script = [
+      "export const meta = { name: 'review', description: 'Review the diff', phases: [{ title: 'Find' }] }",
+      "phase('Find')",
+      "const found = await parallel(['bugs', 'perf'].map(d => () => agent(`Find ${d}`, { label: d })))",
+      "return found",
+    ].join("\n");
+    expect(formatWorkflowScriptForDisplay(script)).toBe([
+      "export const meta = {",
+      '  name: "review",',
+      '  description: "Review the diff",',
+      '  phases: [{ title: "Find" }],',
+      "};",
+      'phase("Find");',
+      "const found = await parallel(",
+      '  ["bugs", "perf"].map((d) => () => agent(`Find ${d}`, { label: d })),',
+      ");",
+      "return found;",
+    ].join("\n"));
+  });
+
+  test("leave scripts that do not parse alone", () => {
+    expect(formatWorkflowScriptForDisplay("export const meta = {")).toBeUndefined();
   });
 });

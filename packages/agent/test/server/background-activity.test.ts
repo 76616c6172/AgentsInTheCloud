@@ -30,6 +30,10 @@ test("Stop and the facts show once an activity is opened, and detail read on req
   const command = activity("suite", { kind: "command", opens: "inline", startedBy: { itemKey: "toolu_1", label: "Tool call" }, details: { Type: "shell" } });
   const inline = renderBackgroundInlineDetail(ctx, command, refreshingBackgroundDetail(command, backgroundOutputHtml("tick 1", "Output · the last part")));
   expect(inline).toContain('action="/workspaces/ws/claude-code-agents/agent/background/suite/stop"');
+  // Stopping can't be undone, so it asks first.
+  expect(inline).toContain('class="destructive-confirmation"');
+  expect(inline).toContain(">Stop command</span>");
+  expect(inline).toContain("Keep running");
   expect(inline).toContain("<dt>Started by</dt>");
   expect(inline).toContain("Output · the last part");
   expect(inline).toContain('data-controller="agent-background-refresh"');

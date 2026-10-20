@@ -1,11 +1,14 @@
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
 import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
+import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { invalidArguments } from "@agents-in-the-cloud/core";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 import { response } from "@agents-in-the-cloud/shared/http";
 import { renderTranscript, renderTranscriptItemDetailFrame } from "./render-transcript.ts";
+import { scriptSourceRegion } from "./render-tool.ts";
+import { formatWorkflowScriptForDisplay } from "./embedded-code.ts";
 import { findTranscriptItem, type TranscriptItem } from "./transcript.ts";
 import { backgroundActivityPath, ids, type AgentRenderContext } from "./render-context.ts";
 import { transcriptTargetLink } from "./render-markup.ts";
@@ -23,6 +26,8 @@ export interface BackgroundActivity {
   startedAt?: number;
   /** Its latest one-line progress. */
   progress?: string;
+  /** The start of its answer once it has finished, shown beside its name where another activity's page lists it. */
+  result?: string;
   /** Further facts, in order, such as Type, Tool uses and Tokens. */
   details: Record<string, string>;
   /** What in the Agent's transcript started it, such as a tool call, and what to call it. */
@@ -46,15 +51,24 @@ function ordered(activities: readonly BackgroundActivity[]): Array<{ activity: B
 const spinnerHtml = '<span class="status-indicator" role="img" aria-label="Running"><i class="status-spinner sm" aria-hidden="true"></i></span>';
 
 /** A row is its title, with a spinner while it runs; what it is, how long it has run and its progress show once it is opened. */
-function rowHtml(ctx: AgentRenderContext, activity: BackgroundActivity, depth: number): string {
+function rowHtml(ctx: AgentRenderContext, activity: BackgroundActivity, depth: number, withResult = false): string {
   const path = backgroundActivityPath(ctx, activity.key);
   const label = { kind: "text" as const, text: activity.title };
   const spinner = activity.running ? spinnerHtml : "";
+  const result = withResult && activity.result ? `<span class="agent-background-result" title="${escapeHtml(activity.result)}">${escapeHtml(activity.result)}</span>` : "";
   const row = activity.opens === "drill-in"
-    ? contentRowHtml({ kind: "compact", width: "fill", label, trailingHtml: `${spinner}<span class="agent-background-chevron">${Icons.Next}</span>`, element: { tag: "a", attributesHtml: `href="${escapeHtml(path)}" data-action="agent-background#open"` } })
+    ? contentRowHtml({ kind: "compact", width: "fill", label, trailingHtml: `${result}${spinner}<span class="agent-background-chevron">${Icons.Next}</span>`, element: { tag: "a", attributesHtml: `href="${escapeHtml(path)}" data-action="agent-background#open"` } })
     // The frame loads once the row is opened, and keeps its contents while the list updates.
     : disclosureHtml({ summary: { kind: "compact", width: "fill", label, trailingHtml: spinner }, bodyHtml: `<turbo-frame id="${ids.backgroundDetail(ctx, activity.key)}" src="${escapeHtml(path)}" loading="lazy" refresh="morph" data-turbo-permanent></turbo-frame>` });
-  return `<div class="agent-background-activity" style="--agent-background-depth: ${depth}" data-background-key="${escapeHtml(activity.key)}">${row}</div>`;
+  return `<div class="agent-background-activity${result ? " agent-background-activity--result" : ""}" style="--agent-background-depth: ${depth}" data-background-key="${escapeHtml(activity.key)}">${row}</div>`;
+}
+
+/** Rows for drill-in activities on another activity's page, such as a workflow's agents, with the start of each one's answer once it has finished; each opens its own page, as from the bar. */
+export function backgroundActivityLinksHtml(ctx: AgentRenderContext, activities: readonly BackgroundActivity[]): string {
+  return activities.map(activity => {
+    if (activity.opens !== "drill-in") throw new Error("Only drill-in activities link from a page");
+    return rowHtml(ctx, activity, 0, true);
+  }).join("");
 }
 
 /** The pane's fixed bar: how much is going on, opening to a row for each activity. Empty when there is none. */
@@ -71,9 +85,15 @@ export function renderBackgroundActivities(ctx: AgentRenderContext, activities: 
   });
 }
 
+/** Stopping ends work that can't be resumed, so it asks first. */
 function stopHtml(ctx: AgentRenderContext, activity: BackgroundActivity): string {
   if (!activity.stoppable || !activity.running) return "";
-  return `<form method="post" action="${escapeHtml(backgroundActivityPath(ctx, activity.key, "/stop"))}" class="agent-background-stop">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Stop", iconHtml: Icons.Stop } })}</form>`;
+  return `<form method="post" action="${escapeHtml(backgroundActivityPath(ctx, activity.key, "/stop"))}" class="agent-background-stop">${destructiveConfirmationHtml({
+    id: `${ids.backgroundDetail(ctx, activity.key)}_stop`,
+    trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Stop" } },
+    confirmCaption: `Stop ${activity.kind}`,
+    cancelCaption: "Keep running",
+  })}</form>`;
 }
 
 /** Wraps detail that only changes when reloaded, such as output read on request, so it stays current while the activity runs. */
@@ -97,7 +117,7 @@ export function renderBackgroundInlineDetail(ctx: AgentRenderContext, activity: 
   return `<turbo-frame id="${ids.backgroundDetail(ctx, activity.key)}" refresh="morph"><div class="agent-background-detail">${factsHtml(ctx, activity)}${stopHtml(ctx, activity)}${detailHtml}</div></turbo-frame>`;
 }
 
-const backHtml = buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Back, label: "Back to the conversation" }, attributesHtml: 'data-action="agent-background#back"' });
+const backHtml = buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Back, label: "Back" }, attributesHtml: 'data-action="agent-background#back"' });
 
 /** A drill-in activity's own page: Back, its name, Stop and its facts, then the Agent's own detail such as a subagent's transcript. */
 export function renderBackgroundPage(ctx: AgentRenderContext, activity: BackgroundActivity, detailHtml: string): string {
@@ -137,6 +157,20 @@ export function backgroundReportHtml(ctx: AgentRenderContext, itemKey: string): 
 /** A command's or monitor's output, for Agents that show one. */
 export function backgroundOutputHtml(text: string, header = "Output"): string {
   return `<div class="agent-tool-detail"><section class="agent-tool-region"><div class="agent-region-header">${escapeHtml(header)}</div><pre class="agent-tool-result agent-tool-region-body">${escapeHtml(text || "(no output yet)")}</pre></section></div>`;
+}
+
+const scriptFrameId = (ctx: AgentRenderContext, activity: BackgroundActivity) => `${ids.backgroundDetail(ctx, activity.key)}_script`;
+
+/** Where a workflow's script loads into its detail, from `script` beneath the activity's path. It loads once, so reloading the detail keeps it, whether it is open and whether it shows readable or original. */
+export function backgroundScriptFrameHtml(ctx: AgentRenderContext, activity: BackgroundActivity): string {
+  return `<turbo-frame class="agent-background-script-frame" id="${scriptFrameId(ctx, activity)}" src="${escapeHtml(backgroundActivityPath(ctx, activity.key, "/script"))}" loading="lazy" data-turbo-permanent></turbo-frame>`;
+}
+
+/** A workflow's script, highlighted and readably formatted, for `backgroundScriptFrameHtml`; with a `collapsedLabel`, folded under it. */
+export function backgroundScriptResponse(ctx: AgentRenderContext, activity: BackgroundActivity, script: string, collapsedLabel?: string): Response {
+  const region = `<div class="agent-tool-detail">${scriptSourceRegion(script, formatWorkflowScriptForDisplay(script))}</div>`;
+  const html = collapsedLabel ? disclosureHtml({ summary: { kind: "compact", width: "fill", label: { kind: "text", text: collapsedLabel } }, bodyHtml: region }) : region;
+  return response(`<turbo-frame id="${scriptFrameId(ctx, activity)}">${html}</turbo-frame>`);
 }
 
 /** Shown when an activity has finished since its row was opened. */
