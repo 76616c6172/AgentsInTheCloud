@@ -1,7 +1,7 @@
 import { agentConnectionShouldRun } from "../../src/client/agent-pane.ts";
 import { forwardAgentTerminalWheel, terminalOutputHasPrintableText } from "../../src/client/terminal-controller.ts";
 import { describe, expect, mock, test } from "bun:test";
-import { type AgentCompletionInput, agentCompletionRequest, agentComposerPrimaryAction, agentComposerTextStorageKey, fileCompletionPrefix, insertSlashCommand, navigatePromptHistory, promptTemplateShortcutConflict } from "@agents-in-the-cloud/agent/client/agent-controllers";
+import { type AgentCompletionInput, agentCompletionRequest, agentComposerPrimaryAction, agentComposerTextStorageKey, composerPromptSuggestion, fileCompletionPrefix, insertSlashCommand, navigatePromptHistory, promptSuggestionKeyAction, promptTemplateShortcutConflict } from "@agents-in-the-cloud/agent/client/agent-controllers";
 
 function input(value: string, cursor = value.length): AgentCompletionInput {
   return {
@@ -33,6 +33,26 @@ describe("Agent pane residency", () => {
     expect(agentComposerPrimaryAction(true, "", 1)).toBe("steer");
     expect(agentComposerPrimaryAction(true, "Follow up", 0)).toBe("steer");
     expect(agentComposerPrimaryAction(false, "", 0)).toBe("send");
+  });
+});
+
+describe("agent prompt suggestions", () => {
+  const key = (key: string, modifiers: Partial<Pick<KeyboardEvent, "metaKey" | "ctrlKey" | "altKey" | "shiftKey">> = {}) => ({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, ...modifiers });
+
+  test("a suggestion steps aside for staged attachments", () => {
+    expect(composerPromptSuggestion(" Run the tests \n", 0)).toBe("Run the tests");
+    expect(composerPromptSuggestion("Run the tests", 1)).toBeUndefined();
+    expect(composerPromptSuggestion("  ", 0)).toBeUndefined();
+  });
+
+  test("Tab and the right arrow write a suggestion in, sending sends it unless that would stop work", () => {
+    expect(promptSuggestionKeyAction(key("Tab"), true)).toBe("accept");
+    expect(promptSuggestionKeyAction(key("ArrowRight"), false)).toBe("accept");
+    expect(promptSuggestionKeyAction(key("Enter", { metaKey: true }), true)).toBe("send");
+    expect(promptSuggestionKeyAction(key("Enter", { ctrlKey: true }), false)).toBeUndefined();
+    expect(promptSuggestionKeyAction(key("Enter"), true)).toBeUndefined();
+    expect(promptSuggestionKeyAction(key("Tab", { shiftKey: true }), true)).toBeUndefined();
+    expect(promptSuggestionKeyAction(key("ArrowUp"), true)).toBeUndefined();
   });
 });
 

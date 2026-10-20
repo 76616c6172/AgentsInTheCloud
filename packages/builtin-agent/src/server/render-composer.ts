@@ -101,6 +101,7 @@ function renderAgentPaneComposer(options: AgentComposerRenderOptions): string {
       </form>
       <div class="agent-completion-menu-host" data-agent-completions-target="menu" hidden></div>
       <div id="${ids.completionCatalog(ctx)}" data-agent-completions-target="catalog" hidden></div>
+      <div id="${ids.promptSuggestion(ctx)}" data-agent-completions-target="suggestion" hidden></div>
       <form id="${ids.abortForm(ctx)}" method="post" action="${escapeHtml(agentPath(ctx, "/abort"))}" hidden></form>
       <div class="composer-footer" data-controller="agent-footer" id="${ids.stats(ctx)}"></div>
     </div>

@@ -2,6 +2,7 @@ import { setContentRowLabel } from "@agents-in-the-cloud/design-system/content-r
 import { autocompleteHtml } from "@agents-in-the-cloud/design-system/autocomplete";
 import { agentComposerSendPromptEvent, changeLayout, composerSubmitKey, type AgentComposerSendPromptDetail, focusLikelyOpensSoftwareKeyboard, isApplePlatform, setTextInputValue, type WorkspaceClientCommand, type WorkspaceClientControllerConstructor as StimulusControllerConstructor, type WorkspaceClientHooks } from "@agents-in-the-cloud/shared";
 import { agentCompletionRequest, insertFileCompletion, insertSlashCommand } from "./completion-input.ts";
+import { composerPromptSuggestion, promptSuggestionKeyAction } from "./composer-state.ts";
 import { createHtmlAutocompleteController } from "./html-autocomplete-controller.ts";
 import { handleAgentTreeKeydown, handleAgentTreeMenuEvent, selectAgentTreeOption } from "./session-tree.ts";
 
@@ -145,6 +146,23 @@ async function expandedSlashCommand(url: string, text: string): Promise<string> 
   return await response.text();
 }
 
+/** The prompt suggestion the composer offers in place of its placeholder, if any. */
+function composerSuggestion(input: HTMLInputElement | HTMLTextAreaElement): string | undefined {
+  const target = input.closest(".composer")!.querySelector<HTMLElement>("[data-agent-completions-target='suggestion']");
+  if (!target) return undefined;
+  return composerPromptSuggestion(target.textContent!, input.form!.querySelectorAll('input[name="attachment"]').length);
+}
+
+/** The suggestion showing in the empty composer. */
+function shownSuggestion(input: HTMLInputElement | HTMLTextAreaElement): string | undefined {
+  return input.value === "" ? composerSuggestion(input) : undefined;
+}
+
+/** An empty composer's send button stops running work instead, so the suggestion can't be sent then. */
+function suggestionSendable(input: HTMLInputElement | HTMLTextAreaElement): boolean {
+  return !input.closest(".composer")!.querySelector('[data-agent-stoppable="true"]');
+}
+
 function composerIsDictating(element: Element): boolean {
   return Boolean(element.closest(".composer")?.hasAttribute("data-dictating"));
 }
@@ -186,6 +204,16 @@ export function createAgentCompletionsController(Controller: StimulusControllerC
       else if (option.dataset.completionKind === "file") insertFileCompletion(option, input);
     },
     keydown(event, input, url, actions) {
+      const suggestion = actions.open ? undefined : shownSuggestion(input);
+      const suggestionAction = suggestion === undefined ? undefined : promptSuggestionKeyAction(event, suggestionSendable(input));
+      if (suggestion !== undefined && suggestionAction) {
+        actions.setInputValue(suggestion);
+        // The pane sends what is now written.
+        if (suggestionAction === "send") return false;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return true;
+      }
       if (event.key === "ArrowUp" && input.value === "" && !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey) {
         actions.close();
         return false;
@@ -223,11 +251,15 @@ export function createAgentCompletionsController(Controller: StimulusControllerC
   });
 
   return class AgentCompletionsController extends HtmlAutocompleteController {
-    static targets = [...HtmlAutocompleteController.targets, "promptTemplateButtons"];
+    static targets = [...HtmlAutocompleteController.targets, "promptTemplateButtons", "suggestion"];
     declare readonly catalogTarget: HTMLElement;
     declare readonly promptTemplateButtonsTarget: HTMLElement;
     declare readonly hasPromptTemplateButtonsTarget: boolean;
+    declare readonly suggestionTarget: HTMLElement;
+    declare readonly hasSuggestionTarget: boolean;
     private catalogObserver?: MutationObserver;
+    private suggestionObserver?: MutationObserver;
+    private placeholder = "";
 
     connect(): void {
       super.connect();
@@ -236,13 +268,57 @@ export function createAgentCompletionsController(Controller: StimulusControllerC
       if (this.hasPromptTemplateButtonsTarget) this.promptTemplateButtonsTarget.addEventListener("click", this.promptTemplateButton);
       this.renderPromptTemplateButtons();
       this.input();
+      if (this.hasSuggestionTarget) this.connectSuggestion();
     }
 
     disconnect(): void {
       this.catalogObserver?.disconnect();
+      this.suggestionObserver?.disconnect();
       if (this.hasPromptTemplateButtonsTarget) this.promptTemplateButtonsTarget.removeEventListener("click", this.promptTemplateButton);
+      if (this.hasSuggestionTarget) {
+        this.element.removeEventListener("click", this.sendClicked);
+        this.inputTarget.form!.removeEventListener("submit", this.suggestionSent);
+      }
       super.disconnect();
     }
+
+    private connectSuggestion(): void {
+      const form = this.inputTarget.form!;
+      const hint = this.inputTarget.dataset.composerSendHint;
+      const placeholder = this.inputTarget.placeholder;
+      this.placeholder = hint && placeholder.endsWith(hint) ? placeholder.slice(0, -hint.length) : placeholder;
+      this.suggestionObserver = new MutationObserver(() => this.renderSuggestion());
+      this.suggestionObserver.observe(this.suggestionTarget, { childList: true, characterData: true, subtree: true });
+      this.suggestionObserver.observe(form.querySelector('[data-agent-attachments-target="row"]')!, { childList: true });
+      this.element.addEventListener("click", this.sendClicked);
+      form.addEventListener("submit", this.suggestionSent);
+      this.renderSuggestion();
+    }
+
+    /** The suggestion is the placeholder, so it shows exactly while the composer is empty. The send hint follows it: sending sends it. */
+    private renderSuggestion(): void {
+      const placeholder = `${composerSuggestion(this.inputTarget) ?? this.placeholder}${this.inputTarget.dataset.composerSendHint ?? ""}`;
+      if (this.inputTarget.placeholder === placeholder) return;
+      changeLayout(() => {
+        this.inputTarget.placeholder = placeholder;
+        this.element.dispatchEvent(new Event("agent-composer:resize", { bubbles: true }));
+      });
+    }
+
+    /** Sending from an empty composer sends the suggestion it shows. */
+    private readonly sendClicked = (event: MouseEvent): void => {
+      const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('button[type="submit"]') : null;
+      const input = this.inputTarget;
+      // Stop submits the abort form instead.
+      if (button?.form !== input.form) return;
+      const suggestion = shownSuggestion(input);
+      if (suggestion !== undefined && suggestionSendable(input)) setTextInputValue(input, suggestion);
+    };
+
+    /** A sent prompt answers the suggestion; the next one arrives after the turn. */
+    private readonly suggestionSent = (): void => {
+      this.suggestionTarget.replaceChildren();
+    };
 
     /** Prompt template buttons always sit in the composer, so its height never changes late. */
     private renderPromptTemplateButtons(): void {

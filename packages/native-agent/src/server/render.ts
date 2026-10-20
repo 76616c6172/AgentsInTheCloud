@@ -3,7 +3,7 @@ import { renderLazyTranscriptEntry, renderTranscript } from "@agents-in-the-clou
 import { ids, type AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
 import type { TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderAgentPane, renderAgentPaneComposerFooter, renderPromptActions, type AgentStatsView } from "@agents-in-the-cloud/builtin-agent/server/render-composer";
-import type { LiveRegion } from "@agents-in-the-cloud/shared";
+import { escapeHtml, type LiveRegion } from "@agents-in-the-cloud/shared";
 import type { NativeAgentRuntime } from "./agents.ts";
 
 /** A native Agent's pane: its projected transcript, then notices and a lost connection. */
@@ -36,6 +36,7 @@ export function createNativeAgentRendering<Runtime extends NativeAgentRuntime>(o
       { target: ids.actions(ctx), html: renderPromptActions(ctx, runtime.isTurnRunning, runtime.isBusy) },
       { target: ids.stats(ctx), html: renderAgentPaneComposerFooter(ctx, options.stats(runtime)), morph: false },
       { target: ids.completionCatalog(ctx), html: runtime.completionCatalog },
+      { target: ids.promptSuggestion(ctx), html: escapeHtml(runtime.promptSuggestion ?? "") },
     ];
   }
   async function paneHtml(runtime: Runtime) {

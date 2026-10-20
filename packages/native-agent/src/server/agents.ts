@@ -23,6 +23,8 @@ export interface NativeAgentRuntime {
   /** Waits for a connecting harness. */
   systemPrompt(): Promise<string>;
   readonly completionCatalog: string;
+  /** A predicted next prompt, shown in the empty composer. */
+  readonly promptSuggestion?: string;
   readonly presentation: ReturnType<typeof createLivePresentation>;
   refreshCompletionCatalog(): Promise<void>;
   reconnect(): Promise<void>;

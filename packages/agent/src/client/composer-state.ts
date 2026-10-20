@@ -1,4 +1,4 @@
-import { setTextInputValue } from "@agents-in-the-cloud/shared";
+import { composerSubmitKey, setTextInputValue } from "@agents-in-the-cloud/shared";
 
 export function agentComposerTextStorageKey(workspaceId: string, agentId: string): string {
   return `agents-in-the-cloud.agentComposerText:${JSON.stringify([workspaceId, agentId])}`;
@@ -7,6 +7,19 @@ export function agentComposerTextStorageKey(workspaceId: string, agentId: string
 export function agentComposerPrimaryAction(busy: boolean, text: string, attachmentCount: number, hasStoppableWork = busy): "abort" | "send" | "steer" {
   if (hasStoppableWork && !text.trim() && attachmentCount === 0) return "abort";
   return busy ? "steer" : "send";
+}
+
+/** A prompt suggestion takes the composer's placeholder, unless staged attachments ask for something else. */
+export function composerPromptSuggestion(suggestion: string, attachmentCount: number): string | undefined {
+  const text = suggestion.trim();
+  return text && attachmentCount === 0 ? text : undefined;
+}
+
+/** What a key does to a suggestion showing in the empty composer: Tab or → writes it in, sending sends it, unless sending would stop work instead. */
+export function promptSuggestionKeyAction(event: Pick<KeyboardEvent, "key" | "metaKey" | "ctrlKey" | "altKey" | "shiftKey">, sendable: boolean): "accept" | "send" | undefined {
+  if (composerSubmitKey(event)) return sendable ? "send" : undefined;
+  if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey) return undefined;
+  return event.key === "Tab" || event.key === "ArrowRight" ? "accept" : undefined;
 }
 
 type PromptHistoryState = { prompts: string[]; draft: string; index: number };
