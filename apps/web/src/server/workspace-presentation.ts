@@ -324,7 +324,7 @@ function renderEmptyWorkPane(workspaceId: string, commands: NonNullable<Workspac
     });
     return `<form data-turbo="true" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/commands/${encodeURIComponent(command.id)}">${item}</form>`;
   }).join("");
-  return `<div id="${workViewDomId(workspaceId, "empty")}" class="fixed-shell-empty-work empty-state"><div class="fixed-shell-empty-work-content"><div class="fixed-shell-empty-work-launchers action-list">${launchers}</div></div></div>`;
+  return `<div id="${workViewDomId(workspaceId, "empty")}" class="fixed-shell-empty-pane empty-state"><div class="fixed-shell-empty-pane-choices action-list">${launchers}</div></div>`;
 }
 
 function renderWorkPane(presentation: WorkspacePresentation): string {
