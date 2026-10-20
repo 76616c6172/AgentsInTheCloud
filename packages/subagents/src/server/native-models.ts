@@ -1,19 +1,23 @@
 import { isJsonObject } from "@agents-in-the-cloud/core";
-import type { Models } from "@earendil-works/pi-ai";
-import { GenerationTask, hook, type Harness } from "@earendil-works/pi-durable";
+import type { Message, Models } from "@earendil-works/pi-ai";
+import { GenerationTask, hook, type ConversationId, type Harness } from "@earendil-works/pi-durable";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { attribution, Delegation, updateReceipt } from "./native-state.ts";
 import { SubagentModelInput } from "./subagent-model-input.ts";
 
 /** Request identity is ephemeral. A history fork may replay an ancestor's message,
  * but must never drain that ancestor's mailbox or rewrite its delivery evidence. */
+export function stampDelegationRequestIdentity(messages: readonly Message[], conversationId: ConversationId): Message[] {
+  return messages.map(message => {
+    const part = attribution(message);
+    if (!part) return message;
+    return { ...message, content: [{ ...part, agentsInTheCloudAgentMessage: { ...part.agentsInTheCloudAgentMessage, requestConversationId: conversationId } }] };
+  });
+}
+
 export const delegationRequestIdentity = hook(GenerationTask, {
   beforeRequest(request, api) {
-    return { messages: request.messages.map(message => {
-      const part = attribution(message);
-      if (!part) return message;
-      return { ...message, content: [{ ...part, agentsInTheCloudAgentMessage: { ...part.agentsInTheCloudAgentMessage, requestConversationId: api.conversationId } }] };
-    }) };
+    return { messages: stampDelegationRequestIdentity(request.messages, api.conversationId) };
   },
 });
 

@@ -3,7 +3,7 @@ import { durableContextTokens } from "./durable-accounting.ts";
 import { renderDurableTree } from "./durable-tree.ts";
 import type { TreeFilterMode } from "./session-tree.ts";
 import { createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
-import { createLivePresentation, type LiveRegion, type LiveRegionDigests } from "@agents-in-the-cloud/shared";
+import { createLivePresentation, escapeHtml, type LiveRegion, type LiveRegionDigests } from "@agents-in-the-cloud/shared";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { DurableAgentController } from "./durable-runtime.ts";
 import { DurableAgentPresentation } from "./durable-presentation.ts";
@@ -43,6 +43,7 @@ export class AgentPresentation {
       { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork) },
       { target: ids.stats(this), html: renderAgentPaneComposerFooter(this, this.stats()), morph: false },
       { target: ids.completionCatalog(this), html: this.catalog },
+      { target: ids.promptSuggestion(this), html: escapeHtml(this.controller.promptSuggestion ?? "") },
       { target: notificationControlId(this), html: renderNotificationControl(this, this.isStreaming), action: "replace" },
       ...(this.failure ? [{ target: ids.notices(this), html: renderNotice("error", "This Agent view disconnected. Reload to reconnect.") }] : []),
     ];

@@ -3,7 +3,7 @@ import { Value } from "typebox/value";
 import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
 import { listWorkspaceAgents, configureAgentDelegation, durableWorkspaceOwner } from "@agents-in-the-cloud/builtin-agent/server";
 import { createNativeDelegationExtension } from "./native-runtime.ts";
-import { delegationModels } from "./native-models.ts";
+import { delegationModels, stampDelegationRequestIdentity } from "./native-models.ts";
 import { nativeDelegationTranscript } from "./native-transcript.ts";
 import { attributedEntry } from "./native-state.ts";
 import { nativeToolPresentations } from "./native-tool-presentation.ts";
@@ -17,6 +17,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     configureAgentDelegation({
       renderControl: renderSubagentsControl,
       create(models, harness) { return { extension: createNativeDelegationExtension(harness), models: delegationModels(models, harness) }; },
+      requestMessages: stampDelegationRequestIdentity,
       transcript: nativeDelegationTranscript,
       attributed: attributedEntry,
       toolPresentations: nativeToolPresentations,

@@ -3,6 +3,7 @@ import { constants } from "node:os";
 import { Readable, Writable } from "node:stream";
 import { query, type EffortLevel, type Options, type SDKMessage, type SDKUserMessage, type SpawnedProcess } from "@anthropic-ai/claude-agent-sdk";
 import { resolveWorkspace, startInWorkspace, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { readPromptSuggestionsEnabled } from "@agents-in-the-cloud/agent/server/prompt-suggestions";
 import { claudeConfigDirectory, claudeExecutable, claudeMcpConfigPath } from "./setup.ts";
 
 /** Which native conversation the process continues. A fork resumes `resume` into the new `sessionId`. */
@@ -98,7 +99,7 @@ export async function openClaudeTransport(workspaceId: string, agentId: string, 
     // No client surface answers these yet; Claude asks in its reply instead.
     disallowedTools: ["AskUserQuestion", "EnterPlanMode", "ExitPlanMode"],
     includePartialMessages: true,
-    promptSuggestions: true,
+    promptSuggestions: await readPromptSuggestionsEnabled(),
     thinking: { type: "adaptive", display: "summarized" },
     model: start.model,
     effort: start.effort,

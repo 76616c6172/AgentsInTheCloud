@@ -7,6 +7,7 @@
     "./server": "./src/server/index.ts",
     "./client": "./src/client/index.ts",
     "./server/agent-name-command": "./src/server/agent-name-command.ts",
+    "./server/prompt-suggestions": "./src/server/prompt-suggestions.ts",
     "./server/bash-tmux": "./src/server/bash-tmux.ts",
     "./server/builtin-slash-commands": "./src/server/builtin-slash-commands.ts",
     "./server/completion-catalog": "./src/server/completion-catalog.ts",

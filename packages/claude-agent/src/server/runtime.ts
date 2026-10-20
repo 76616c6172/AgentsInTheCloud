@@ -4,6 +4,7 @@ import { createKeyedOperationQueue, invalidArguments, type AgentsInTheCloudEvent
 import { createLivePresentation, type WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
 import { createPiModelRuntime, parseModelRef, setAgentModelPreference } from "@agents-in-the-cloud/llm/server";
 import { publishWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
+import { readPromptSuggestionsEnabled } from "@agents-in-the-cloud/agent/server/prompt-suggestions";
 import { createNativeAgents } from "@agents-in-the-cloud/native-agent/server";
 import { listPromptTemplates } from "@agents-in-the-cloud/agent/server/prompt-templates";
 import { renderSlashCommandCatalog } from "@agents-in-the-cloud/agent/server/slash-commands";
@@ -327,7 +328,12 @@ export class ClaudeRuntime {
       void this.refreshHistory().catch(error => console.error("Could not read Claude Code history", error));
       void this.refreshContextUsage().then(() => this.changed()).catch(error => console.error("Could not read Claude Code context usage", error));
     } else if (message.type === "prompt_suggestion") {
-      this.promptSuggestion = message.suggestion;
+      // The setting is read when Claude connects; turning it off since then still hides new suggestions.
+      void readPromptSuggestionsEnabled().then(enabled => {
+        if (!enabled || this.running) return;
+        this.promptSuggestion = message.suggestion;
+        this.changed();
+      }).catch(error => console.error("Could not read the Suggested prompts setting", error));
     } else if (message.type === "stream_event" || message.type === "assistant") {
       // A queued prompt started its own turn.
       this.running = true;

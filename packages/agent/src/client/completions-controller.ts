@@ -150,7 +150,8 @@ async function expandedSlashCommand(url: string, text: string): Promise<string> 
 function composerSuggestion(input: HTMLInputElement | HTMLTextAreaElement): string | undefined {
   const target = input.closest(".composer")!.querySelector<HTMLElement>("[data-agent-completions-target='suggestion']");
   if (!target) return undefined;
-  return composerPromptSuggestion(target.textContent!, input.form!.querySelectorAll('input[name="attachment"]').length);
+  // Chips still uploading count too: they will be sent.
+  return composerPromptSuggestion(target.textContent!, input.form!.querySelectorAll(".agent-chip").length);
 }
 
 /** The suggestion showing in the empty composer. */
@@ -278,6 +279,8 @@ export function createAgentCompletionsController(Controller: StimulusControllerC
       if (this.hasSuggestionTarget) {
         this.element.removeEventListener("click", this.sendClicked);
         this.inputTarget.form!.removeEventListener("submit", this.suggestionSent);
+        // A reconnect reads the placeholder as its base again, so leave no suggestion in it.
+        this.inputTarget.placeholder = `${this.placeholder}${this.inputTarget.dataset.composerSendHint ?? ""}`;
       }
       super.disconnect();
     }

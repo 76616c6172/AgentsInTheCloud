@@ -4,11 +4,12 @@ import { publishWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
 import { startNotificationTurn, finishNotificationTurn } from "./turn-notifications.ts";
 import { sendTurnNotification } from "./web-push.ts";
 import { durableTimingEntry } from "./durable-timing.ts";
+import { recordDurableSubscriptionActivity } from "./durable-accounting.ts";
 import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
 import { checkWorkspaceReadiness } from "@agents-in-the-cloud/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { contentText, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
-import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
+import { contentText, getSupportedThinkingLevels, type SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, ProviderDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
 import { createDurableHarnessOptions, prepareDurableAgent } from "./durable-assembly.ts";
 import { durableStopScope, commitDurableStop, markGatedDurableWork, settleStoppedDurableWork, WorkspaceAdmission, WorkspaceStops } from "./durable-lifecycle.ts";
 import { durableImageEndpoint } from "./durable-images.ts";
@@ -16,6 +17,9 @@ import { submitDurableInput, type DurableInput } from "./durable-input.ts";
 import { openDurableWorkspace, WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
 import { expandWorkspaceSkillCommand } from "@agents-in-the-cloud/agent/server/skills";
 import type { WorkspaceAgentToolOptions } from "@agents-in-the-cloud/agent/server/tools";
+import { readPromptSuggestionsEnabled } from "@agents-in-the-cloud/agent/server/prompt-suggestions";
+import { agentDelegation } from "./delegation.ts";
+import { acceptablePromptSuggestion, addModelUsage, promptSuggestionDue, promptSuggestionEligible, promptSuggestionCacheMissLimit, promptSuggestionMissedCache, promptSuggestionProviders, promptSuggestionRequest, providerNearUsageLimit } from "./prompt-suggestion.ts";
 
 const context = BACKGROUND_CONTEXT;
 const DurableHistoryLabels = defineDoc<{ labels: Record<string, string[]> }>({
@@ -124,6 +128,11 @@ export async function openDurableAgentRuntime(
     const renderContext = { workspaceId, agentId: identity.agentId };
     let busy = false;
     let observation: Awaited<ReturnType<Conversation["watch"]>> | undefined;
+    let promptSuggestion: string | undefined;
+    let suggesting: AbortController | undefined;
+    let ignoredSuggestions = 0;
+    let turnsSinceBackoff = 0;
+    let suggestionCacheMisses = 0;
     function statusChanged() { for (const listener of statusListeners) listener(); }
     function publishBusy(value: boolean) {
       busy = value;
@@ -136,7 +145,13 @@ export async function openDurableAgentRuntime(
       const live = view.docs[LiveDoc.definition.kind] as LiveState | undefined;
       const nextBusy = Boolean(live?.run || live?.compactions?.length);
       if (nextBusy === busy) return;
-      if (nextBusy) startNotificationTurn(renderContext, statusChanged);
+      if (nextBusy) {
+        startNotificationTurn(renderContext, statusChanged);
+        // A turn answers the suggestion; the next one follows it.
+        suggesting?.abort();
+        suggesting = undefined;
+        promptSuggestion = undefined;
+      }
       publishBusy(nextBusy);
       if (!nextBusy) {
         const subscription = finishNotificationTurn(renderContext);
@@ -145,7 +160,45 @@ export async function openDurableAgentRuntime(
         // execution observation. Report their failure without terminating the watch.
         await options.events?.emit("workspace_agent_turn_finished", renderContext)
           .catch(error => console.error("Could not publish Agent turn completion", error));
+        void suggestPrompt().catch(error => console.error("Could not suggest a prompt", error));
       }
+    }
+    /** Guesses the next prompt with the turn's own request, plus one instruction, so it reads the turn's prompt cache. */
+    async function suggestPrompt() {
+      if (identity.readOnly || identity.parentId || suggestionCacheMisses >= promptSuggestionCacheMissLimit) return;
+      const { model: ref, thinkingLevel } = await conversation.agent(context);
+      const model = ref && promptSuggestionProviders.has(ref.provider) ? harnessOptions.models.getModel(ref.provider, ref.modelId) : undefined;
+      if (!model) return;
+      const { messages } = await conversation.context(context);
+      if (!promptSuggestionEligible(messages)) return;
+      if (ignoredSuggestions >= 3) turnsSinceBackoff++;
+      if (!promptSuggestionDue(ignoredSuggestions, turnsSinceBackoff)) return;
+      if (!await readPromptSuggestionsEnabled() || await providerNearUsageLimit(model.provider)) return;
+      const provider = await harness.snapshot(ProviderDoc, conversation.id, context);
+      if (!provider || busy) return;
+      const abort = new AbortController();
+      suggesting = abort;
+      // The same session id selects the turn's prompt cache; SSE leaves the turn's WebSocket continuation alone.
+      const requestOptions: SimpleStreamOptions = { signal: abort.signal, sessionId: provider.sessionId, transport: "sse" };
+      // Measured on every openai-codex and xai model: any other thinking level, even one step lower, misses the cache.
+      if (thinkingLevel !== "off") requestOptions.reasoning = thinkingLevel;
+      const reply = await harnessOptions.models.completeSimple(model, {
+        messages: [...agentDelegation?.requestMessages(messages, conversation.id) ?? messages, promptSuggestionRequest(Date.now())],
+      }, requestOptions);
+      // A finished reply was paid for even when a turn has since answered it; a closed, deleted or suspended conversation takes no writes.
+      if (reply.stopReason !== "aborted" && !suspended && !deleted && !closed.has(conversation.id)) {
+        await harness.commit(async tx => { addModelUsage((await tx.doc(UsageDoc, conversation.id)).models, `${reply.provider}/${reply.model}`, reply.usage); }, context);
+        await recordDurableSubscriptionActivity(harnessOptions.models, reply);
+      }
+      if (suggesting !== abort) return;
+      suggesting = undefined;
+      if (reply.stopReason === "error") throw new Error(reply.errorMessage);
+      suggestionCacheMisses = promptSuggestionMissedCache(reply.usage) ? suggestionCacheMisses + 1 : 0;
+      if (suggestionCacheMisses === promptSuggestionCacheMissLimit) {
+        console.error("Prompt suggestions keep missing the prompt cache; this Agent stops suggesting", { workspaceId, agentId: identity.agentId, usage: reply.usage });
+      }
+      promptSuggestion = acceptablePromptSuggestion(reply.content.flatMap(part => part.type === "text" ? [part.text] : []).join(""));
+      statusChanged();
     }
     async function observe() {
       if (identity.readOnly) return;
@@ -166,6 +219,8 @@ export async function openDurableAgentRuntime(
       });
     }
     observers.add(async () => {
+      suggesting?.abort();
+      suggesting = undefined;
       const watch = observation;
       observation = undefined;
       await watch?.stop();
@@ -272,6 +327,7 @@ export async function openDurableAgentRuntime(
       subscribeSelection(listener: () => Promise<void>) { selectionListeners.add(listener); return () => { selectionListeners.delete(listener); }; },
       subscribeStatus(listener: () => void) { statusListeners.add(listener); return () => { statusListeners.delete(listener); }; },
       settings: () => conversation.agent(context),
+      get promptSuggestion() { return promptSuggestion; },
       get hasStoppableWork() {
         const scope = new Set(durableStopScope(catalogWatch!.value!.agents, conversation.id, !identity.parentId));
         return Object.values(taskWatch.value.tasks).some(task => scope.has(task.conversationId) && task.kind !== "agents-in-the-cloud.delegation-anchor");
@@ -344,6 +400,8 @@ export async function openDurableAgentRuntime(
       close() {
         assertOpen();
         closed.add(conversation.id);
+        suggesting?.abort();
+        suggesting = undefined;
         return closing ??= (async () => {
           await tail;
           for (const id of await branches()) closed.add(id);
@@ -392,6 +450,10 @@ export async function openDurableAgentRuntime(
           await load.validateModel((await conversation.agent(context)).model);
           await readyForExecution();
           assertAdmission();
+          if (promptSuggestion !== undefined) {
+            if (input.text.trim() === promptSuggestion) ignoredSuggestions = turnsSinceBackoff = 0;
+            else ignoredSuggestions++;
+          }
           return submitDurableInput(conversation, workspaceId, harnessOptions.models, input, context, async (id, text) => {
             const expanded = await load.expand(id, text);
             assertAdmission();

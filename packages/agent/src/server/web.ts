@@ -9,6 +9,7 @@ import { sessionShareDir, sessionShareKeyForInit, sessionShareMountPath } from "
 import { createDeleteCurrentWorkspaceTool, registerWorkspaceAgentTool } from "./tools.ts";
 import { usageOpenApiPaths } from "./usage-openapi.ts";
 import { handleUsageRequest, renderUsagePaneAction } from "./usage-web.ts";
+import { promptSuggestionSettingsContribution } from "./prompt-suggestions.ts";
 import { workspaceFileEndpoint } from "./workspace-files.ts";
 import { subscribeWorkspaceAgentBusy } from "./workspace-agent-busy.ts";
 
@@ -41,6 +42,7 @@ export const agentWorkspaceModule: WorkspaceModule = {
   renderWorkspacePaneActions: renderUsagePaneAction,
   openApiPaths: usageOpenApiPaths,
   routes: [{ handle: handleUsageRequest }],
+  settingsContributions: [promptSuggestionSettingsContribution],
   initialize(context) {
     registerSessionShareMountEvents(context.events);
     context.registerSocketHandler(createAgentTermSocketSession);

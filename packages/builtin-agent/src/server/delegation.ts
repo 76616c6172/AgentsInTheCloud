@@ -1,5 +1,5 @@
-import type { Models } from "@earendil-works/pi-ai";
-import type { Extension, Harness, ConversationView, EntryRecord } from "@earendil-works/pi-durable";
+import type { Message, Models } from "@earendil-works/pi-ai";
+import type { Extension, Harness, ConversationId, ConversationView, EntryRecord } from "@earendil-works/pi-durable";
 import type { AgentTranscriptSnapshot } from "@agents-in-the-cloud/agent/server/transcript-contributions";
 import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
 import { listWorkspaceAgents, type WorkspaceAgentInfo } from "./agent-store.ts";
@@ -10,6 +10,8 @@ export type { AgentToolPresentation } from "@agents-in-the-cloud/agent/server";
 export interface AgentDelegation {
   renderControl(workspaceId: string, agentId: string): Promise<string>;
   create(models: Models, harness: () => Harness): { extension: Extension; models: Models };
+  /** The messages a generation request sends, as the extension's request hook prepares them. */
+  requestMessages(messages: readonly Message[], conversationId: ConversationId): Message[];
   transcript(view: ConversationView): AgentTranscriptSnapshot;
   attributed(entry: EntryRecord): "task" | "message" | undefined;
   resolveAgent(workspaceId: string, agentId: string): Promise<WorkspaceAgentInfo | undefined>;
