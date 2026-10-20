@@ -544,9 +544,10 @@ export function createWorkspacePresentationController(
 
     private readonly syncMobileNavigationSelection = (): void => {
       const sidebarOpen = this.element.closest(".is-mobile-workspace-pane-open") !== null;
-      const workspace = this.element.querySelector<HTMLElement>("[data-show-workspace-list]")!;
-      workspace.setAttribute("aria-current", sidebarOpen ? "page" : "false");
-      workspace.setAttribute("aria-expanded", String(sidebarOpen));
+      this.element.querySelectorAll<HTMLElement>("[data-show-workspace-list]").forEach((workspace) => {
+        workspace.setAttribute("aria-current", sidebarOpen ? "page" : "false");
+        workspace.setAttribute("aria-expanded", String(sidebarOpen));
+      });
       const destinations = [...this.element.querySelectorAll<HTMLElement>("[data-mobile-destination]")];
       destinations.forEach((destination) => {
         const selected = !sidebarOpen && destination.dataset.mobileDestination === this.state.phoneDestination;

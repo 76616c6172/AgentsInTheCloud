@@ -14,19 +14,37 @@ interface SwipePresentation {
 
 interface SwipeNavigation {
   navigate: () => void;
-  /** The workspace list reveal, rather than a move between the Agent and Work panes. */
-  drawer: boolean;
+  /** The workspace list reveal, the Agent↔Work depth swap, or Work round the ring to the list. */
+  motion: "drawer" | "pane" | "loop";
 }
 
 // A flick commits regardless of distance; a slow drag commits past halfway.
 const flickVelocity = 0.3;
+// Agents preview settles this far while Work's card lifts off it.
+const loopNudge = 24;
+const loopCardProperties = ["--nox-loop-left", "--nox-loop-top", "--nox-loop-width", "--nox-loop-height", "--nox-loop-origin"];
+const loopAppProperties = ["--nox-drawer-progress", "--nox-list-progress", "--nox-loop-nudge", "--nox-loop-progress"];
+
+/** Where an element sits before any transform, in viewport coordinates. */
+function layoutBox(element: HTMLElement) {
+  let left = 0;
+  let top = 0;
+  // SAFETY: Offset parents of HTML elements are HTML elements.
+  for (let node: HTMLElement | null = element; node; node = node.offsetParent as HTMLElement | null) {
+    left += node.offsetLeft;
+    top += node.offsetTop;
+  }
+  return { left, top, width: element.offsetWidth, height: element.offsetHeight };
+}
 
 export class MobileSwipeController extends Controller<HTMLElement> {
   private stopObserving?: () => void;
   private readonly media = matchMedia(phoneLayoutMediaQuery);
   private readonly frameOrigins = new WeakMap<Window, string>();
-  /** An Agent↔Work move still settling; it commits its navigation when the motion ends. */
-  private paneMotion?: { finish: () => void };
+  /** A pane or loop move still settling; it commits its navigation when the motion ends. */
+  private motion?: { finish: () => void };
+  /** Work's card while it travels round the ring: its pane and a copy of its bar, both in the top layer. */
+  private loop?: { presentation: HTMLElement; work: HTMLElement; bar: HTMLElement };
 
   connect(): void {
     this.stopObserving = observeMobileSwipe(this.element, this.navigationFor, this.dragFor);
@@ -34,6 +52,7 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.element.addEventListener("click", this.tabTapped, true);
     this.element.addEventListener("load", this.frameLoaded, true);
     this.element.addEventListener("agents-in-the-cloud:presentation-changed", this.syncFrames, true);
+    this.element.addEventListener("turbo:before-morph-attribute", this.keepLoopCard);
     document.addEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncFrames);
     this.media.addEventListener("change", this.syncFrames);
     this.syncFrames();
@@ -45,6 +64,7 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.element.removeEventListener("click", this.tabTapped, true);
     this.element.removeEventListener("load", this.frameLoaded, true);
     this.element.removeEventListener("agents-in-the-cloud:presentation-changed", this.syncFrames, true);
+    this.element.removeEventListener("turbo:before-morph-attribute", this.keepLoopCard);
     document.removeEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncFrames);
     this.media.removeEventListener("change", this.syncFrames);
   }
@@ -72,27 +92,38 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   private resolveNavigation(direction: MobileSwipeDirection): SwipeNavigation | undefined {
     if (!this.media.matches || !this.workspaceElement
       || document.querySelector("dialog[open], :popover-open, .workspace-ssh-trust-overlay")) return;
+    const presentation = this.presentation;
+    // The list, Agents and Work form a ring: Work → list → Agents → Work.
     if (this.sidebarOpen) {
-      return direction === 1 ? { navigate: () => workspaceNavigationController()!.closeWorkspacePane(), drawer: true } : undefined;
+      if (direction === 1) return { navigate: () => workspaceNavigationController()!.closeWorkspacePane(), motion: "drawer" };
+      return presentation ? { navigate: () => presentation.selectMobileWork(), motion: "loop" } : undefined;
     }
-    const navigate = this.presentation?.mobileSwipeNavigation(direction);
-    if (navigate) return { navigate, drawer: false };
-    // The sidebar sits before the first content destination; never wrap at the end.
-    return direction === -1 ? { navigate: () => workspaceNavigationController()!.showWorkspacePane(), drawer: true } : undefined;
+    const navigate = presentation?.mobileSwipeNavigation(direction);
+    if (navigate) return { navigate, motion: "pane" };
+    if (direction === -1) return { navigate: () => workspaceNavigationController()!.showWorkspacePane(), motion: "drawer" };
+    // Past Work, the list opens exactly as it does from Agents, with Agents beside it.
+    const toAgents = presentation?.mobileSwipeNavigation(-1);
+    return toAgents ? { navigate: () => { toAgents(); workspaceNavigationController()!.showWorkspacePane(); }, motion: "loop" } : undefined;
   }
 
   private readonly navigationFor = (direction: MobileSwipeDirection): (() => void) | undefined => {
     const resolved = this.resolveNavigation(direction);
     if (!resolved) return;
-    if (resolved.drawer) return resolved.navigate;
-    // Frames navigate in one step: play the same depth swap a drag would.
+    if (resolved.motion === "drawer") return resolved.navigate;
+    // Frames navigate in one step: play the same motion a drag would.
     return () => {
-      this.settlePaneMotion();
+      this.settleMotion();
       const current = this.resolveNavigation(direction);
-      if (!current || current.drawer) return current?.navigate();
-      this.playPaneMotion(direction, current.navigate);
+      if (!current || current.motion === "drawer") return current?.navigate();
+      if (current.motion === "pane") this.playPaneMotion(direction, current.navigate);
+      else this.playLoop(direction, current.navigate);
     };
   };
+
+  /** Work's sidebar button goes the same way round as the swipe. */
+  loopToWorkspaces(): void {
+    this.navigationFor(1)?.();
+  }
 
   /** Tabs across the Agent/Work boundary play the depth swap; tabs within a side switch in place. */
   private readonly tabTapped = (event: MouseEvent): void => {
@@ -100,7 +131,7 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     const tab = event.target.closest<HTMLElement>("[data-nox-phone-tab]");
     const presentation = this.presentation;
     if (!tab || !presentation || !this.media.matches) return;
-    this.settlePaneMotion();
+    this.settleMotion();
     const onWork = this.presentationElement!.dataset.phoneDestination!.startsWith("work:");
     const toWork = tab.dataset.noxPhoneTab!.startsWith("work:");
     if (onWork === toWork) return;
@@ -121,10 +152,11 @@ export class MobileSwipeController extends Controller<HTMLElement> {
 
   /** Swipes in this document follow the finger; frames still navigate in one step. */
   private readonly dragFor = (direction: MobileSwipeDirection): MobileSwipeDrag | undefined => {
-    this.settlePaneMotion();
+    this.settleMotion();
     const resolved = this.resolveNavigation(direction);
     if (!resolved) return;
-    return resolved.drawer ? this.drawerDrag(resolved) : this.paneDrag(direction, resolved);
+    if (resolved.motion === "drawer") return this.drawerDrag(resolved);
+    return resolved.motion === "pane" ? this.paneDrag(direction, resolved) : this.loopDrag(direction, resolved);
   };
 
   private drawerDrag(resolved: SwipeNavigation): MobileSwipeDrag {
@@ -191,23 +223,156 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     const presentation = this.presentation!;
     element.removeAttribute("data-nox-pane-drag");
     element.style.setProperty("--nox-pane-progress", String(target));
-    const duration = matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Number.parseFloat(getComputedStyle(element).getPropertyValue("--motion-enter"));
     const finish = (): void => {
       clearTimeout(timer);
-      this.paneMotion = undefined;
+      this.motion = undefined;
       if (navigate) navigate();
       else presentation.endMobileSwipePreview();
       // The destination now holds the same progress, so dropping the inline value doesn't move anything.
       element.removeAttribute("data-nox-pane-motion");
       element.style.removeProperty("--nox-pane-progress");
     };
-    const timer = setTimeout(finish, duration);
-    this.paneMotion = { finish };
+    const timer = setTimeout(finish, this.motionDuration);
+    this.motion = { finish };
   }
 
-  private settlePaneMotion(): void {
-    this.paneMotion?.finish();
+  private settleMotion(): void {
+    this.motion?.finish();
   }
+
+  private get motionDuration(): number {
+    return matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : Number.parseFloat(getComputedStyle(this.element).getPropertyValue("--motion-enter"));
+  }
+
+  /* The loop runs between Work (progress 0) and the list (1). Work's card lifts off to the left,
+   * uncovering the list and the Agents preview already in place beneath it, so the list looks
+   * exactly as it does after a reveal from Agents. Backwards, Work lays back down over them. */
+
+  private loopDrag(direction: MobileSwipeDirection, resolved: SwipeNavigation): MobileSwipeDrag {
+    const start = this.beginLoop(direction);
+    const travel = this.element.clientWidth;
+    let progress = start;
+    return {
+      move: (distance) => {
+        progress = Math.min(1, Math.max(0, start - distance / travel));
+        this.setLoopProgress(progress);
+      },
+      end: (_distance, velocity) => {
+        const flick = Math.abs(velocity) >= flickVelocity;
+        const towardList = flick ? velocity < 0 : progress > 0.5;
+        const commit = towardList === (start === 0);
+        this.settleLoop(commit ? 1 - start : start, commit ? resolved.navigate : undefined);
+      },
+      cancel: () => this.settleLoop(start, undefined),
+    };
+  }
+
+  private playLoop(direction: MobileSwipeDirection, navigate: () => void): void {
+    const start = this.beginLoop(direction);
+    // Apply the starting position before moving, so the transition has somewhere to start from.
+    void this.element.offsetWidth;
+    this.settleLoop(1 - start, navigate);
+  }
+
+  /** Lifts Work's card into the top layer, out of the workspace's transform, and returns the starting progress. */
+  private beginLoop(direction: MobileSwipeDirection): number {
+    const app = this.element;
+    const presentation = this.presentationElement!;
+    const start = direction === 1 ? 0 : 1;
+    const header = presentation.querySelector<HTMLElement>(":scope > .nox-phone-header")!;
+    const work = presentation.querySelector<HTMLElement>(".fixed-shell-work-pane")!;
+    const bar = this.workBarCopy(header, presentation);
+    app.append(bar);
+    // The card moves as one, about the centre of its right edge.
+    const [barBox, workBox] = [layoutBox(header), layoutBox(work)];
+    const centre = (barBox.top + workBox.top + workBox.height) / 2;
+    for (const [card, box] of [[bar, barBox], [work, workBox]] as const) {
+      card.style.setProperty("--nox-loop-left", `${box.left}px`);
+      card.style.setProperty("--nox-loop-top", `${box.top}px`);
+      card.style.setProperty("--nox-loop-width", `${box.width}px`);
+      card.style.setProperty("--nox-loop-height", `${box.height}px`);
+      card.style.setProperty("--nox-loop-origin", `${centre - box.top}px`);
+      card.setAttribute("data-nox-loop-card", "");
+    }
+    // Beneath the card the workspace shows Agents, already stepped aside beside the list.
+    this.presentation!.previewMobileSwipe();
+    presentation.setAttribute("data-nox-pane-motion", "");
+    presentation.style.setProperty("--nox-pane-progress", "0");
+    app.setAttribute("data-nox-drawer-drag", "");
+    app.setAttribute("data-nox-drawer-loop", "");
+    app.style.setProperty("--nox-drawer-progress", "1");
+    this.setLoopProgress(start);
+    work.setAttribute("popover", "manual");
+    work.showPopover();
+    // The bar goes on top, so it covers the shadow Work casts upwards.
+    bar.showPopover();
+    this.loop = { presentation, work, bar };
+    return start;
+  }
+
+  /** The workspace keeps its real bar for the Agents preview; the card carries a still copy showing Work. */
+  private workBarCopy(header: HTMLElement, presentation: HTMLElement): HTMLElement {
+    // SAFETY: A deep clone of an HTML element is an HTML element.
+    const bar = header.cloneNode(true) as HTMLElement;
+    for (const element of [bar, ...bar.querySelectorAll("*")]) {
+      for (const name of ["id", "data-controller", "data-action"]) element.removeAttribute(name);
+    }
+    const workKey = presentation.querySelector<HTMLElement>("[data-workspace-pane-role='work'].is-active")?.dataset.workspacePaneId;
+    bar.querySelectorAll<HTMLElement>("[data-nox-phone-tab]").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.workViewKey !== undefined && tab.dataset.workViewKey === workKey)));
+    bar.style.setProperty("--nox-pane-progress", "1");
+    bar.inert = true;
+    bar.setAttribute("aria-hidden", "true");
+    bar.setAttribute("popover", "manual");
+    return bar;
+  }
+
+  private setLoopProgress(progress: number): void {
+    const style = this.element.style;
+    style.setProperty("--nox-loop-progress", String(progress));
+    // The list fades up and Agents settles its last few pixels as Work uncovers them.
+    style.setProperty("--nox-list-progress", String(progress));
+    style.setProperty("--nox-loop-nudge", `${(1 - progress) * loopNudge}px`);
+  }
+
+  private settleLoop(target: number, navigate: (() => void) | undefined): void {
+    this.element.removeAttribute("data-nox-drawer-drag");
+    this.setLoopProgress(target);
+    const finish = (): void => {
+      clearTimeout(timer);
+      this.motion = undefined;
+      this.endLoop(navigate);
+    };
+    const timer = setTimeout(finish, this.motionDuration);
+    this.motion = { finish };
+  }
+
+  /** Lands without transitions: where the card settles, the workspace now looks the same. */
+  private endLoop(navigate: (() => void) | undefined): void {
+    const app = this.element;
+    const { presentation, work, bar } = this.loop!;
+    this.loop = undefined;
+    app.setAttribute("data-nox-drawer-drag", "");
+    work.hidePopover();
+    work.removeAttribute("popover");
+    work.removeAttribute("data-nox-loop-card");
+    for (const name of loopCardProperties) work.style.removeProperty(name);
+    bar.remove();
+    presentation.removeAttribute("data-nox-pane-motion");
+    presentation.style.removeProperty("--nox-pane-progress");
+    if (navigate) navigate();
+    else this.presentation!.endMobileSwipePreview();
+    for (const name of loopAppProperties) app.style.removeProperty(name);
+    app.removeAttribute("data-nox-drawer-loop");
+    void app.offsetWidth;
+    app.removeAttribute("data-nox-drawer-drag");
+  }
+
+  /** Server morphs leave Work's card in the top layer until the loop lands. */
+  private readonly keepLoopCard = (event: Event): void => {
+    // SAFETY: Turbo emits this event with its attribute mutation descriptor.
+    const detail = (event as CustomEvent<{ attributeName: string }>).detail;
+    if (event.target === this.loop?.work && ["popover", "data-nox-loop-card", "style"].includes(detail.attributeName)) event.preventDefault();
+  };
 
   private visibleFrame(frame: HTMLIFrameElement): boolean {
     return !this.sidebarOpen && frame.closest(".workspace-detail-resident.visible") !== null

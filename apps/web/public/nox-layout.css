@@ -77,12 +77,14 @@ svg.brand-icon path[fill] { fill: currentColor; }
 
   /* Ready, preparing and deleting workspaces share the same sidebar reveal. The workspace
    * steps aside into a live preview on the right, uncovering the list card beneath it.
-   * --nox-drawer-progress (0–1) follows the finger; otherwise the open state picks the end. */
+   * --nox-drawer-progress (0–1) follows the finger; otherwise the open state picks the end.
+   * Round the ring from Work, the list has its own --nox-list-progress and the workspace is
+   * already aside, short of its spot by --nox-loop-nudge (see the loop card below). */
   .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) {
     --nox-drawer-gap: 8px;
     --nox-drawer-width: min(calc(100vw - 88px), 400px);
     --nox-drawer-motion: transform var(--motion-enter) var(--motion-ease-out), opacity var(--motion-enter) var(--motion-ease-out), border-radius var(--motion-enter) var(--motion-ease-out);
-    --nox-reveal-transform: translateX(calc(var(--nox-drawer-progress, 0) * (var(--nox-drawer-width) + 2 * var(--nox-drawer-gap)))) scale(calc(1 - var(--nox-drawer-progress, 0) * 0.1));
+    --nox-reveal-transform: translateX(calc(var(--nox-drawer-progress, 0) * (var(--nox-drawer-width) + 2 * var(--nox-drawer-gap)) + var(--nox-loop-nudge, 0px))) scale(calc(1 - var(--nox-drawer-progress, 0) * 0.1));
   }
   .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) { --nox-drawer-progress: 1; }
   .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane {
@@ -91,8 +93,8 @@ svg.brand-icon path[fill] { fill: currentColor; }
     width: var(--nox-drawer-width); height: auto;
     border: 0; border-radius: var(--radius-overlay); overflow: hidden;
     background: var(--panel);
-    opacity: calc(0.4 + var(--nox-drawer-progress, 0) * 0.6);
-    transform: translateX(calc((var(--nox-drawer-progress, 0) - 1) * 8%));
+    opacity: calc(0.4 + var(--nox-list-progress, var(--nox-drawer-progress, 0)) * 0.6);
+    transform: translateX(calc((var(--nox-list-progress, var(--nox-drawer-progress, 0)) - 1) * 8%));
     /* Stay visible until the workspace has covered it again. */
     transition: var(--nox-drawer-motion), visibility 0s linear var(--motion-enter);
   }
@@ -100,7 +102,7 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main { position: relative; z-index: 1; transform-origin: 0 50%; transition: var(--nox-drawer-motion); }
   /* Transform only while revealing: any transform would confine fixed-position fullscreen. */
   .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main,
-  .fixed-shell-app[data-nox-drawer-drag] > .fixed-shell-app-main {
+  .fixed-shell-app:is([data-nox-drawer-drag], [data-nox-drawer-loop]) > .fixed-shell-app-main {
     transform: var(--nox-reveal-transform);
     border-radius: calc(var(--nox-drawer-progress, 0) * var(--radius-overlay)); overflow: clip;
     box-shadow: 0 0 0 1px var(--line-strong);
@@ -118,7 +120,7 @@ svg.brand-icon path[fill] { fill: currentColor; }
     transition: var(--nox-drawer-motion), visibility 0s;
   }
   .fixed-shell-app[data-nox-drawer-drag] > :is(.fixed-shell-workspace-pane, .fixed-shell-app-main, .nox-workspace-scrim) { transition: none; }
-  .fixed-shell-app[data-nox-drawer-drag] > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) { visibility: visible; }
+  .fixed-shell-app:is([data-nox-drawer-drag], [data-nox-drawer-loop]) > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) { visibility: visible; }
 
   /* The card has no outline; a rule under its title would be the only line left, so drop it too. */
   .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane .panel__header { border-bottom: 0; }
@@ -155,18 +157,38 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-shell-agent-pane > .panel > .panel__header { display: none; }
   .nox-phone-header { grid-area: 1 / 1; display: grid; padding-top: env(safe-area-inset-top, 0px); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: var(--bg); }
   .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 4px; }
-  /* Each pane has its own strip; both share one spot and crossfade at the swipe's midpoint. */
-  .nox-phone-strips { flex: 1; min-width: 0; display: grid; padding-inline: 2px; }
-  .nox-phone-strip { grid-area: 1 / 1; display: flex; align-items: center; gap: 4px; min-width: 0; transition: opacity var(--motion-enter) var(--motion-ease-out); }
-  .nox-phone-strip[data-nox-phone-strip="agents"] { opacity: clamp(0, 1 - 2 * var(--nox-pane-progress), 1); }
-  .nox-phone-strip[data-nox-phone-strip="work"] { opacity: clamp(0, 2 * var(--nox-pane-progress) - 1, 1); }
-  .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination="agents"] [data-nox-phone-strip="work"],
-  .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination^="work:"] [data-nox-phone-strip="agents"] { visibility: hidden; }
-  .fixed-workspace-presentation[data-nox-pane-drag] .nox-phone-strip { transition: none; }
-  /* Tabs take their width; tabs pinned from the other pane never scroll away. */
-  .nox-phone-strip > .tab-strip { flex: 0 1 auto; padding-block: 0; }
-  .nox-phone-strip > .nox-phone-strip__divider ~ .tab-strip { flex: none; }
-  .nox-phone-strip__divider { flex: none; width: 1px; height: 20px; margin-inline: 2px; background: var(--line-strong); }
+  /* One rail holds both panes' tabs. The hidden pane's tabs fold to dim icons on their side of
+   * it, still tappable and still showing attention; --nox-pane-progress folds one side and
+   * unfolds the other as the panes swap. */
+  .nox-phone-rail { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; padding-inline: 2px; }
+  .nox-phone-fold[data-nox-fold="agents"] { --nox-fold-open: calc(1 - var(--nox-pane-progress)); }
+  .nox-phone-fold[data-nox-fold="work"] { --nox-fold-open: var(--nox-pane-progress); }
+  /* The open side gives up room first; folded icons keep theirs. */
+  .nox-phone-fold { display: flex; min-width: 0; flex: 0 calc(var(--nox-fold-open) * 4 + 0.01) auto; }
+  .nox-phone-fold > .tab-strip { min-width: 0; padding-block: 0; }
+  .nox-phone-rail__divider { flex: none; width: 1px; height: 20px; margin-inline: 2px; background: var(--line-strong); }
+  .nox-phone-fold :is(.tab-strip__tabs, .nox-phone-launchers) { gap: calc(6px - var(--nox-fold-open) * 2px); }
+  .nox-phone-fold :is(.tab-strip__tabs, .nox-phone-launchers) > .content-row { opacity: calc(0.5 + 0.5 * var(--nox-fold-open)); }
+  /* Labels close late in the fold and open early, so a half-swiped tab still reads. */
+  .nox-phone-fold .content-row__content { overflow: hidden; max-width: calc(pow(var(--nox-fold-open), 3) * 20rem); opacity: clamp(0, 2 * var(--nox-fold-open) - 0.6, 1); }
+  .nox-phone-header .nox-phone-rail .nox-phone-fold[data-nox-fold] :is(.tab-strip__tabs, .nox-phone-launchers) > .content-row.content-row { column-gap: calc(var(--nox-fold-open) * 6px); padding-inline: calc(var(--nox-fold-open) * 8px); }
+  .nox-phone-header .nox-phone-fold :is(.tab-strip__tabs, .nox-phone-launchers) > .content-row > .content-row__primary { gap: calc(var(--nox-fold-open) * 8px); padding-inline: calc(3px + var(--nox-fold-open) * 1px) calc(3px + var(--nox-fold-open) * 7px); }
+
+  /* The sidebar button sits on the side the list is reached from: first on Agents, and after
+   * More on Work, where swiping on loops round to the list. It travels across with the fold. */
+  .nox-phone-dock { flex: none; display: flex; justify-content: center; width: calc(var(--nox-dock-open) * 42.5px); }
+  .nox-phone-dock[data-nox-dock="agents"] { --nox-dock-open: calc(1 - var(--nox-pane-progress)); }
+  .nox-phone-dock[data-nox-dock="work"] { --nox-dock-open: var(--nox-pane-progress); }
+  .nox-phone-dock > .button { --nox-dock-shown: clamp(0, 2 * var(--nox-dock-open) - 1, 1); flex: none; opacity: var(--nox-dock-shown); scale: calc(0.6 + 0.4 * var(--nox-dock-shown)); }
+  /* Mirrored, it points on round the ring. */
+  .nox-phone-dock[data-nox-dock="work"] .button__icon svg { scale: -1 1; }
+  .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination="agents"] [data-nox-dock="work"],
+  .fixed-workspace-presentation:not([data-nox-pane-motion])[data-phone-destination^="work:"] [data-nox-dock="agents"] { visibility: hidden; }
+  /* Tapped moves fold with the depth swap; drags and the loop follow the finger. */
+  .fixed-shell-app:not([data-nox-drawer-loop]) .fixed-workspace-presentation[data-nox-pane-motion]:not([data-nox-pane-drag]) .nox-phone-header :is(.nox-phone-fold, .nox-phone-fold *, .nox-phone-dock, .nox-phone-dock > .button) {
+    transition-property: flex-shrink, gap, column-gap, padding, max-width, opacity, width, scale, background-color;
+    transition-duration: var(--motion-enter); transition-timing-function: var(--motion-ease-out);
+  }
   .nox-phone-launchers { display: flex; gap: 4px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
   .nox-phone-launchers > .content-row { flex: none; width: auto; min-height: 36px; padding-inline-end: 8px; border-radius: var(--radius-control); color: var(--text-faint); }
   .nox-phone-launchers > .content-row > .content-row__primary { min-height: 36px; padding-inline: 4px 2px; }
@@ -174,7 +196,7 @@ svg.brand-icon path[fill] { fill: currentColor; }
   /* Tabs size to their labels, like Amp's, instead of filling the strip. */
   .nox-phone-header .tab-strip__tabs > .content-row { flex: none; width: auto; min-width: 0; min-height: 36px; border-radius: var(--radius-control); }
   .nox-phone-header .tab-strip__tabs > .content-row > .content-row__primary { min-height: 36px; padding-inline: 4px 10px; }
-  .nox-phone-header .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: var(--accent-soft); }
+  .nox-phone-header .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: color-mix(in srgb, var(--accent-soft) calc(var(--nox-fold-open) * 100%), transparent); }
   /* Tabs already list every Work view, so More only keeps actions. */
   .nox-phone-header [data-more-work-key] { display: none; }
   /* Header menus read like Amp's: a wider panel with larger type and icons, tight rows instead of
@@ -321,6 +343,28 @@ svg.brand-icon path[fill] { fill: currentColor; }
   }
   .fixed-workspace-presentation[data-nox-pane-drag] :is(.fixed-shell-agent-pane, .fixed-shell-work-pane),
   .fixed-workspace-presentation[data-nox-pane-drag] .fixed-shell-agent-pane::after { transition: none; }
+
+  /* Round the ring from Work to the list, Work's card lifts off to the left: its pane and a still
+   * copy of its bar go into the top layer (mobile-swipe), out of the workspace's transform and
+   * clipping. --nox-loop-progress runs from Work (0) to the list (1); the --nox-loop-* boxes keep
+   * them where they sat in the layout. */
+  .fixed-shell-app[data-nox-drawer-loop] :is(.fixed-shell-work-pane, .nox-phone-header)[data-nox-loop-card] {
+    position: fixed; inset: auto; margin: 0; padding-inline: 0; padding-bottom: 0; border-top-width: 0; border-inline-width: 0;
+    left: var(--nox-loop-left); top: var(--nox-loop-top); width: var(--nox-loop-width); height: var(--nox-loop-height);
+    overflow: clip; color: inherit; background: var(--bg);
+    transform-origin: 100% var(--nox-loop-origin);
+    transform: translateX(calc(var(--nox-loop-progress) * -104%)) scale(calc(1 - var(--nox-loop-progress) * 0.1));
+    transition: transform var(--motion-enter) var(--motion-ease-out), border-radius var(--motion-enter) var(--motion-ease-out);
+  }
+  .fixed-shell-app[data-nox-drawer-loop] .nox-phone-header[data-nox-loop-card] {
+    border-radius: calc(var(--nox-loop-progress) * var(--radius-overlay)) calc(var(--nox-loop-progress) * var(--radius-overlay)) 0 0;
+    box-shadow: 0 0 0 1px var(--line-strong);
+  }
+  .fixed-shell-app[data-nox-drawer-loop] .fixed-shell-work-pane[data-nox-loop-card] {
+    border-radius: 0 0 calc(var(--nox-loop-progress) * var(--radius-overlay)) calc(var(--nox-loop-progress) * var(--radius-overlay));
+    box-shadow: 0 0 0 1px var(--line-strong), var(--shadow);
+  }
+  .fixed-shell-app[data-nox-drawer-loop][data-nox-drawer-drag] :is(.fixed-shell-work-pane, .nox-phone-header)[data-nox-loop-card] { transition: none; }
 }
 
 /* The Browser toolbar stays out of the way on phones until its selected tab is tapped, then
