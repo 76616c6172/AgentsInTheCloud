@@ -8,7 +8,8 @@ import { nativeDelegationTranscript } from "./native-transcript.ts";
 import { attributedEntry } from "./native-state.ts";
 import { nativeToolPresentations } from "./native-tool-presentation.ts";
 import { nativeSnapshot } from "./native-view-state.ts";
-import { renderSubagentsControl, handleSubagentRequest, subscribeSubagentTree } from "./subagent-view.ts";
+import { renderSubagentsControl, handleSubagentRequest, subscribeSubagentBackground } from "./subagent-view.ts";
+import { handleSubagentBackgroundRequest } from "./background.ts";
 import { subagentsOpenApiPaths } from "./openapi.ts";
 
 export const agentsInTheCloudServerModule: WorkspaceModule = {
@@ -33,7 +34,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     subscribe(identifier, listener) {
       if (identifier.channel !== "module" || identifier.name !== "subagents") throw new Error("Invalid Subagents channel");
       const params = Value.Parse(Type.Object({ agentId: Type.String({ minLength: 1 }) }, { additionalProperties: false }), identifier.params);
-      return subscribeSubagentTree(identifier.workspaceId, params.agentId, listener);
+      return subscribeSubagentBackground(identifier.workspaceId, params.agentId, listener);
     },
   }],
   routes: [{
@@ -53,10 +54,11 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
           const query = new URLSearchParams({ agent: target, agentTarget: message.id });
           return new Response(null, { status: 303, headers: { location: `/workspaces/${encodeURIComponent(workspaceId)}?${query}` } });
         }
-        const query = new URLSearchParams({ agent: child.rootId, subagent: child.id, message: message.id });
+        // The subagent's page in its root Agent's pane, showing the message.
+        const query = new URLSearchParams({ agent: child.rootId, background: child.id, message: message.id });
         return new Response(null, { status: 303, headers: { location: `/workspaces/${encodeURIComponent(workspaceId)}?${query}` } });
       }
-      return handleSubagentRequest(request, url, { events: context.events });
+      return await handleSubagentBackgroundRequest(request, url) ?? handleSubagentRequest(request, url, { events: context.events });
     },
   }],
 };
