@@ -45,13 +45,15 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
   const attachRowId = ids.attachRow(ctx);
   const html = `<section id="${domId("agent_pane", ctx.workspaceId, agent.agentId)}" data-turbo-permanent class="agent-pane builtin-agent-shell" data-agent-source="${escapeHtml(key)}">
     <div class="agent-pane agent-composer-pane" id="${ids.pane(ctx)}"
-      ${state.readOnly ? "" : `data-controller="agent-pane agent-attachments agent-composer composer-focus"
+      ${state.readOnly ? "" : `data-controller="agent-pane agent-attachments agent-composer composer-focus agent-background"
       data-agent-composer-open-on-create-value="true"
       data-agent-pane-workspace-id-value="${escapeHtml(ctx.workspaceId)}"
       data-agent-pane-agent-id-value="${escapeHtml(ctx.agentId)}"
+      data-agent-background-path-value="${escapeHtml(agentPath(ctx, "/background/"))}"
       ${presentation.moduleChannel ? `data-agent-pane-module-channel-value="${escapeHtml(presentation.moduleChannel)}"` : ""}
       ${composerAttachmentAttributes(draftId, attachRowId, agentComposerActions)}`}>
       ${state.readOnly || presentation.notifications === false ? "" : `<div class="agent-body-controls">${renderAgentNotifications(ctx)}</div>`}
+      <div class="agent-background" id="${ids.background(ctx)}"></div>
       <div class="agent-transcript-region">
         ${presentation.subagents === false ? "" : await agentDelegation?.renderControl(ctx.workspaceId, ctx.agentId) ?? ""}
         <div class="agent-transcript" tabindex="0" role="region" aria-label="Agent transcript" data-agent-pane-target="transcript">
@@ -66,6 +68,7 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
         attachments,
         initialText,
       })}
+      ${state.readOnly ? "" : `<section class="agent-background-page" data-agent-background-target="page" data-action="click->agent-background#pageClicked" hidden><turbo-frame id="${ids.backgroundPage(ctx)}" refresh="morph" data-agent-background-target="frame"></turbo-frame></section>`}
     </div>
   </section>`;
   return { html, live: { regions: state.regions, subscriberId: ids.pane(ctx) } };

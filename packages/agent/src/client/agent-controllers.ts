@@ -11,6 +11,7 @@ import { createAgentMermaidController } from "./mermaid-controller.ts";
 import { createAgentThinkingController } from "./thinking-controller.ts";
 import { createAgentStreamingTextController } from "./streaming-text-controller.ts";
 import { createAgentLazyDetailController, createAgentTailFrameController } from "./transcript-detail-controllers.ts";
+import { createAgentBackgroundController, createAgentBackgroundRefreshController } from "./background-controllers.ts";
 
 export { agentComposerPrimaryAction, agentComposerTextStorageKey, composerPromptSuggestion, promptSuggestionKeyAction, navigatePromptHistory, PromptHistoryNavigator } from "./composer-state.ts";
 export { agentCompletionRequest, fileCompletionPrefix, insertSlashCommand, type AgentCompletionInput } from "./completion-input.ts";
@@ -28,6 +29,8 @@ export const agentClientModule: WorkspaceClientModule = {
     application.register("agent-streaming-text", createAgentStreamingTextController(Controller));
     application.register("agent-tail-frame", createAgentTailFrameController(Controller));
     application.register("agent-lazy-detail", createAgentLazyDetailController(Controller));
+    application.register("agent-background", createAgentBackgroundController(Controller));
+    application.register("agent-background-refresh", createAgentBackgroundRefreshController(Controller));
     application.register("agent-mermaid", createAgentMermaidController(Controller));
     application.register("agent-tool-abort", createAgentToolAbortController(Controller));
     application.register("agent-notice", createAgentNoticeController(Controller));

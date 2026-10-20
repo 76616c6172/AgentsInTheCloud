@@ -131,6 +131,8 @@ export type TranscriptItem =
     details: Record<string, string>;
     /** The tool call that started the sender. */
     dispatchedByToolCallId?: string;
+    /** The background activity that sent it, such as a subagent; the sender links to its page. */
+    senderActivityKey?: string;
   })
   | (TranscriptItemBase & { type: "error"; text: string });
 

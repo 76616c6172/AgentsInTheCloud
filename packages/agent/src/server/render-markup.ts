@@ -21,10 +21,13 @@ export function transcriptRowContent(label: ContentRowLabel, options: { leadingH
   };
 }
 
-/** A link that expands and scrolls to `target`, an item key, anchor or tool call ID, in this Agent's transcript. */
+/**
+ * A link that expands and scrolls to `target`, an item key, anchor or tool call ID, in this Agent's transcript. It
+ * names the Agent: a subagent's transcript shown in its root Agent's pane reveals its own items.
+ */
 export function transcriptTargetLink(ctx: AgentRenderContext, target: string, label: string): string {
   const query = new URLSearchParams({ agent: ctx.agentId, agentTarget: target });
-  return `<a href="/workspaces/${encodeURIComponent(ctx.workspaceId)}?${escapeHtml(query.toString())}" class="agent-trace-link" data-action="agent-pane#reveal" data-agent-pane-item-param="${escapeHtml(target)}">${escapeHtml(label)}</a>`;
+  return `<a href="/workspaces/${encodeURIComponent(ctx.workspaceId)}?${escapeHtml(query.toString())}" class="agent-trace-link" data-action="agent-pane#reveal" data-agent-pane-item-param="${escapeHtml(target)}" data-agent-pane-agent-param="${escapeHtml(ctx.agentId)}">${escapeHtml(label)}</a>`;
 }
 
 /** Labelled facts in the standard tool card. */

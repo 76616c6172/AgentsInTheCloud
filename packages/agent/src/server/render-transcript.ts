@@ -4,7 +4,7 @@ import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { renderStreamingMarkdownSnapshot } from "@agents-in-the-cloud/markdown";
 import type { ModelRef } from "@agents-in-the-cloud/llm/server";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { agentPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
+import { agentPath, backgroundActivityPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, detailTableHtml, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow, transcriptTargetLink } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";
 import { formatDuration, formatTokens, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
@@ -86,6 +86,8 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
 
 function renderMessage(ctx: AgentRenderContext, message: Extract<TranscriptItem, { type: "message" }>): string {
   const details = Object.entries(message.details).map(([label, text]) => ({ label, html: escapeHtml(text) }));
+  // A read-only pane has no activity pages to open.
+  if (message.senderActivityKey && !ctx.readOnly) details.unshift({ label: "Sender", html: `<a href="${escapeHtml(backgroundActivityPath(ctx, message.senderActivityKey))}" class="agent-trace-link" data-action="agent-background#open">${escapeHtml(message.sender)}</a>` });
   if (message.dispatchedByToolCallId) details.push({ label: "Started by", html: transcriptTargetLink(ctx, message.dispatchedByToolCallId, "Tool call") });
   const body = `${message.bodyMarkdown ? `<div class="markdown agent-message-body">${markdown(ctx, message.bodyMarkdown)}</div>` : ""}${details.length ? detailTableHtml(details) : ""}`;
   return transcriptRow(`<div class="agent-message">${disclosureHtml({ summary: transcriptRowContent({ kind: "text", text: `Incoming Message: ${message.sender} · ${message.title}` }), bodyHtml: body })}</div>`);

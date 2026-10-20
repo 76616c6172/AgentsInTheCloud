@@ -8,6 +8,35 @@
   height: 100%; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto;
   background: var(--bg); position: relative; container-type: inline-size;
 }
+/* Background activity: a fixed bar above the transcript, and drill-in pages over the whole pane. */
+.agent-composer-pane { grid-template-rows: auto minmax(0, 1fr) auto; }
+.agent-background { max-height: 40vh; overflow-y: auto; padding: 4px var(--agent-inline-gutter); border-bottom: 1px solid var(--line); }
+.agent-background:empty { padding: 0; border: 0; }
+/* Leave room for the pane's notification control, which sits over its top edge. */
+.agent-composer-pane:has(> .agent-body-controls) > .agent-background { padding-inline-end: calc(var(--agent-inline-gutter) + 44px); }
+.agent-background-meta { color: var(--text-faint); font-size: var(--text-code); white-space: nowrap; }
+.agent-background-activity { padding-inline-start: calc(var(--agent-background-depth) * 20px); }
+.agent-background-chevron { display: inline-flex; color: var(--text-faint); }
+.agent-background-meta .status-indicator { vertical-align: middle; }
+.agent-background-stop { display: flex; justify-content: flex-end; margin: 6px 0; }
+.agent-background-gone, .agent-background-report { color: var(--text-muted); }
+.agent-background-report { margin-top: 16px; }
+.agent-background-page:not([hidden]) { position: absolute; inset: 0; z-index: 4; background: var(--bg); }
+.agent-background-page > turbo-frame { display: block; height: 100%; }
+.agent-background-page-content { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.agent-background-page-header { padding: 8px 12px 10px; border-bottom: 1px solid var(--line); }
+.agent-background-page-heading { display: flex; align-items: center; gap: 8px; }
+.agent-background-page-heading .agent-background-stop { margin: 0; }
+.agent-background-page-title { flex: 1; min-width: 0; margin: 0; display: flex; align-items: center; gap: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-body); font-weight: var(--weight-semibold); color: var(--text-bright); }
+/* Labelled facts, quieter than the detail beneath them. */
+.agent-background-facts { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 2px 12px; margin: 6px 0 0 44px; font-size: var(--text-code); }
+.agent-background-facts dt { color: var(--text-faint); }
+/* A long fact, such as a task, wraps to a few lines; the transcript has the rest. */
+.agent-background-facts dd { margin: 0; min-width: 0; overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; color: var(--text-muted); }
+.agent-background-detail > .agent-background-facts { margin: 4px 0 0; }
+.agent-background-page-body { overflow-y: auto; padding: 12px var(--agent-inline-gutter) 24px; }
+.agent-pane--background-page > :not(.agent-background-page) { visibility: hidden; }
+
 /* This grid item must shrink to the pane, not the transcript's intrinsic width.
    Wide code and tables scroll inside the transcript instead of widening the column. */
 .agent-transcript-region { background-image: var(--transcript-background-image); position: relative; display: flex; min-width: 0; min-height: 0; }
