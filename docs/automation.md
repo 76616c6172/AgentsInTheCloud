@@ -159,10 +159,12 @@ curl -sS -X POST "http://localhost:3000/workspaces/$id/commands/browser.create" 
   -H 'Accept: application/json' -H 'Content-Type: application/json' \
   -d '{"url":"http://localhost:3000/"}'
 
-curl -sS -X POST "http://localhost:3000/workspaces/$id/commands/agent.create" \
+curl -sS -X POST "http://localhost:3000/workspaces/$id/commands/agent.create.claude" \
   -H 'Origin: http://localhost:3000' \
   -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{}'
 ```
+
+`agent.create.<agentTypeId>` creates an Agent of that type and returns its id as `command.agentId`. Plain `agent.create` uses the default type, which is the one the user picked last, so scripts that control the Agent afterwards should name the type.
 
 Navigate an existing Browser view with `POST /workspaces/:id/browser/:browserId/navigate` and `{ "url": "..." }`.
 
@@ -184,12 +186,22 @@ Rename with `POST /workspaces/:id/sidebar-title` and `{ "title": "..." }`. Park,
 
 ## Control an agent
 
-- `POST /workspaces/:id/agents/:agentId/model` with `{ "model": "provider::model" }`
-- `POST /workspaces/:id/agents/:agentId/thinking-level` with `{ "thinkingLevel": "medium" }`
-- `POST /workspaces/:id/agents/:agentId/messages` with `{ "text": "...", "mode": "send" }`
-- `POST /workspaces/:id/agents/:agentId/abort`
+Agent control routes live under a path that depends on the Agent's `agentTypeId`:
 
-Message submission returns `202 Accepted`; it does not wait for inference to finish.
+| `agentTypeId` | `<base>` |
+|---|---|
+| `builtin` | `/workspaces/:id/agents/:agentId` |
+| `claude` | `/workspaces/:id/claude-code-agents/:agentId` |
+| `codex` | `/workspaces/:id/codex-agents/:agentId` |
+
+`claude-cli`, `codex-cli`, and `pi` Agents run in a terminal and have no control routes. Give them their first prompt through `agent.initialPrompt` when creating the workspace.
+
+- `POST <base>/model` with `{ "model": "provider::model" }`. Claude Code needs an `anthropic::` model from its catalog and Codex an `openai-codex::` one. Both refuse to switch while working.
+- `POST <base>/thinking-level` with `{ "thinkingLevel": "medium" }`
+- `POST <base>/messages` with `{ "text": "..." }`
+- `POST <base>/abort`
+
+Message submission returns `202 Accepted`; it does not wait for inference to finish. Builtin also accepts `"mode": "send"` or `"steer"`. Claude Code and Codex steer automatically while busy, and run their own slash commands through `messages`: a command that needs more input returns `200` with a `command` result instead. `/openapi.json` lists each type's routes and bodies.
 
 ## Present the result
 
