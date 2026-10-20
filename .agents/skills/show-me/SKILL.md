@@ -120,8 +120,6 @@ function expandSkill(command: string): string {
 
 Use screenshots or video only when the point is actual rendered behavior that an explanatory HTML diagram would misrepresent. Link editable source with an `agents-in-the-cloud://file/...` URL when the user will benefit from inspecting it.
 
-If the task is to compare several UI directions or validate a state model rather than explain the current topic, use the `prototype` skill instead of turning this artifact into a miniature prototype.
-
 ## Guidance
 
 Place each visual next to the short text it supports. Keep only the calls, files, props, states, and boundaries needed to answer the user's current question or resolve the current discussion point.
