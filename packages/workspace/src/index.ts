@@ -24,6 +24,7 @@ export { WorkspaceHelperError, WorkspaceHelperStatus } from "@agents-in-the-clou
 export { exitStatus as workspaceExitStatus } from "@agents-in-the-cloud/workspace-helper";
 export { createWorkspaceMetadataState, type WorkspaceMetadataState } from "./metadata-state.ts";
 export { ensureHostInotifyLimit } from "./host-inotify.ts";
+export { registerSeededPiAuth } from "./seed-config.ts";
 export { createWorkspaceProvisioning, type WorkspaceProvisioning, type WorkspaceProvisionRun } from "./provisioning.ts";
 import type { WorkspaceProvisionRun, WorkspaceProvisionProgress } from "./provisioning.ts";
 
