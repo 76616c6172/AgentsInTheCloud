@@ -1,11 +1,9 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { parseModelRef } from "@agents-in-the-cloud/llm/server";
 import { invalidArguments, readJsonObject, requestAcceptsJson, type JsonValue } from "@agents-in-the-cloud/core";
 import { expandSlashCommand } from "@agents-in-the-cloud/agent/server/slash-command-input";
 import { listFileCompletions, renderFileCompletionMenu } from "@agents-in-the-cloud/agent/server/file-completions";
 import { runAgentNameCommand } from "@agents-in-the-cloud/agent/server/agent-name-command";
-import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
 import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@agents-in-the-cloud/prompt/server";
 import { findTranscriptItem, isTranscriptTarget } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame } from "@agents-in-the-cloud/agent/server/render-transcript";
@@ -68,7 +66,7 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
       if (text.trim() === "/new" && options.newConversation) { await options.newConversation(runtime); return success(); }
       if (text.trim() === "/park") return new Response(null, { status: 307, headers: { Location: `/workspaces/${encodeURIComponent(workspaceId)}/park` } });
       const named = await runAgentNameCommand(text, {
-        suggest: () => suggestAgentSlug(options.promptText(runtime), runtime.record.model ? parseModelRef(runtime.record.model) : undefined),
+        suggest: () => agents.suggestTitle(runtime, options.promptText(runtime)),
         setTitle: title => agents.rename(runtime, title),
       });
       if (named) { if (named === "no-title") throw invalidArguments("Send a prompt before asking for an Agent name"); return success(); }
@@ -80,9 +78,12 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
       if (form && options.delivered(runtime, id)) return success(true, consumedHeaders);
       const attachmentIds = form?.getAll("attachment").map(String) ?? [];
       const attachments = await deliverAttachmentDraft(workspaceId, draft, attachmentIds);
-      const expanded = options.isHarnessCommand?.(runtime, text) ? text.trim() : await expandSlashCommand(workspaceId, text);
+      const harnessCommand = options.isHarnessCommand?.(runtime, text) === true;
+      const expanded = harnessCommand ? text.trim() : await expandSlashCommand(workspaceId, text);
       if (!expanded.trim() && !attachments.images.length && !attachments.attachmentNotes.length) throw invalidArguments("Write a prompt or attach a file");
+      const prompts = harnessCommand ? "" : [options.promptText(runtime), expanded].filter(Boolean).join("\n\n");
       await runtime.send({ text: expanded, ...attachments }, id);
+      void agents.nameFromPrompts(runtime, prompts).catch(error => console.error(`Could not name ${agentId}`, error));
       await removeStagedAttachments(draft, attachmentIds);
       return success(true, consumedHeaders);
     }

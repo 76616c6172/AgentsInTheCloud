@@ -1,5 +1,6 @@
 import { agentKey } from "@agents-in-the-cloud/agent/server/render-context";
 import { publishWorkspaceAgentBusy, prepareCliAgentConnection, revokeAgentMcp, type AgentTurnFinishReason } from "@agents-in-the-cloud/agent/server";
+import { workspaceFollowsAgentTitle } from "@agents-in-the-cloud/agent/server/agent-name-command";
 import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
 import { parseModelRef } from "@agents-in-the-cloud/llm/server";
 import { exportCliHistory } from "./history.ts";
@@ -8,7 +9,7 @@ import { AgentsInTheCloudCoreError, createKeyedOperationQueue, shellQuote } from
 import { buildObservableSessionCommand } from "@agents-in-the-cloud/observable-terminal/server";
 import { imageMimeByExtension } from "@agents-in-the-cloud/shared/file-metadata";
 import { errorMessage, type AgentWorkspaceParameters, type WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
-import { createWorkspaceMetadataState, execWorkspaceShell, getWorkspaceTitle, setWorkspaceTitle, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { createWorkspaceMetadataState, execWorkspaceShell, workspaceRoot } from "@agents-in-the-cloud/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import type { CliAgentAdapter, CliAgentSession } from "./adapter.ts";
@@ -175,11 +176,7 @@ exec curl --noproxy '*' --fail --silent --show-error --max-time 10 -X POST -H ${
       current.title = title;
       current.historySlug = title;
       store().write(workspaceId, { agents: list(workspaceId) });
-      // Like Builtin Agents, an unnamed Workspace (or one still named after this Agent) follows the Agent's name.
-      const workspaceTitle = await getWorkspaceTitle(workspaceId);
-      const workspaceNamed = workspaceTitle === null || workspaceTitle === previousTitle;
-      if (workspaceNamed) await setWorkspaceTitle(workspaceId, title);
-      return { workspaceNamed };
+      return { workspaceNamed: await workspaceFollowsAgentTitle(workspaceId, previousTitle, title) };
     });
     if (result) await onTitleChanged(workspaceId, id, title, result.workspaceNamed);
   }

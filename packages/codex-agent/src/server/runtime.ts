@@ -389,11 +389,6 @@ export class CodexRuntime {
     this.save();
     this.changed();
   }
-  async rename(title: string) {
-    this.record.title = title;
-    this.save();
-    await this.events.emit("workspace_agent_title_changed", { workspaceId: this.workspaceId, agentId: this.agentId, title });
-  }
   async close() {
     this.closing = true;
     await this.serialize(this.agentId, async () => {
