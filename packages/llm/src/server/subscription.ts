@@ -1,13 +1,6 @@
 import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
-export const anthropicSubscriptionNotice = {
-  title: "You can use your Anthropic subscription in AgentsInTheCloud.",
-  message: "Make sure to select Claude Code as agent. Anthropic does not allow you to use our other agents with their subscription.",
-};
-/** Short form for pickers and errors where a model cannot use the subscription. */
-export const anthropicSubscriptionUnavailableReason = "Anthropic does not allow you to use our other agents with their subscription. Select Claude Code as agent.";
-
 /** Pi stores one credential per provider (see accounts.ts), so an OAuth credential means the provider is connected only through a subscription. */
 export async function usesProviderSubscription(runtime: Pick<ModelRuntime, "listCredentials">, provider: string): Promise<boolean> {
   return (await runtime.listCredentials()).some((credential) => credential.providerId === provider && credential.type === "oauth");

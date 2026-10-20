@@ -1,6 +1,7 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { readSubscriptionUsageJson, requestSubscriptionUsage, SubscriptionUsageError, type Fetcher, type SubscriptionUsage } from "./subscription-usage.ts";
+import { recordSubscriptionInference } from "./recent-subscription-activity.ts";
 type UsageWindow = SubscriptionUsage["windows"][number];
 
 const accountWindowSchema = Type.Object({
@@ -182,3 +183,15 @@ export function createAnthropicUsageSource(fetcher: Fetcher = fetch, now: () => 
 }
 
 export const anthropicUsageSource = createAnthropicUsageSource();
+
+/** A response to a request made with the connected subscription: keep its limits, and count successful inference as activity. */
+export function observeAnthropicSubscriptionResponse(headers: Headers, succeededInference: boolean): void {
+  try {
+    if (headers.has("anthropic-ratelimit-unified-status")) anthropicUsageSource.observe(headers);
+    if (succeededInference) recordSubscriptionInference("anthropic");
+  } catch (error) {
+    // Usage is a side channel; never fail the request over it.
+    if (!(error instanceof SubscriptionUsageError)) throw error;
+    console.warn(`[usage] ${error.message}`);
+  }
+}

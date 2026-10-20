@@ -4,8 +4,7 @@ import { isJsonObject, shellQuote, type JsonObject } from "@agents-in-the-cloud/
 import { registerWorkspaceResponseTransform, registerWorkspaceSubscriptionSecrets } from "@agents-in-the-cloud/proxy-egress/server";
 import { execWorkspaceCommand, listWorkspaces, registerSeededPiAuth } from "@agents-in-the-cloud/workspace";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { anthropicUsageSource } from "./anthropic-subscription-usage.ts";
-import { SubscriptionUsageError } from "./subscription-usage.ts";
+import { observeAnthropicSubscriptionResponse } from "./anthropic-subscription-usage.ts";
 import { recordSubscriptionInference } from "./recent-subscription-activity.ts";
 import { requireProviderSubscription, usesProviderSubscription } from "./subscription.ts";
 import { codexAccountId } from "./codex-token.ts";
@@ -63,14 +62,7 @@ export function registerSubscriptionCli(getRuntime: () => Promise<ModelRuntime>)
     if (!inference && !hasLimits) return response;
     // Only AgentsInTheCloud's connected subscription, not a login made inside the workspace.
     if (!(await usesConnectedSubscription(request, "anthropic"))) return response;
-    try {
-      if (hasLimits) anthropicUsageSource.observe(response.headers);
-      if (inference && response.ok) recordSubscriptionInference("anthropic");
-    } catch (error) {
-      // Usage is a side channel; never fail Claude Code's request over it.
-      if (!(error instanceof SubscriptionUsageError)) throw error;
-      console.warn(`[usage] ${error.message}`);
-    }
+    observeAnthropicSubscriptionResponse(response.headers, inference && response.ok);
     return response;
   });
   registerWorkspaceSubscriptionSecrets({

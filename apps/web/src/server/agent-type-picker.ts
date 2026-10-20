@@ -5,6 +5,7 @@ interface AgentTypeChoice { id: string; label: string; iconHtml: string }
 
 const agentOrder = ["builtin", "pi", "claude", "claude-cli", "codex", "codex-cli"];
 const flexibleSubscriptions = [
+  { provider: "anthropic", label: "Claude" },
   { provider: "openai", label: "ChatGPT" },
   { provider: "github-copilot", label: "GitHub Copilot" },
   { provider: "xai", label: "xAI" },
