@@ -50,11 +50,11 @@ export type ClaudeRow =
 /** What a background subagent spent. */
 export interface ClaudeTaskUsage { tokens: number; toolUses: number; durationMs: number }
 
-/** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents. */
-export function claudeRows(jsonl: string): ClaudeRow[] {
+/** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents, which keep them in files of their own. */
+export function claudeRows(jsonl: string, sidechain = false): ClaudeRow[] {
   const rows: ClaudeRow[] = [];
   for (const row of nativeJsonlRows(jsonl, rowSchema)) {
-    if (row.isSidechain === true) continue;
+    if ((row.isSidechain === true) !== sidechain) continue;
     const timestamp = nativeTimestamp(row.timestamp);
     if (row.type === "attachment" && row.attachment?.type === "queued_command" && row.uuid) {
       // Background work that finishes mid-turn is delivered into it, like a prompt sent while Claude works.
@@ -92,6 +92,21 @@ export async function readClaudeRows(directory: string, sessionId: string): Prom
   const text = await readTextIfExists(join(directory, `${sessionId}.jsonl`));
   return text === undefined ? undefined : claudeRows(text);
 }
+
+/** A subagent's own conversation, saved beside the session that started it. */
+export async function readClaudeSubagentRows(directory: string, sessionId: string, agentId: string): Promise<ClaudeRow[]> {
+  const path = join(directory, sessionId, "subagents", `agent-${agentId}.jsonl`);
+  // Its page reloads while it runs; the file is parsed again only once it has grown.
+  const file = await stat(path).catch(error => { if (isNotFoundError(error)) return undefined; throw error; });
+  if (!file) return [];
+  const version = `${file.size}:${file.mtimeMs}`;
+  const cached = subagentRows.get(path);
+  if (cached?.version === version) return cached.rows;
+  const rows = claudeRows(await readTextIfExists(path) ?? "", true);
+  subagentRows.set(path, { version, rows });
+  return rows;
+}
+const subagentRows = new Map<string, { version: string; rows: ClaudeRow[] }>();
 
 export async function hasClaudeSession(directory: string, sessionId: string): Promise<boolean> {
   return Bun.file(join(directory, `${sessionId}.jsonl`)).exists();

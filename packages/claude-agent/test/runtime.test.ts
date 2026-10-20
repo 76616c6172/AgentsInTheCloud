@@ -156,6 +156,42 @@ test("background work keeps Claude from settling until it has reported on it, th
   await agents.disposeAll();
 `));
 
+test("Claude's background tasks become activities: commands and monitors open in place, subagents on a page of their own", () => scenario(`
+  const { claudeBackgroundActivities } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/background.ts"))});
+  const id = await agents.create("workspace");
+  const runtime = await agents.ready("workspace", id);
+  const [connection] = connections;
+  const system = (subtype, extra) => ({ type: "system", subtype, uuid: crypto.randomUUID(), session_id: "s", ...extra });
+  const tasks = list => system("background_tasks_changed", { tasks: list });
+  await runtime.send(input, "first");
+  // A task joins the live set before it reports starting.
+  connection.message(tasks([{ task_id: "suite", task_type: "local_bash", description: "Run the suite" }]));
+  connection.message(system("task_started", { task_id: "suite", tool_use_id: "toolu_suite", description: "Run the suite", task_type: "local_bash" }));
+  connection.message(system("task_started", { task_id: "review", tool_use_id: "toolu_review", description: "Review auth", task_type: "local_agent", subagent_type: "general-purpose" }));
+  connection.message(tasks([
+    { task_id: "suite", task_type: "local_bash", description: "Run the suite" },
+    { task_id: "review", task_type: "local_agent", subagent_type: "general-purpose", description: "Review auth" },
+    { task_id: "ci", task_type: "monitor", description: "Watch CI", ambient: true },
+    { task_id: "dream", task_type: "dream", description: "Housekeeping", ambient: true },
+  ]));
+  connection.message(system("task_progress", { task_id: "review", description: "Review auth", usage: { total_tokens: 31400, tool_uses: 12, duration_ms: 90000 }, last_tool_name: "Read" }));
+  expect(claudeBackgroundActivities(runtime).map(({ key, kind, opens, title, progress, details, startedBy }) => ({ key, kind, opens, title, progress, details, startedBy: startedBy?.itemKey }))).toEqual([
+    { key: "suite", kind: "command", opens: "inline", title: "Run the suite", progress: undefined, details: {}, startedBy: "toolu_suite" },
+    { key: "review", kind: "subagent", opens: "drill-in", title: "Review auth", progress: "Using Read", details: { Type: "general-purpose", "Tool uses": "12", Tokens: "31.4k" }, startedBy: "toolu_review" },
+    // Claude won't report on a monitor, but it is running work to look at; other ambient tasks are housekeeping.
+    { key: "ci", kind: "monitor", opens: "inline", title: "Watch CI", progress: undefined, details: {}, startedBy: undefined },
+  ]);
+  connection.message(system("task_progress", { task_id: "review", description: "Review auth", usage: { total_tokens: 40000, tool_uses: 14, duration_ms: 95000 }, summary: "Reading the session store" }));
+  expect(claudeBackgroundActivities(runtime)[1].progress).toBe("Reading the session store");
+  await (await import(${JSON.stringify(join(import.meta.dir, "../src/server/render.ts"))})).rendering.background.stop(runtime, claudeBackgroundActivities(runtime)[0]);
+  expect(connection.calls).toEqual([["stopTask", "suite"]]);
+  // A finished task leaves the list; its report is in the conversation.
+  connection.message(system("task_notification", { task_id: "suite", status: "completed", output_file: "", summary: "Suite passed" }));
+  connection.message(tasks([{ task_id: "review", task_type: "local_agent", subagent_type: "general-purpose", description: "Review auth" }]));
+  expect(claudeBackgroundActivities(runtime).map(activity => activity.key)).toEqual(["review"]);
+  await agents.disposeAll();
+`));
+
 test("stopping interrupts Claude without reporting its abort as a problem", () => scenario(`
   const id = await agents.create("workspace");
   const runtime = await agents.ready("workspace", id);
