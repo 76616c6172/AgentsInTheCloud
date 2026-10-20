@@ -35,6 +35,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
+      # The image build compiles the workspace helper and gateway with local Go.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/workspace-helper/helper/go.mod
+          cache-dependency-path: packages/*/helper/go.sum
       - run: bun install --frozen-lockfile
       - run: bun run check
       - run: bun test packages/shared/test packages/update/test packages/vscode/test images/system/src/channel-update.test.ts scripts/nox-release.test.ts
