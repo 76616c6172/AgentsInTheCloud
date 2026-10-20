@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { JsonObject, JsonValue } from "@agents-in-the-cloud/core";
-import { claudeRows } from "../src/server/rows.ts";
+import { claudeRows, claudeText } from "../src/server/rows.ts";
 import { ClaudeState } from "../src/server/state.ts";
 import { projectClaudeTranscript } from "../src/server/transcript.ts";
 import { workingCommentaryItems } from "@agents-in-the-cloud/agent/server/render-transcript";
@@ -49,9 +49,51 @@ test("shows interruptions as stopped turns, and slash commands as the prompts th
     user("compact", 5, "<command-name>/compact</command-name>\n<command-message>compact</command-message>\n<command-args></command-args>"),
     user("compact-output", 9, "<local-command-stdout>Compacted </local-command-stdout>"),
   )), false);
-  expect(items.map(item => [item.type, "text" in item ? item.text : undefined])).toEqual([["user", "Write an essay"], ["working", undefined], ["user", "/compact"], ["working", undefined]]);
+  expect(items.map(item => [item.type, "text" in item ? item.text : undefined])).toEqual([["user", "Write an essay"], ["working", undefined], ["user", "/compact"], ["working", undefined], ["text", "Compacted"]]);
   expect(items[1]).toMatchObject({ stoppedAt: Date.parse(time(2)), items: [] });
-  expect(items[3]).toMatchObject({ completedAt: Date.parse(time(9)), items: [{ type: "note", text: "Claude compacted the conversation." }, { type: "note", text: "Compacted" }] });
+  expect(items[3]).toMatchObject({ completedAt: Date.parse(time(9)), items: [{ type: "note", text: "Claude compacted the conversation." }] });
+  expect(items[4]).toMatchObject({ final: true });
+});
+
+test("answers a command with its output, which history replaces once recorded", () => {
+  const value = new ClaudeState();
+  value.add({ kind: "user", uuid: "review", timestamp: Date.parse(time(0)), content: [{ type: "text", text: "/code-review" }], meta: false });
+  // Claude streams a command's output as a reply no model wrote, and records it under the same UUID as a row of its own.
+  value.receive(sdk({ type: "assistant", uuid: "findings", session_id: "s", parent_tool_use_id: null, message: { id: "d774d465", model: "<synthetic>", content: [{ type: "text", text: "Two bugs." }], stop_reason: "end_turn" } }));
+  expect(projectClaudeTranscript(value, false)[2]).toMatchObject({ type: "text", key: "findings:output", text: "Two bugs.", final: true });
+  const command = [
+    user("review-caveat", 0, "<local-command-caveat>Caveat</local-command-caveat>", { isMeta: true }),
+    user("review-echo", 0, "/code-review"),
+    { type: "system", subtype: "local_command", uuid: "invocation", timestamp: time(1), content: "<command-name>/code-review</command-name>", isMeta: false },
+    { type: "system", subtype: "local_command", uuid: "findings", timestamp: time(5), content: "<local-command-stdout>Two bugs.</local-command-stdout>", isMeta: false },
+  ];
+  value.merge(claudeRows(jsonl(...command)));
+  value.merge(claudeRows(jsonl(
+    ...command,
+    user("fix", 6, "fix them all"),
+    assistant("a1", 7, "msg_1", [{ type: "tool_use", id: "toolu_1", name: "Edit", input: {} }], "tool_use"),
+    user("result", 8, [{ type: "tool_result", tool_use_id: "toolu_1", content: "Updated" }]),
+    assistant("a2", 9, "msg_2", [{ type: "text", text: "Fixed both." }], "end_turn"),
+  )));
+  // Prompts, as title suggestions read them, leave out the output.
+  expect(value.rows.flatMap(row => row.kind === "user" && !row.meta && !row.content.some(block => block.type === "tool_result") ? [claudeText(row.content)] : [])).toEqual(["/code-review", "fix them all"]);
+  const items = projectClaudeTranscript(value, false);
+  expect(items.map(item => [item.type, "text" in item ? item.text : undefined])).toEqual([["user", "/code-review"], ["working", undefined], ["text", "Two bugs."], ["user", "fix them all"], ["working", undefined], ["text", "Fixed both."]]);
+  expect(items[2]).toMatchObject({ key: "findings:output", final: true });
+  expect(items[5]).toMatchObject({ final: true });
+});
+
+test("notes command output that answers no command, and shows its errors as errors", () => {
+  const items = projectClaudeTranscript(state(jsonl(
+    user("prompt", 0, "Explain the diff"),
+    { type: "system", subtype: "local_command", uuid: "stray", timestamp: time(1), content: "<local-command-stdout>Queued output</local-command-stdout>" },
+    assistant("a1", 2, "msg_1", [{ type: "text", text: "It renames a function." }], "end_turn"),
+    user("bad", 3, "/code-review nowhere"),
+    { type: "system", subtype: "local_command", uuid: "failed", timestamp: time(4), content: "<local-command-stderr>Not a branch</local-command-stderr>" },
+  )), false);
+  expect(items.map(item => [item.type, "text" in item ? item.text : undefined])).toEqual([["user", "Explain the diff"], ["working", undefined], ["text", "It renames a function."], ["user", "/code-review nowhere"], ["working", undefined]]);
+  expect(items[1]).toMatchObject({ items: [{ type: "note", text: "Queued output", tone: "system" }] });
+  expect(items[4]).toMatchObject({ hasFinalAnswer: false, items: [{ type: "note", text: "Not a branch", tone: "error" }] });
 });
 
 test("streams blocks under the keys their committed messages keep", () => {
