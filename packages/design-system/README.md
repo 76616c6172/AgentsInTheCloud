@@ -152,7 +152,9 @@ a plain-text `description`. Native `element` semantics and independent `primary`
 controls are separate from presentation. Disclosure composes either summary
 with native open/close, a chevron and the shared gutter; callers supply content
 and integration attributes, never their own summary element or body styling. Its leading, metadata and engaged-action slots retain
-canonical wrappers; there is no wholesale `contentHtml` replacement. For
+canonical wrappers; there is no wholesale `contentHtml` replacement. Renderers that emit
+contents separately, such as Markdown, wrap them in `disclosureOpeningHtml` and
+`disclosureClosingHtml` instead of `bodyHtml`. Content row's `muted` tone suits secondary rows. For
 icon-only controls use Button. Toggle options have text labels, not HTML.
 Transient feedback buttons select a Button variant rather than arbitrary classes.
 

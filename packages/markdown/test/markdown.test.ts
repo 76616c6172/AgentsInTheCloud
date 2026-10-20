@@ -15,6 +15,26 @@ describe("renderMarkdown", () => {
     expect(html).not.toContain("<script>");
   });
 
+  test("GitHub-style details blocks become disclosures around their Markdown", () => {
+    const html = renderMarkdown("work 1", "<details>\n<summary>Why <b>not</b> `JSON`?</summary>\n\n- one\n\n```\n</details>\n```\n</details>\n\nAfter");
+    expect(html).toContain("Why &lt;b&gt;not&lt;/b&gt; JSON?");
+    expect(html).toMatch(/<div class="disclosure-content"><ul>\n<li>one<\/li>[\s\S]*&lt;\/details&gt;[\s\S]*<\/div><\/details>\n<p>After<\/p>$/);
+    expect(renderMarkdown("work 1", "<details open><summary>Open</summary>\nText")).toContain('<details class="disclosure" open>');
+    expect(renderMarkdown("work 1", "<details>x</details>")).toBe("<p>&lt;details&gt;x&lt;/details&gt;</p>");
+  });
+
+  test("details blocks pair with closing lines in the same container", () => {
+    const fenceInList = renderMarkdown("work 1", "<details>\n<summary>S</summary>\n\n- ```js\n  x\n  ```\n\n</details>\n\nAfter");
+    expect(fenceInList).toMatch(/<\/ul>\n<\/div><\/details>\n<p>After<\/p>$/);
+    const nested = renderMarkdown("work 1", "<details>\n<summary>Outer</summary>\n\n- <details>\n  <summary>Inner</summary>\n\n  inner\n  </details>\n\nstill outer\n\n</details>\n\nAfter");
+    expect(nested).toMatch(/<\/div><\/details>\n<\/li>\n<\/ul>\n<p>still outer<\/p>\n<\/div><\/details>\n<p>After<\/p>$/);
+    expect(renderMarkdown("work 1", "- a\n  <details>\n- b")).toMatch(/<\/details>\n<\/li>\n<li>b<\/li>/);
+    expect(renderMarkdown("work 1", "Text\n\n</details>")).toBe("<p>Text</p>\n<p>&lt;/details&gt;</p>");
+    expect(renderMarkdown("work 1", "- a\n  </details>\n- b")).toBe("<ul>\n<li>a\n&lt;/details&gt;</li>\n<li>b</li>\n</ul>");
+    const lazy = renderMarkdown("work 1", "<details>\n<summary>S</summary>\n\n- a\n</details>\n\nAfter");
+    expect(lazy).toMatch(/<li>a<\/li>\n<\/ul>\n<\/div><\/details>\n<p>After<\/p>$/);
+  });
+
   test("does not parse Markdown emphasis inside fenced code", () => {
     const html = renderMarkdown("work 1", "```bash\nls **/work**\n```");
     expect(html).toContain("/work");
