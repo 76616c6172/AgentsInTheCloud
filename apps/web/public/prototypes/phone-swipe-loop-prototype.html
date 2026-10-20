@@ -1,0 +1,365 @@
+<!doctype html>
+<!--
+  THROWAWAY PROTOTYPE — not product code.
+  Question: with D (folded neighbours) as the phone bar, how should a further left swipe
+  from Work wrap around to the workspace list, and where does the sidebar button go?
+  Sequence: Workspaces (left) ← Agents → Work → Workspaces (right).
+  Fragments are rendered by the real design-system renderers (generator in the session scratchpad).
+-->
+<html lang="en" data-theme="nox-oscura">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phone swipe loop · prototype</title>
+<link rel="stylesheet" href="/design-system.css">
+<style>
+  body { margin: 0; background: var(--bg); color: var(--text); font: var(--text-body) / var(--leading-standard) var(--font-sans); }
+
+  /* ── Prototype tooling (not proposed UI) ─────────────────────────────── */
+  .proto-tooling { position: sticky; top: 0; z-index: 20; display: grid; gap: 8px; padding: 10px 16px 12px; border-bottom: 1px dashed var(--line-strong); background: color-mix(in srgb, var(--bg) 92%, var(--accent)); }
+  .proto-tooling__row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .proto-badge { padding: 2px 8px; border: 1px dashed var(--line-strong); border-radius: var(--radius-round); color: var(--text-muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+  .proto-tooling strong { color: var(--text-bright); }
+  .proto-why { margin: 0; max-width: 72ch; }
+  .proto-why b { color: var(--text-bright); font-weight: var(--weight-medium); }
+  .proto-stage { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; gap: 32px; padding: 24px 16px 48px; }
+  .proto-column { display: grid; gap: 10px; justify-items: start; }
+  .proto-caption { margin: 0; color: var(--text-muted); font-size: 12px; font-weight: var(--weight-medium); letter-spacing: .04em; text-transform: uppercase; }
+  .proto-readout { margin: 0; color: var(--text-muted); font: var(--text-code) var(--font-mono); }
+  .proto-frame { width: 375px; max-width: calc(100vw - 32px); overflow: hidden; border-radius: var(--radius-surface); box-shadow: 0 0 0 1px var(--line-strong); }
+  .proto-frame-label { margin: 0 0 4px; color: var(--text-muted); font-size: 12px; }
+  .proto-notes { max-width: 380px; display: grid; gap: 12px; }
+  .proto-notes h3 { margin: 0; color: var(--text-bright); font-size: var(--text-body); }
+  .proto-notes p, .proto-notes ul { margin: 0; }
+  .proto-notes ul { padding-inline-start: 18px; }
+  .proto-map { display: flex; gap: 4px; flex-wrap: wrap; }
+  .proto-map > span { padding: 2px 8px; border-radius: var(--radius-round); box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--text-muted); font-size: 12px; }
+  .proto-map > span[aria-current] { background: var(--accent-soft); color: var(--text-bright); box-shadow: none; }
+
+  /* ── Phone emulation: the design system sizes touch controls by viewport, so pin them here. ── */
+  .proto-device .nox-phone-header .button.icon-only { --button-icon-size: 17.85px; width: 42.5px; height: 42.5px; min-height: 42.5px; }
+  .proto-device .tab-strip__tabs > .content-row { padding-inline-end: 8px; column-gap: 6px; }
+
+  /* ── Phone header: mirrors nox-layout.css's phone rules ──────────────── */
+  .proto-device { --p: 0; --d: 0; }
+  .nox-phone-header { position: relative; display: grid; padding-top: 18px; border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: var(--bg); }
+  .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 4px; }
+  .proto-divider { flex: none; width: 1px; height: 20px; margin-inline: 2px; background: var(--line-strong); }
+  .nox-phone-header .tab-strip__tabs { scrollbar-width: none; }
+  .nox-phone-header .tab-strip__tabs > .content-row { flex: none; width: auto; min-width: 0; min-height: 36px; border-radius: var(--radius-control); }
+  .nox-phone-header .tab-strip__tabs > .content-row > .content-row__primary { min-height: 36px; padding-inline: 4px 10px; }
+  .nox-phone-header .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: var(--accent-soft); }
+  .proto-sidebar-dot { position: absolute; top: 7px; right: 7px; }
+
+  /* The sidebar button lives on the side its list opens from: left on Agents, right on Work.
+   * Each slot opens with the pane it belongs to, so the button travels with the fold. */
+  .proto-dock { flex: none; display: flex; justify-content: center; }
+  .proto-dock--left { --open: calc(1 - var(--p)); }
+  .proto-dock--right { --open: var(--p); }
+  .proto-dock { width: calc(var(--open) * 42.5px); opacity: clamp(0, 2 * var(--open) - 1, 1); }
+  .proto-dock > .button { flex: none; scale: calc(.6 + .4 * clamp(0, 2 * var(--open) - 1, 1)); }
+  /* The mirrored icon puts its panel on the right, where the list will open. */
+  .proto-dock--right .button__icon svg { scale: -1 1; }
+  .nox-phone-header[data-pane="agents"] .proto-dock--right,
+  .nox-phone-header[data-pane="work"] .proto-dock--left { pointer-events: none; }
+  .proto-dock--right.proto-dock--inside { order: 0; }
+  .proto-more { order: 1; flex: none; }
+  .proto-dock--right:not(.proto-dock--inside) { order: 2; }
+
+  /* D · Folded neighbours: the other pane's tabs fold to icons on their side. */
+  .proto-rail { flex: 1; min-width: 0; display: flex; align-items: center; gap: 2px; padding-inline: 2px; }
+  .proto-rail .tab-strip[data-fold] { flex: 0 calc(var(--open) * 4 + .01) auto; min-width: 0; padding-block: 0; }
+  .proto-rail [data-fold] .tab-strip__tabs { gap: calc(6px - var(--open) * 2px); }
+  .proto-rail .content-row__content { overflow: hidden; }
+  .proto-rail [data-fold="agents"] { --open: calc(1 - var(--p)); }
+  .proto-rail [data-fold="work"] { --open: var(--p); }
+  .proto-rail [data-fold] .content-row__content { max-width: calc(var(--open) * 9rem); opacity: clamp(0, 2 * var(--open) - .6, 1); }
+  .proto-rail [data-fold] .tab-strip__tabs > .content-row { opacity: calc(.5 + .5 * var(--open)); }
+  .proto-device .proto-rail .tab-strip[data-fold] .tab-strip__tabs > .content-row.content-row { column-gap: calc(var(--open) * 6px); padding-inline: calc(var(--open) * 8px) calc(var(--open) * 8px); }
+  .proto-rail [data-fold] .tab-strip__tabs > .content-row > .content-row__primary { gap: calc(var(--open) * 8px); padding-inline: calc(3px + var(--open) * 1px) calc(3px + var(--open) * 7px); }
+  .nox-phone-header .proto-rail [data-fold] .tab-strip__tabs > .content-row:has(> .content-row__primary[aria-selected="true"]) { background: color-mix(in srgb, var(--accent-soft) calc(var(--open) * 100%), transparent); }
+
+  /* ── Phone body ───────────────────────────────────────────────────────
+   * The list card is docked on whichever side is opening. The workspace steps aside
+   * toward the other side into a live preview, scaling about its far edge, exactly
+   * mirroring today's reveal from Agents. */
+  .proto-phone { --drawer-width: 287px; --drawer-gap: 8px; --travel: calc(var(--drawer-width) + 2 * var(--drawer-gap)); position: relative; width: 375px; height: 720px; max-width: calc(100vw - 32px); overflow: hidden; border-radius: 28px; background: var(--bg); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow); touch-action: pan-y; user-select: none; -webkit-user-select: none; cursor: grab; }
+  .proto-phone { --side: 1; --origin: 0%; }
+  .proto-phone[data-dock="right"] { --side: -1; --origin: 100%; }
+  .proto-phone[data-dragging] { cursor: grabbing; }
+  .proto-drawer { position: absolute; inset: 26px auto 8px var(--drawer-gap); width: var(--drawer-width); display: flex; flex-direction: column; border-radius: var(--radius-overlay); background: var(--panel); opacity: calc(.4 + var(--d) * .6); transform: translateX(calc(var(--side) * (var(--d) - 1) * 8%)); }
+  .proto-phone[data-dock="right"] .proto-drawer { inset-inline: auto var(--drawer-gap); }
+  .proto-drawer__title { padding: 14px 14px 6px; }
+  .proto-drawer__list { flex: 1; display: grid; align-content: start; gap: 2px; padding: 4px 6px; }
+  .proto-drawer__footer { padding: 6px; border-top: 1px solid var(--line); }
+  .proto-reveal { transform-origin: var(--origin) 50%; transform: translateX(calc(var(--side) * var(--d) * var(--travel))) scale(calc(1 - var(--d) * .1)); }
+  .proto-main { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; background: var(--bg); border-radius: calc(var(--d) * var(--radius-overlay)); overflow: clip; }
+  .proto-phone:is([data-at^="workspaces"], [data-moving]) .proto-main { box-shadow: 0 0 0 1px var(--line-strong); }
+  .proto-scrim { position: absolute; inset: 0; z-index: 2; border-radius: var(--radius-overlay); background: color-mix(in srgb, #000 30%, transparent); opacity: var(--d); pointer-events: none; }
+  .proto-phone[data-at^="workspaces"] .proto-scrim { pointer-events: auto; }
+  .proto-panes { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .proto-pane { position: absolute; inset: 0; overflow: clip; background: var(--bg); }
+  .proto-pane--agent { transform-origin: 0 50%; transform: translateX(calc(var(--p) * -4%)) scale(calc(1 - var(--p) * .1)); border-radius: calc(var(--p) * var(--radius-overlay)); }
+  .proto-pane--agent::after { content: ""; position: absolute; inset: 0; background: #000; opacity: calc(var(--p) * .45); pointer-events: none; }
+  .proto-pane--work { z-index: 1; transform-origin: 100% 50%; transform: translateX(calc((1 - var(--p)) * 104%)) scale(calc(.9 + var(--p) * .1)); border-radius: calc((1 - var(--p)) * var(--radius-overlay)); box-shadow: 0 0 0 1px var(--line-strong), var(--shadow); }
+  .proto-phone[data-at="agents"]:not([data-moving]) .proto-pane--work .proto-view { visibility: hidden; }
+
+  /* Mock pane contents */
+  .proto-transcript { display: grid; align-content: start; gap: 14px; height: 100%; padding: 14px 16px; overflow: hidden; }
+  .proto-prompt { justify-self: end; max-width: 85%; padding: 8px 12px; border-radius: var(--radius-surface); background: var(--accent-soft); color: var(--text-bright); }
+  .proto-tool { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font: var(--text-code) var(--font-mono); }
+  .proto-tool svg { width: 14px; height: 14px; flex: none; }
+  .proto-view { display: none; height: 100%; }
+  .proto-view[data-shown] { display: block; }
+  .proto-terminal { margin: 0; height: 100%; padding: 12px 14px; background: var(--terminal-black); color: var(--terminal-white); font: var(--text-code) / 1.6 var(--font-mono); white-space: pre-wrap; }
+  .proto-terminal b { color: var(--terminal-green); font-weight: inherit; }
+  .proto-terminal i { color: var(--terminal-blue); font-style: normal; }
+  .proto-site { display: grid; align-content: start; gap: 12px; height: 100%; padding: 22px 18px; background: var(--panel); }
+  .proto-site__bar { height: 12px; border-radius: var(--radius-indicator); background: var(--line); }
+  .proto-site__hero { height: 140px; border-radius: var(--radius-surface); background: var(--accent-soft); }
+  .proto-diff { margin: 0; height: 100%; padding: 12px 0; font: var(--text-code) / 1.7 var(--font-mono); white-space: pre; overflow: hidden; }
+  .proto-diff > span { display: block; padding-inline: 14px; }
+  .proto-diff .add { background: var(--success-soft); color: var(--text-bright); }
+  .proto-diff .del { background: var(--danger-soft); }
+  .proto-diff .file { color: var(--text-bright); padding-block: 4px; }
+</style>
+</head>
+<body>
+<div class="proto-tooling" aria-label="Prototype controls">
+  <div class="proto-tooling__row">
+    <span class="proto-badge">Prototype</span>
+    <strong>D · Folded neighbours, with the loop</strong>
+  </div>
+  <p class="proto-why">From Work, swipe left once more and the workspace list opens on the <b>right</b>: the Work card steps aside to the left, mirroring how Agents steps aside to the right. The sidebar button follows: <b>top-left on Agents, top-right on Work</b>, sliding across with the fold.</p>
+  <div class="proto-tooling__row">
+    <span data-slot="dockToggle"></span><span data-slot="themeToggle"></span><span data-slot="attentionToggle"></span><span data-slot="hint"></span>
+  </div>
+</div>
+
+<main class="proto-stage">
+  <section class="proto-column" aria-label="Live phone">
+    <h2 class="proto-caption">Live · drag sideways or tap</h2>
+    <div class="proto-map" id="map"><span data-at="workspaces-left">Workspaces</span><span data-at="agents">Agents</span><span data-at="work">Work</span><span data-at="workspaces-right">Workspaces</span></div>
+    <div class="proto-phone proto-device" id="phone" data-at="agents" data-dock="left">
+      <aside class="proto-drawer">
+        <div class="proto-drawer__title title">Workspaces</div>
+        <div class="proto-drawer__list" data-slot="workspaceRows"></div>
+        <div class="proto-drawer__footer" data-slot="newWorkspace"></div>
+      </aside>
+      <div class="proto-main proto-reveal">
+        <header class="nox-phone-header" id="live-header" aria-label="Workspace"></header>
+        <div class="proto-panes">
+          <section class="proto-pane proto-pane--agent">
+            <div class="proto-view proto-transcript" data-view="agent:claude">
+              <div class="proto-prompt">D is the winner. From Work, a further left swipe should loop around to the workspace list.</div>
+              <div class="markdown"><p>The list opens on the right from Work, mirroring the reveal from Agents. The sidebar button moves to the right with it.</p></div>
+              <div class="proto-tool" data-slot-icon="Terminal">rg -n "showWorkspacePane" apps/web/src</div>
+              <div class="proto-tool" data-slot-icon="Panel">Edit apps/web/src/client/mobile-swipe-controller.ts</div>
+              <div class="markdown"><p>Drag left from here twice to try it.</p></div>
+            </div>
+            <div class="proto-view proto-transcript" data-view="agent:pi">
+              <div class="proto-prompt">Review de390c87 for regressions on iPad.</div>
+              <div class="markdown"><p>The ghost corner tile keeps a 44px target in landscape. One nit: the opener overlaps Follow latest when the keyboard is up.</p></div>
+            </div>
+          </section>
+          <section class="proto-pane proto-pane--work">
+            <pre class="proto-view proto-terminal" data-view="work:terminal"><b>~/work</b> <i>nox</i> $ bun run web
+[assets] ready
+[server] listening on http://localhost:3000
+<b>~/work</b> <i>nox</i> $ </pre>
+            <div class="proto-view proto-site" data-view="work:browser"><div class="proto-site__bar"></div><div class="proto-site__hero"></div><div class="proto-site__bar"></div><div class="proto-site__bar" style="width: 60%"></div></div>
+            <pre class="proto-view proto-diff" data-view="work:changes"><span class="file">apps/web/src/client/mobile-swipe-controller.ts</span><span>    if (this.sidebarOpen) {</span><span class="del">-     return direction === 1 ? close : undefined;</span><span class="add">+     return direction === -this.drawerSide ? close : undefined;</span><span>    }</span></pre>
+            <pre class="proto-view proto-diff" data-view="work:files"><span class="file">apps/web/</span><span>  public/nox-layout.css</span><span>  src/client/mobile-swipe-controller.ts</span><span>  src/server/workspace-presentation.ts</span></pre>
+          </section>
+        </div>
+      </div>
+      <div class="proto-scrim proto-reveal" data-proto-close></div>
+    </div>
+    <p class="proto-readout" id="readout"></p>
+  </section>
+
+  <section class="proto-column" aria-label="Header states">
+    <h2 class="proto-caption">The bar from Agents to Work</h2>
+    <div id="states" style="display: grid; gap: 12px;"></div>
+  </section>
+
+  <section class="proto-notes">
+    <h2 class="proto-caption">What to judge</h2>
+    <ul>
+      <li>Does the right-hand list feel like the same place as the left-hand one, reached the other way round?</li>
+      <li>Does the sidebar button sliding across read as "the list is now over here"?</li>
+      <li>Outer edge or Before More: which keeps More where your thumb expects it?</li>
+    </ul>
+    <h3>Rules in this prototype</h3>
+    <ul>
+      <li>Agents: swipe right opens the list on the left, swipe left goes to Work.</li>
+      <li>Work: swipe right goes to Agents, swipe left opens the list on the right.</li>
+      <li>An open list closes by swiping back toward the workspace, tapping it, or tapping the current workspace. It never wraps further.</li>
+      <li>Flicks commit; slow drags commit past halfway (as in <code>mobile-swipe-controller.ts</code>).</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+const F = {"sidebar":"<button class=\"button quiet icon-only\" type=\"button\" title=\"Show workspaces\" aria-label=\"Show workspaces\" data-proto-go=\"workspaces\"><span class=\"button__icon\" aria-hidden=\"true\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/><\/svg><i class=\"status-dot attention proto-sidebar-dot\" aria-hidden=\"true\"><\/i><\/span><\/button>","more":"<button class=\"button quiet icon-only\" type=\"button\" title=\"More\" aria-label=\"More\"><span class=\"button__icon\" aria-hidden=\"true\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><circle cx=\"5\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"19\" cy=\"12\" r=\"1\"/><\/svg><\/span><\/button>","agentTabs":{"agent:claude":"<div class=\"content-row content-row--compact content-row--fill\"><button class=\"content-row__primary\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\" type=\"button\" data-proto-tab=\"agent:claude\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4h6M12 4V2M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z\"/><circle cx=\"9\" cy=\"13\" r=\"1\"/><circle cx=\"15\" cy=\"13\" r=\"1\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Claude<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"tab-strip__status\" role=\"img\" aria-label=\"Busy\"><span class=\"status-indicator\"><i class=\"status-dot running\" aria-hidden=\"true\"><\/i><i class=\"status-dot attention\" aria-hidden=\"true\" hidden><\/i><\/span><\/span><\/span><\/button><\/div>","agent:pi":"<div class=\"content-row content-row--compact content-row--fill\"><button class=\"content-row__primary\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\" type=\"button\" data-proto-tab=\"agent:pi\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M7 5V3M5 3h4M3 7h8a1 1 0 0 1 1 1v6H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1zM17 12v-2m-2 0h4M13 14h8a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z\"/><path d=\"M5 10h.01M9 10h.01M15 18h.01M19 18h.01\" stroke-width=\"2.6\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Pi<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"tab-strip__status\" role=\"img\" aria-label=\"\" hidden><span class=\"status-indicator\"><i class=\"status-dot running\" aria-hidden=\"true\" hidden><\/i><i class=\"status-dot attention\" aria-hidden=\"true\" hidden><\/i><\/span><\/span><\/span><\/button><\/div>"},"workTabs":{"work:terminal":"<div class=\"content-row content-row--compact content-row--fill\"><button class=\"content-row__primary\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\" type=\"button\" data-proto-tab=\"work:terminal\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"M7 10l3 2-3 2M12 15h5\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Terminal<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"tab-strip__status\" role=\"img\" aria-label=\"\" hidden><span class=\"status-indicator\"><i class=\"status-dot running\" aria-hidden=\"true\" hidden><\/i><i class=\"status-dot attention\" aria-hidden=\"true\" hidden><\/i><\/span><\/span><\/span><\/button><\/div>","work:browser":"<div class=\"content-row content-row--compact content-row--fill\"><button class=\"content-row__primary\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\" type=\"button\" data-proto-tab=\"work:browser\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M10 4v4M2 8h20M6 4v4\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">localhost:5173<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"tab-strip__status\" role=\"img\" aria-label=\"\" hidden><span class=\"status-indicator\"><i class=\"status-dot running\" aria-hidden=\"true\" hidden><\/i><i class=\"status-dot attention\" aria-hidden=\"true\" hidden><\/i><\/span><\/span><\/span><\/button><\/div>","work:changes":"<div class=\"content-row content-row--compact content-row--fill\"><button class=\"content-row__primary\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\" type=\"button\" data-proto-tab=\"work:changes\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zM9 10h6m-3 3V7m-3 10h6\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Changes<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"tab-strip__status\" role=\"img\" aria-label=\"\" hidden><span class=\"status-indicator\"><i class=\"status-dot running\" aria-hidden=\"true\" hidden><\/i><i class=\"status-dot attention\" aria-hidden=\"true\" hidden><\/i><\/span><\/span><\/span><\/button><\/div>","work:files":"<div class=\"content-row content-row--compact content-row--fill\"><button class=\"content-row__primary\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\" type=\"button\" data-proto-tab=\"work:files\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h6l2 2h8v12H4z\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Files<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"tab-strip__status\" role=\"img\" aria-label=\"\" hidden><span class=\"status-indicator\"><i class=\"status-dot running\" aria-hidden=\"true\" hidden><\/i><i class=\"status-dot attention\" aria-hidden=\"true\" hidden><\/i><\/span><\/span><\/span><\/button><\/div>"},"changesWaiting":"<div class=\"content-row content-row--compact content-row--fill\"><button class=\"content-row__primary\" role=\"tab\" aria-selected=\"false\" tabindex=\"-1\" type=\"button\" data-proto-tab=\"work:changes\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2zM9 10h6m-3 3V7m-3 10h6\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Changes<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"tab-strip__status\" role=\"img\" aria-label=\"Requesting attention\"><span class=\"status-indicator\"><i class=\"status-dot running\" aria-hidden=\"true\" hidden><\/i><i class=\"status-dot attention\" aria-hidden=\"true\"><\/i><\/span><\/span><\/span><\/button><\/div>","agentStrip":"<div id=\"proto_agent_tabs\" class=\"tab-strip\" data-controller=\"tab-strip\" data-action=\"keydown->tab-strip#navigate mouseover->tab-strip#engage focusin->tab-strip#engage turbo:before-morph-element->tab-strip#schedule\"><div id=\"proto_agent_tabs_tabs\" class=\"tab-strip__tabs\" data-tab-strip-target=\"list\" data-action=\"scroll->tab-strip#syncScroll\" role=\"tablist\" aria-label=\"Agents\">%TABS%<\/div><\/div>","workStrip":"<div id=\"proto_work_tabs\" class=\"tab-strip\" data-controller=\"tab-strip\" data-action=\"keydown->tab-strip#navigate mouseover->tab-strip#engage focusin->tab-strip#engage turbo:before-morph-element->tab-strip#schedule\"><div id=\"proto_work_tabs_tabs\" class=\"tab-strip__tabs\" data-tab-strip-target=\"list\" data-action=\"scroll->tab-strip#syncScroll\" role=\"tablist\" aria-label=\"Work views\">%TABS%<\/div><\/div>","chipWork":"<button class=\"content-row content-row--compact content-row--fit content-row--single content-row__primary\" type=\"button\" data-proto-go=\"work\"><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Work<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"proto-chip-count\">4<\/span><i class=\"status-dot attention proto-chip-dot\" aria-hidden=\"true\"><\/i><span class=\"proto-flip\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m15 18-6-6 6-6\"/><\/svg><\/span><\/span><\/button>","chipAgents":"<button class=\"content-row content-row--compact content-row--fit content-row--single content-row__primary\" type=\"button\" data-proto-go=\"agents\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m15 18-6-6 6-6\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Agents<\/span><\/span><\/span><span class=\"content-row__metadata\"><span class=\"proto-chip-count\">2<\/span><i class=\"status-dot attention proto-chip-dot\" aria-hidden=\"true\"><\/i><\/span><\/button>","paneToggle":"<div class=\"text-toggle subtle\" role=\"group\" aria-label=\"Pane\" data-controller=\"toggle\"><button class=\"text-toggle__option\" type=\"button\" name=\"pane\" value=\"agents\" aria-pressed=\"true\">Agents<\/button><button class=\"text-toggle__option\" type=\"button\" name=\"pane\" value=\"work\" aria-pressed=\"false\">Work<\/button><\/div>","variantToggle":"<div class=\"button-toggle\" role=\"group\" aria-label=\"Direction\" data-controller=\"toggle\"><button class=\"button-toggle__option\" type=\"button\" name=\"variant\" value=\"a\" aria-pressed=\"true\">A<\/button><button class=\"button-toggle__option\" type=\"button\" name=\"variant\" value=\"b\" aria-pressed=\"false\">B<\/button><button class=\"button-toggle__option\" type=\"button\" name=\"variant\" value=\"c\" aria-pressed=\"false\">C<\/button><button class=\"button-toggle__option\" type=\"button\" name=\"variant\" value=\"d\" aria-pressed=\"false\">D<\/button><button class=\"button-toggle__option\" type=\"button\" name=\"variant\" value=\"e\" aria-pressed=\"false\">E<\/button><\/div>","themeToggle":"<div class=\"button-toggle\" role=\"group\" aria-label=\"Theme\" data-controller=\"toggle\"><button class=\"button-toggle__option\" type=\"button\" name=\"theme\" value=\"nox-oscura\" aria-pressed=\"true\">Nox Oscura<\/button><button class=\"button-toggle__option\" type=\"button\" name=\"theme\" value=\"daylight\" aria-pressed=\"false\">Daylight<\/button><\/div>","attentionToggle":"<div class=\"button-toggle\" role=\"group\" aria-label=\"Work needs attention\" data-controller=\"toggle\"><button class=\"button-toggle__option\" type=\"button\" name=\"attention\" value=\"off\" aria-pressed=\"false\">Quiet<\/button><button class=\"button-toggle__option\" type=\"button\" name=\"attention\" value=\"on\" aria-pressed=\"true\">Changes waiting<\/button><\/div>","prev":"<button class=\"button quiet icon-only\" type=\"button\" title=\"Previous direction\" aria-label=\"Previous direction\" data-proto-step=\"-1\"><span class=\"button__icon\" aria-hidden=\"true\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"m15 18-6-6 6-6\"/><\/svg><\/span><\/button>","next":"<button class=\"button quiet icon-only\" type=\"button\" title=\"Next direction\" aria-label=\"Next direction\" data-proto-step=\"1\"><span class=\"button__icon\" aria-hidden=\"true\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 12h14M13 7l5 5-5 5\"/><circle cx=\"5\" cy=\"6\" r=\"1.5\" fill=\"currentColor\" stroke=\"none\"/><\/svg><\/span><\/button>","dockToggle":"<div class=\"button-toggle\" role=\"group\" aria-label=\"Sidebar button on Work\" data-controller=\"toggle\"><button class=\"button-toggle__option\" type=\"button\" name=\"dock\" value=\"edge\" aria-pressed=\"true\">Outer edge<\/button><button class=\"button-toggle__option\" type=\"button\" name=\"dock\" value=\"inside\" aria-pressed=\"false\">Before More<\/button><\/div>","sidebarRight":"<button class=\"button quiet icon-only\" type=\"button\" title=\"Show workspaces\" aria-label=\"Show workspaces\" data-proto-go=\"workspaces-right\"><span class=\"button__icon\" aria-hidden=\"true\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/><\/svg><i class=\"status-dot attention proto-sidebar-dot\" aria-hidden=\"true\"><\/i><\/span><\/button>","hint":"<button class=\"button secondary\" type=\"button\" data-proto-hint><span class=\"button__icon\" aria-hidden=\"true\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 11a8 8 0 1 0-2.34 5.66M20 4v7h-7\"/><\/svg><\/span><span class=\"button__caption\">Replay first-open hint<\/span><\/button>","workspaceRows":"<button class=\"content-row content-row--compact content-row--fill content-row--single content-row__primary\" type=\"button\" aria-current=\"page\" data-proto-go=\"agents\"><span class=\"content-row__icon\"><span class=\"status-spinner\" aria-hidden=\"true\"><\/span><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Nox · phone header<\/span><\/span><\/span><\/button><button class=\"content-row content-row--compact content-row--fill content-row--single content-row__primary\" type=\"button\"><span class=\"content-row__icon\"><i class=\"status-dot attention\" aria-hidden=\"true\"><\/i><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Agent pane refactor<\/span><\/span><\/span><\/button><button class=\"content-row content-row--compact content-row--fill content-row--single content-row__primary\" type=\"button\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h16v14H4zM8 9h8M8 13h5\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Release notes 0.42<\/span><\/span><\/span><\/button><button class=\"content-row content-row--compact content-row--fill content-row--single content-row__primary\" type=\"button\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h16v14H4zM8 9h8M8 13h5\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Terminal scrollback<\/span><\/span><\/span><\/button><button class=\"content-row content-row--compact content-row--fill content-row--single content-row__primary\" type=\"button\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h16v14H4zM8 9h8M8 13h5\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">Docs cleanup<\/span><\/span><\/span><\/button>","newWorkspace":"<button class=\"content-row content-row--compact content-row--fill content-row--single content-row__primary\" type=\"button\"><span class=\"content-row__icon\"><svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M12 5v14M5 12h14\"/><\/svg><\/span><span class=\"content-row__content\"><span class=\"content-row__label\"><span class=\"content-row__label-text\">New workspace<\/span><\/span><\/span><\/button>","icons":{"Terminal":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"3\" y=\"5\" width=\"18\" height=\"14\" rx=\"2\"/><path d=\"M7 10l3 2-3 2M12 15h5\"/><\/svg>","Browser":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/><path d=\"M10 4v4M2 8h20M6 4v4\"/><\/svg>","Agent":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M9 4h6M12 4V2M6 8h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z\"/><circle cx=\"9\" cy=\"13\" r=\"1\"/><circle cx=\"15\" cy=\"13\" r=\"1\"/><\/svg>","Panel":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 4h16v16H4zM15 4v16\"/><\/svg>","Workspace":"<svg aria-hidden=\"true\" viewBox=\"0 0 24 24\" width=\"17\" height=\"17\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 5h16v14H4zM8 9h8M8 13h5\"/><\/svg>"},"agents":[{"id":"claude","title":"Claude"},{"id":"pi","title":"Pi"}],"work":[{"key":"terminal","label":"Terminal"},{"key":"browser","label":"localhost:5173"},{"key":"changes","label":"Changes"},{"key":"files","label":"Files"}]};
+const params = new URLSearchParams(location.search);
+const state = {
+  dock: params.get("dock") ?? "edge",
+  theme: params.get("theme") ?? "nox-oscura",
+  attention: params.get("attention") ?? "on",
+  agent: "agent:claude",
+  work: "work:terminal",
+};
+const phone = document.getElementById("phone");
+// -1 list on the left · 0 Agents · 1 Work · 2 list on the right
+const places = { "workspaces-left": -1, agents: 0, work: 1, "workspaces-right": 2 };
+const at = (p) => p <= -.5 ? "workspaces-left" : p >= 1.5 ? "workspaces-right" : p >= .5 ? "work" : "agents";
+let pos = 0;
+
+for (const slot of document.querySelectorAll("[data-slot]")) slot.tagName === "SPAN" ? slot.outerHTML = F[slot.dataset.slot] : slot.innerHTML = F[slot.dataset.slot];
+for (const tool of document.querySelectorAll("[data-slot-icon]")) tool.insertAdjacentHTML("afterbegin", F.icons[tool.dataset.slotIcon]);
+
+const strip = (html, tabs) => html.replace("%TABS%", tabs.join(""));
+const agentTabs = () => F.agents.map(a => F.agentTabs[`agent:${a.id}`]);
+const workTabs = () => F.work.map(w => state.attention === "on" && w.key === "changes" ? F.changesWaiting : F.workTabs[`work:${w.key}`]);
+
+function fillHeader(header) {
+  const rail = `<div class="proto-rail">${strip(F.agentStrip, agentTabs())}<span class="proto-divider" aria-hidden="true"></span>${strip(F.workStrip, workTabs())}</div>`;
+  const right = `<span class="proto-dock proto-dock--right${state.dock === "inside" ? " proto-dock--inside" : ""}">${F.sidebarRight}</span>`;
+  header.innerHTML = `<div class="nox-phone-header__row"><span class="proto-dock proto-dock--left">${F.sidebar.replace('data-proto-go="workspaces"', 'data-proto-go="workspaces-left"')}</span>${rail}${right}<span class="proto-more">${F.more}</span></div>`;
+  header.querySelector("#proto_agent_tabs").dataset.fold = "agents";
+  header.querySelector("#proto_work_tabs").dataset.fold = "work";
+  for (const tab of header.querySelectorAll("[data-proto-tab]")) tab.setAttribute("aria-selected", String(tab.dataset.protoTab === state.agent || tab.dataset.protoTab === state.work));
+}
+
+function applyPosition(device, p) {
+  const pane = Math.min(1, Math.max(0, p));
+  device.style.setProperty("--p", pane);
+  device.style.setProperty("--d", p < 0 ? -p : p > 1 ? p - 1 : 0);
+  // The list docks on the side that is opening; at rest between panes it keeps its last side.
+  if (p < 0) device.dataset.dock = "left"; else if (p > 1) device.dataset.dock = "right";
+  device.querySelector(".nox-phone-header").dataset.pane = pane >= .5 ? "work" : "agents";
+}
+
+function render() {
+  document.documentElement.dataset.theme = state.theme;
+  fillHeader(document.getElementById("live-header"));
+  for (const view of phone.querySelectorAll("[data-view]")) view.toggleAttribute("data-shown", view.dataset.view === state.agent || view.dataset.view === state.work);
+  applyPosition(phone, pos);
+  readout();
+  renderStates();
+  for (const [name, value] of [["dock", state.dock], ["theme", state.theme], ["attention", state.attention]]) {
+    for (const option of document.querySelectorAll(`.proto-tooling [name="${name}"]`)) option.setAttribute("aria-pressed", String(option.value === value));
+  }
+  history.replaceState(null, "", `?dock=${state.dock}&theme=${state.theme}&attention=${state.attention}`);
+}
+
+function renderStates() {
+  const host = document.getElementById("states");
+  const frames = [["On Agents", 0], ["30%", .3], ["60%", .6], ["On Work", 1]];
+  host.innerHTML = frames.map(([label, p]) => `<div><p class="proto-frame-label">${label}</p><div class="proto-frame proto-device" data-p="${p}"><header class="nox-phone-header"></header></div></div>`).join("");
+  for (const frame of host.querySelectorAll(".proto-frame")) {
+    fillHeader(frame.querySelector("header"));
+    applyPosition(frame, Number(frame.dataset.p));
+  }
+}
+
+function readout() {
+  const place = at(pos);
+  document.getElementById("readout").textContent = `position: ${place} · ${state.agent.split(":")[1]} / ${state.work.split(":")[1]}`;
+  for (const stop of document.querySelectorAll("#map > span")) stop.toggleAttribute("aria-current", stop.dataset.at === place);
+}
+
+function setPos(p) { pos = p; applyPosition(phone, p); readout(); }
+
+let tween;
+function animateTo(target, duration = 250, then) {
+  cancelAnimationFrame(tween);
+  const from = pos, start = performance.now();
+  phone.setAttribute("data-moving", "");
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  const step = (now) => {
+    const t = Math.min(1, (now - start) / duration);
+    setPos(from + (target - from) * ease(t));
+    if (t < 1) tween = requestAnimationFrame(step);
+    else { phone.removeAttribute("data-moving"); phone.dataset.at = at(target); then?.(); }
+  };
+  tween = requestAnimationFrame(step);
+}
+
+const goTo = (place) => animateTo(places[place]);
+// Each stop reaches only its neighbours; an open list only closes.
+const reach = { "-1": [-1, 0], 0: [-1, 0, 1], 1: [0, 1, 2], 2: [1, 2] };
+const restingOn = () => pos <= -.5 ? -1 : pos >= 1.5 ? 2 : pos >= .5 ? 1 : 0;
+
+/* Dragging mirrors mobile-swipe-controller: flicks commit, slow drags commit past halfway. */
+let drag;
+phone.addEventListener("pointerdown", (event) => {
+  cancelAnimationFrame(tween);
+  drag = { x: event.clientX, y: event.clientY, start: restingOn(), last: event.clientX, time: event.timeStamp, velocity: 0, active: false, id: event.pointerId };
+});
+phone.addEventListener("pointermove", (event) => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+  if (!drag.active) {
+    if (Math.abs(dx) < 8 || Math.abs(dx) < Math.abs(dy)) return;
+    drag.active = true;
+    phone.setPointerCapture(event.pointerId);
+    phone.setAttribute("data-dragging", ""); phone.setAttribute("data-moving", "");
+  }
+  const dt = Math.max(1, event.timeStamp - drag.time);
+  drag.velocity = (event.clientX - drag.last) / dt; drag.last = event.clientX; drag.time = event.timeStamp;
+  const range = reach[drag.start];
+  // Drawer moves track the list's width, like the real reveal; pane moves track the screen.
+  const listMove = drag.start === -1 || drag.start === 2 || (drag.start === 0 && dx > 0) || (drag.start === 1 && dx < 0);
+  const travel = listMove ? 303 : phone.clientWidth;
+  setPos(Math.min(range.at(-1), Math.max(range[0], drag.start - dx / travel)));
+});
+const endDrag = (event) => {
+  if (!drag || event.pointerId !== drag.id) return;
+  const was = drag; drag = undefined;
+  if (!was.active) return;
+  phone.removeAttribute("data-dragging");
+  // A finger that pauses before lifting is not flicking.
+  const flick = event.timeStamp - was.time < 80 && Math.abs(was.velocity) >= .3;
+  const direction = flick ? -Math.sign(was.velocity) : Math.abs(pos - was.start) > .5 ? Math.sign(pos - was.start) : 0;
+  const target = was.start + direction;
+  animateTo(reach[was.start].includes(target) ? target : was.start);
+  phone.addEventListener("click", (click) => click.stopPropagation(), { capture: true, once: true });
+};
+phone.addEventListener("pointerup", endDrag);
+phone.addEventListener("pointercancel", endDrag);
+
+phone.addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-proto-tab]");
+  const go = event.target.closest("[data-proto-go]");
+  if (tab) {
+    const key = tab.dataset.protoTab;
+    if (key.startsWith("agent:")) state.agent = key; else state.work = key;
+    render();
+    goTo(key.startsWith("agent:") ? "agents" : "work");
+  } else if (go?.dataset.protoGo === "agents") animateTo(pos > 1 ? 1 : 0); // the current workspace's row closes the list
+  else if (go) goTo(go.dataset.protoGo);
+  else if (event.target.closest("[data-proto-close]")) animateTo(pos > 1 ? 1 : 0);
+});
+
+function hint() {
+  // First-open nudge: peek at Work, settle, peek at the list, settle.
+  phone.dataset.at = "agents"; setPos(0);
+  animateTo(.16, 380, () => animateTo(0, 420, () => setTimeout(() => animateTo(-.1, 320, () => animateTo(0, 380)), 120)));
+}
+
+document.querySelector(".proto-tooling").addEventListener("click", (event) => {
+  const option = event.target.closest("button");
+  if (!option) return;
+  if (option.name === "dock") state.dock = option.value;
+  else if (option.name === "theme") state.theme = option.value;
+  else if (option.name === "attention") state.attention = option.value;
+  else if (option.hasAttribute("data-proto-hint")) return hint();
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
