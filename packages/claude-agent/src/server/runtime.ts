@@ -32,6 +32,8 @@ export class ClaudeRuntime {
   /** Slash commands and prompt templates; turns can add templates, so each finished turn reloads them. */
   completionCatalog = "";
   failure?: Error;
+  /** Claude's guess at the next prompt, offered in the empty composer until a prompt is sent. */
+  promptSuggestion?: string;
   /** Claude Code's own measure of how full its context window is. */
   contextPercent: number | null = null;
   private transport?: ClaudeTransport;
@@ -54,6 +56,8 @@ export class ClaudeRuntime {
   get isBusy() { return !this.failure && (this.running || this.backgroundTasks.length > 0); }
   private changed() {
     if (this.disposed) return;
+    // A turn answers the suggestion; the next one arrives after it.
+    if (this.running) this.promptSuggestion = undefined;
     const busy = this.isBusy;
     if (busy !== this.busy) {
       this.busy = busy;
@@ -128,6 +132,7 @@ export class ClaudeRuntime {
     this.running = false;
     this.backgroundTasks = [];
     this.interrupting = false;
+    this.promptSuggestion = undefined;
     try {
       if (!statePrepared) await this.prepareState();
       this.instructions = (await prepareClaude(this.workspaceId, this.agentId)).instructions;
@@ -321,6 +326,8 @@ export class ClaudeRuntime {
       this.interrupting = false;
       void this.refreshHistory().catch(error => console.error("Could not read Claude Code history", error));
       void this.refreshContextUsage().then(() => this.changed()).catch(error => console.error("Could not read Claude Code context usage", error));
+    } else if (message.type === "prompt_suggestion") {
+      this.promptSuggestion = message.suggestion;
     } else if (message.type === "stream_event" || message.type === "assistant") {
       // A queued prompt started its own turn.
       this.running = true;

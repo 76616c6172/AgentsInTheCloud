@@ -98,6 +98,7 @@ export async function openClaudeTransport(workspaceId: string, agentId: string, 
     // No client surface answers these yet; Claude asks in its reply instead.
     disallowedTools: ["AskUserQuestion", "EnterPlanMode", "ExitPlanMode"],
     includePartialMessages: true,
+    promptSuggestions: true,
     thinking: { type: "adaptive", display: "summarized" },
     model: start.model,
     effort: start.effort,
