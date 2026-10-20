@@ -220,7 +220,8 @@ individual provider with `GET /usage/providers/openai-codex` or
 OAuth sign-in, not an API key. Its five-hour, weekly, and available model/feature
 windows use the same pacing reference. Buckets with no reset timestamp retain
 their reported usage, with null reset and timing values and timing state `unknown`.
-Null buckets are omitted; monetary extra usage is not a paced allowance. Anthropic
+Null buckets are omitted; monetary extra usage is not a paced allowance, so only
+whether it's on, and why not, shows as an `Extra usage` entry in `details`. Anthropic
 does not report a plan name or account-wide allowed/limit-reached flags, so these
 are null.
 In the app, each provider’s usage shows on its card in the Models dialog; the
