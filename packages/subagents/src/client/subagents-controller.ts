@@ -2,118 +2,75 @@ import { CableTopics, type CableSubscription, type WorkspaceClientControllerCons
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
+/** Keeps the Agent's background bar current while its pane shows. */
 export function createSubagentsController(Controller: WorkspaceClientControllerConstructor) {
   return class extends Controller {
-    static targets = ["branch", "panel", "status"];
     static values = { workspaceId: String, agentId: String };
     declare readonly element: HTMLElement;
-    declare readonly branchTargets: HTMLDetailsElement[];
     declare readonly workspaceIdValue: string;
     declare readonly agentIdValue: string;
-    declare readonly panelTarget: HTMLDetailsElement;
-    private tree?: CableSubscription;
-    private children = new Map<string, { branch: HTMLDetailsElement; subscription: CableSubscription }>();
-    private expanded = new Set<string>();
-    private reveal?: string;
-    private message?: string;
+    private subscription?: CableSubscription;
 
-    connect(): void {
-      const params = new URL(location.href).searchParams;
-      this.reveal = params.get("agent") === this.agentIdValue ? params.get("subagent") ?? undefined : undefined;
-      this.message = params.get("message") ?? undefined;
-      this.sync();
-    }
+    connect(): void { this.sync(); }
     disconnect(): void { this.stop(); }
-    private stop(): void {
-      this.tree?.unsubscribe();
-      this.tree = undefined;
-      this.stopChildren();
-    }
-    private stopChildren(): void {
-      for (const child of this.children.values()) child.subscription.unsubscribe();
-      this.children.clear();
-    }
     sync(): void {
-      // The control is hidden when empty, but its pane must still listen for new subagents.
       if (document.hidden || !this.element.parentElement!.checkVisibility()) { this.stop(); return; }
-      if (!this.tree) {
-        this.tree = window.AgentsInTheCloudCable!.subscribe(CableTopics.module("subagents", this.workspaceIdValue, { agentId: this.agentIdValue }), {
-          onReady: () => this.restore(),
-          onDisconnected: () => this.stopChildren(),
-        });
-      }
+      this.subscription ??= window.AgentsInTheCloudCable!.subscribe(CableTopics.module("subagents", this.workspaceIdValue, { agentId: this.agentIdValue }), {});
     }
-    statusTargetConnected(status: HTMLElement): void {
-      const empty = Number(status.dataset.subagentCount) === 0;
-      this.panelTarget.hidden = empty;
-      if (empty) this.panelTarget.open = false;
-      else if (this.tree) this.restore();
+    private stop(): void {
+      this.subscription?.unsubscribe();
+      this.subscription = undefined;
     }
-    private restore(): void {
-      if (this.reveal && !this.panelTarget.hidden) {
-        this.panelTarget.open = true;
-        let branch = this.branchTargets.find((branch) => branch.dataset.subagentId === this.reveal);
-        while (branch) {
-          this.expanded.add(branch.dataset.subagentId!);
-          branch = branch.parentElement!.closest<HTMLDetailsElement>("details[data-subagent-id]") ?? undefined;
-        }
-      }
-      for (const branch of this.branchTargets) branch.open = this.expanded.has(branch.dataset.subagentId!);
-      this.syncChildren();
+  };
+}
+
+/** A message a link revealed on a subagent's page; reopening the page doesn't reveal it again. */
+const revealedMessages = new Set<string>();
+
+/** A subagent's page follows its live transcript while it shows, and reveals what links into that transcript point at. */
+export function createSubagentTranscriptController(Controller: WorkspaceClientControllerConstructor) {
+  return class extends Controller {
+    static values = { workspaceId: String, agentId: String };
+    declare readonly element: HTMLElement;
+    declare readonly workspaceIdValue: string;
+    declare readonly agentIdValue: string;
+    private subscription?: CableSubscription;
+
+    connect(): void { this.sync(); }
+    disconnect(): void { this.stop(); }
+    sync(): void {
+      if (document.hidden || !this.element.checkVisibility()) { this.stop(); return; }
+      this.subscription ??= window.AgentsInTheCloudCable!.subscribe(CableTopics.agent(this.workspaceIdValue, this.agentIdValue), { onReady: () => this.revealFromUrl() });
     }
-    branchTargetConnected(): void { if (this.tree) this.restore(); }
-    branchTargetDisconnected(branch: HTMLDetailsElement): void {
-      const id = branch.dataset.subagentId!;
-      const child = this.children.get(id);
-      if (child?.branch === branch) { child.subscription.unsubscribe(); this.children.delete(id); }
+    private stop(): void {
+      this.subscription?.unsubscribe();
+      this.subscription = undefined;
     }
-    private syncChildren(): void {
-      for (const branch of this.branchTargets) {
-        const id = branch.dataset.subagentId!;
-        const visible = this.tree && this.panelTarget.open && branch.open && !branch.parentElement!.closest("details[data-subagent-id]:not([open])");
-        const child = this.children.get(id);
-        if (!visible) { child?.subscription.unsubscribe(); this.children.delete(id); continue; }
-        if (child?.branch === branch) continue;
-        child?.subscription.unsubscribe();
-        const subscription = window.AgentsInTheCloudCable!.subscribe(CableTopics.agent(this.workspaceIdValue, id), {
-          onReady: () => {
-            if (this.reveal === id && this.message) void this.revealMessage(branch, id, this.message);
-            else this.loaded();
-          },
-        });
-        this.children.set(id, { branch, subscription });
-      }
+    /** A link to this page naming a message, such as one finding a message's recipient. */
+    private revealFromUrl(): void {
+      const params = new URL(location.href).searchParams;
+      const message = params.get("background") === this.agentIdValue ? params.get("message") : null;
+      if (!message || revealedMessages.has(`${this.agentIdValue}:${message}`)) return;
+      revealedMessages.add(`${this.agentIdValue}:${message}`);
+      void this.reveal(message);
     }
-    private async revealMessage(branch: HTMLDetailsElement, id: string, message: string): Promise<void> {
-      const response = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/agents/${encodeURIComponent(id)}/reveal/${encodeURIComponent(message)}`);
+    /** A link into this subagent's own transcript, such as "Started by" on a message from work it started. */
+    follow(event: Event): void {
+      const link = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action~="agent-pane#reveal"]') : null;
+      if (link?.dataset.agentPaneAgentParam !== this.agentIdValue) return;
+      event.preventDefault();
+      void this.reveal(link.dataset.agentPaneItemParam!);
+    }
+
+    private async reveal(target: string): Promise<void> {
+      const response = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/agents/${encodeURIComponent(this.agentIdValue)}/reveal/${encodeURIComponent(target)}`);
       if (!response.ok) throw new Error(`Could not resolve transcript target: ${response.status}`);
       const { turnId } = Value.Parse(Type.Object({ turnId: Type.Union([Type.String(), Type.Null()]) }), await response.json());
-      if (!branch.isConnected || this.reveal !== id) return;
-      if (turnId !== null) {
-        const turn = branch.querySelector<HTMLDetailsElement>(`[data-agent-turn-turn-id-value="${CSS.escape(turnId)}"]`);
-        if (turn) { turn.dataset.agentTurnRevealValue = message; turn.open = true; }
-      }
-      this.loaded();
-    }
-    toggle(event: Event): void {
-      const details = event.target;
-      if (!(details instanceof HTMLDetailsElement)) return;
-      if (details === this.panelTarget) { this.syncChildren(); return; }
-      if (!details.dataset.subagentId) return;
-      if (details.open) this.expanded.add(details.dataset.subagentId);
-      else this.expanded.delete(details.dataset.subagentId);
-      this.syncChildren();
-    }
-    loaded(): void {
-      if (!this.reveal || this.panelTarget.hidden) return;
-      const branch = this.branchTargets.find((branch) => branch.dataset.subagentId === this.reveal);
-      if (!branch) return;
-      const target = this.message ? branch.querySelector<HTMLElement>(`[data-transcript-anchor="${CSS.escape(this.message)}"], [data-transcript-key="${CSS.escape(this.message)}"]`) : branch;
-      if (target) {
-        if (target instanceof HTMLDetailsElement) target.open = true;
-        target.scrollIntoView({ block: "center" });
-        this.reveal = undefined;
-      }
+      // A finished turn loads its items when opened, then shows the target.
+      const turn = turnId === null ? null : this.element.querySelector<HTMLDetailsElement>(`[data-agent-turn-turn-id-value="${CSS.escape(turnId)}"]`);
+      if (turn) { turn.dataset.agentTurnRevealValue = target; turn.open = true; return; }
+      const value = CSS.escape(target);
+      this.element.querySelector(`[data-transcript-anchor="${value}"], [data-transcript-key="${value}"], [data-tool-call-id="${value}"]`)?.scrollIntoView({ block: "center" });
     }
   };
 }

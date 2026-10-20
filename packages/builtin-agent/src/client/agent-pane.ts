@@ -189,9 +189,10 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     }
 
     /** Follow a link to another place in this transcript without leaving the page. */
-    reveal(event: Event & { params: { item: string } }): void {
+    /** A link into another Agent's transcript, such as a subagent's on its page, is that transcript's to follow. */
+    reveal(event: Event & { params: { item: string; agent: string } }): void {
       event.preventDefault();
-      void this.revealTarget(event.params.item);
+      if (event.params.agent === this.agentIdValue) void this.revealTarget(event.params.item);
     }
 
     private revealedTranscriptTarget?: string;
@@ -212,6 +213,8 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       // Opening a turn loads its items, the target among them.
       const element = await this.appeared(transcriptTargetSelector(target));
       for (const detail of element.querySelectorAll("details")) detail.open = true;
+      // The transcript settles its own position once a turn's items load; reveal after that, or following the latest moves past the target.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       this.navigation.reveal(element);
     }
 

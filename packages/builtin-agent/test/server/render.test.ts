@@ -61,8 +61,13 @@ describe("transcript rendering", () => {
 
   test("a message links to the tool call that started its sender, which a reveal finds by its call ID", () => {
     const html = renderTranscriptItem(ctx, { type: "message", key: "report", sender: "reviewer", title: "completion", details: {}, dispatchedByToolCallId: "call_1" });
-    expect(html).toContain(`<th scope="row">Started by</th><td><a href="/workspaces/ws?agent=${agent.agentId}&amp;agentTarget=call_1" class="agent-trace-link" data-action="agent-pane#reveal" data-agent-pane-item-param="call_1">Tool call</a>`);
+    expect(html).toContain(`<th scope="row">Started by</th><td><a href="/workspaces/ws?agent=${agent.agentId}&amp;agentTarget=call_1" class="agent-trace-link" data-action="agent-pane#reveal" data-agent-pane-item-param="call_1" data-agent-pane-agent-param="${agent.agentId}">Tool call</a>`);
     expect(renderTranscriptItem(ctx, { type: "tool", key: "tool:call_1", tool: tool({ callId: "call_1" }) })).toContain('data-tool-call-id="call_1"');
+  });
+
+  test("a message from a background activity links its sender to that activity's page", () => {
+    const html = renderTranscriptItem(ctx, { type: "message", key: "report", sender: "/root/reviewer", title: "completion", details: {}, senderActivityKey: "reviewer-id" });
+    expect(html).toContain(`<th scope="row">Sender</th><td><a href="/workspaces/ws/agents/${agent.agentId}/background/reviewer-id" class="agent-trace-link" data-action="agent-background#open">/root/reviewer</a>`);
   });
 
   test("completed activity with no items is omitted", () => {

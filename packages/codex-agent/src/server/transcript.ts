@@ -33,8 +33,18 @@ function bashStatement(command: string): string {
   return statement;
 }
 
+type SubagentActivity = Extract<ThreadItem, { type: "subAgentActivity" }>;
+/** The Agent's own sub-agents, which are its background activities: a message from one links to it, and carries the answer Codex keeps in its thread. */
+export interface CodexSubagents { answer(activity: SubagentActivity): string | undefined }
+
+/** A finished turn's answer: its final message, or its last one when Codex didn't mark phases. */
+export function codexFinalAnswer(turn: Turn): Extract<ThreadItem, { type: "agentMessage" }> | undefined {
+  const messages = turn.items.filter(item => item.type === "agentMessage");
+  return messages.findLast(message => message.phase === "final_answer") ?? (turn.status === "completed" && messages.every(message => message.phase === null) ? messages.at(-1) : undefined);
+}
+
 /** Codex items retain their own IDs and semantics; no Pi messages or journal entries. */
-function projectCodexItem(item: ThreadItem, live: boolean): TranscriptItem {
+function projectCodexItem(item: ThreadItem, live: boolean, subagents: CodexSubagents | undefined): TranscriptItem {
   const key = item.id;
   switch (item.type) {
     case "userMessage": return { type: "user", key, text: item.content.flatMap(part => part.type === "text" ? [part.text] : []).join("\n\n"), images: item.content.flatMap((part, index) => part.type === "image" || part.type === "localImage" ? [{ entryId: item.id, contentIndex: index }] : []) };
@@ -48,21 +58,22 @@ function projectCodexItem(item: ThreadItem, live: boolean): TranscriptItem {
     case "contextCompaction": return { type: "note", key, text: "Codex compacted the conversation.", tone: "summary" };
     case "webSearch": return { type: "tool", key, tool: { callId: key, name: "Codex web search", args: { query: item.query }, status: live ? "running" : "ok", resultText: JSON.stringify(item.action, null, 2) } };
     case "collabAgentToolCall": return { type: "tool", key, tool: { callId: key, name: `Codex ${item.tool}`, args: { prompt: item.prompt, threads: item.receiverThreadIds }, status: status(item.status), resultText: JSON.stringify(item.agentsStates, null, 2) } };
-    case "subAgentActivity": return { type: "message", key, sender: item.agentPath, title: item.kind, details: { Thread: item.agentThreadId } };
+    case "subAgentActivity": return { type: "message", key, sender: item.agentPath, title: item.kind, details: {}, bodyMarkdown: subagents?.answer(item), senderActivityKey: subagents && item.agentThreadId };
     default: return { type: "note", key, text: JSON.stringify(item, null, 2), tone: "system" };
   }
 }
 
-export function projectCodexTurns(turns: readonly Turn[], completedItems: ReadonlySet<string>): TranscriptItem[] {
+/** A sub-agent's own transcript has no `subagents`: its sub-agents aren't the Agent's background activities. */
+export function projectCodexTurns(turns: readonly Turn[], completedItems: ReadonlySet<string>, subagents?: CodexSubagents): TranscriptItem[] {
   return turns.flatMap(turn => {
     const busy = turn.status === "inProgress";
     const activity: TranscriptItem[] = [];
     const users: TranscriptItem[] = [];
     const finals: TranscriptItem[] = [];
-    const messages = turn.items.filter(item => item.type === "agentMessage");
-    const unphasedFinal = turn.status === "completed" && messages.every(message => message.phase === null) ? messages.at(-1)?.id : undefined;
+    const answer = codexFinalAnswer(turn);
+    const unphasedFinal = answer?.phase === null ? answer.id : undefined;
     for (const item of turn.items) {
-      const projected = projectCodexItem(item, busy && !completedItems.has(item.id));
+      const projected = projectCodexItem(item, busy && !completedItems.has(item.id), subagents);
       if (projected.type === "text" && projected.key === unphasedFinal) projected.final = true;
       if (projected.type === "user" && !users.length) users.push(projected);
       else if (projected.type === "text" && projected.final) finals.push(projected);

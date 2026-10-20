@@ -1,11 +1,13 @@
 import { createNativeAgentRendering } from "@agents-in-the-cloud/native-agent/server";
 import { projectClaudeTranscript } from "./transcript.ts";
 import type { ClaudeRuntime } from "./runtime.ts";
+import { claudeBackgroundActivities, claudeBackgroundDetail, claudeBackgroundRoute } from "./background.ts";
 
 export const rendering = createNativeAgentRendering<ClaudeRuntime>({
   channelName: "claude-agent",
   routeSegment: "claude-code-agents",
   transcript: runtime => projectClaudeTranscript(runtime.state, runtime.isTurnRunning),
+  background: { activities: claudeBackgroundActivities, detail: claudeBackgroundDetail, route: claudeBackgroundRoute, stop: (runtime, activity) => runtime.stopTask(activity.key) },
   stats(runtime) {
     // Claude reports one usage per API message, repeated on each of its content blocks.
     const usage = [...new Map(runtime.state.rows.flatMap(row => row.kind === "assistant" && row.usage ? [[row.messageId, row.usage] as const] : [])).values()];
