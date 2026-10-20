@@ -88,7 +88,7 @@ export function workspaceTemplateSecretPlaceholder(name: string): string {
 }
 
 export const workspaceTemplateSecretPathPermissionSchema = Type.Boolean({
-  description: `Allow secret substitution in URL paths. Defaults to true only when all hosts are exact matches in: ${secretPathInjectionDefaultHosts.join(", ")}. Otherwise false. Omit on updates to keep the saved permission.`,
+  description: `Allow secret substitution in URL paths and query strings. Defaults to true only when all hosts are exact matches in: ${secretPathInjectionDefaultHosts.join(", ")}. Otherwise false. Omit on updates to keep the saved permission.`,
 });
 
 export async function deleteWorkspaceTemplateSecret(scope: ConfigurationScope, secretId: string, file = workspaceTemplatesFile()): Promise<WorkspaceTemplateSecretSummary> {

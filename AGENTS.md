@@ -14,6 +14,7 @@ Do not write UI tests. Follow the [UI testing policy](docs/ui-testing-policy.md)
 - Be very reluctant in implementing fallbacks or migrations.  The only area that warrants migrations is agents-in-the-clouds ability to not crash when loading older persisted files like settings, workspace settings etc
 - Do not use defensive programming.  We don't want to swallow errors, we want to notice them. Only be defensive when parsing external inputs.
 - Never add a new environment variable to the codebase without explicit instructions to do so. We're striving for minimal configuration, and minimal environment variables.
+- Run processes in workspaces through the workspace helper (`execWorkspaceCommand`, `runInWorkspace`, `startInWorkspace` from `@agents-in-the-cloud/workspace`), never `docker exec`: workspaces won't always be containers. Lint enforces this.
 - Run `bun run generate:workspace-modules` before raw TypeScript checks; otherwise missing ignored generated modules cause cascading unrelated server errors.
 - When presenting the user with the results after an implementation request, if agents-in-the-cloud itself is the most natural place to showcase your change to the user, run agents-in-the-cloud, show it in the preview browser, and use api's you can find in our openapi description to bring the inner agents-in-the-cloud to a state/situation where
 - your work can immediately be evaluated, without the user having to do more manual preparation steps.

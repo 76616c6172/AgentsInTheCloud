@@ -1,7 +1,7 @@
 import { calculateContextTokens, estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
 import { defineExtension, GenerationTask, hook, type ContextView } from "@earendil-works/pi-durable";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { recordSubscriptionInference } from "@agents-in-the-cloud/llm/server";
+import { hasUsageLimits, recordSubscriptionInference, supportedUsageProviders } from "@agents-in-the-cloud/llm/server";
 
 /** Same head-cutoff rule as native automatic compaction, over derived context. */
 export function durableContextTokens(view: ContextView): number {
@@ -21,8 +21,9 @@ export function durableSubscriptionActivity(models: Pick<ModelRuntime, "getAuth"
   return defineExtension({ name: "agents-in-the-cloud.subscription-activity", hooks: [hook(GenerationTask, {
     async afterResponse(message) {
       // Only these subscriptions report limits we can fetch for pacing.
-      if ((message.provider !== "openai-codex" && message.provider !== "github-copilot") || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;
-      if ((await models.getAuth(message.provider))?.source === "OAuth") record(message.provider);
+      if (!["openai-codex", "github-copilot", "opencode-go"].includes(message.provider) || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;
+      const provider = supportedUsageProviders.find((supported) => supported.id === message.provider)!;
+      if (hasUsageLimits(provider, await models.getAuth(provider.id))) record(provider.id);
     },
   })] });
 }

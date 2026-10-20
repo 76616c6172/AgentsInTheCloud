@@ -1,9 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, symlink, truncate, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { decodeRepositoryBatch, repositoryBatchRunner, type RepositoryRequest } from "../src/git-batch.ts";
-import { safeGitArguments } from "../src/git-repository.ts";
+import { blobArguments, decodeBlob, decodeWorkingFile, safeGitArguments } from "../src/git-repository.ts";
 import { localRepository } from "./support/local-repository.ts";
 
 const directories: string[] = [];
@@ -18,7 +18,8 @@ async function fixture() {
 }
 async function run(root: string, requests: RepositoryRequest[]) {
   const wire = requests.map(request => request.kind === "git" ? { ...request, args: safeGitArguments(request.args) }
-    : request.kind === "index-tree" ? { ...request, args: safeGitArguments(["rev-parse", "--git-path", "index"]), writeArgs: safeGitArguments(["write-tree"]) } : request);
+    : request.kind === "index-tree" ? { ...request, args: safeGitArguments(["rev-parse", "--git-path", "index"]), writeArgs: safeGitArguments(["write-tree"]) }
+    : request.kind === "blob" ? { ...request, ...blobArguments } : request);
   const child = Bun.spawn(["bun", "--no-env-file", "--config=/dev/null", "--eval", repositoryBatchRunner], { cwd: root, env: { ...Bun.env, TMPDIR: join(root, "temporary") }, stdin: Buffer.from(JSON.stringify(wire)), stdout: "pipe", stderr: "pipe" });
   const [output, stderr, code] = await Promise.all([new Response(child.stdout).arrayBuffer(), new Response(child.stderr).text(), child.exited]);
   if (code !== 0) throw new Error(stderr);
@@ -41,9 +42,9 @@ test("batch preserves ordered binary results, tricky filenames, symlink text, mo
   const results = await run(root, [
     { kind: "git", args: ["cat-file", "blob", hash] },
     { kind: "git", args: ["rev-parse", "--verify", "refs/heads/missing"] },
-    { kind: "working-file", path },
-    { kind: "working-file", path: "link" },
-    { kind: "working-file", path: "missing" },
+    { kind: "working-file", path, maxBytes: 1024 },
+    { kind: "working-file", path: "link", maxBytes: 1024 },
+    { kind: "working-file", path: "missing", maxBytes: 1024 },
     { kind: "index-tree" },
   ]);
   expect(results[0]!.stdout).toEqual(bytes);
@@ -54,6 +55,32 @@ test("batch preserves ordered binary results, tricky filenames, symlink text, mo
   expect(results[4]!.exitCode).toBe(44);
   expect(results[5]!.exitCode).toBe(0);
   expect(await Bun.file(join(root, "injected")).exists()).toBe(false);
+});
+
+test("files and blobs larger than their bound report size without being read", async () => {
+  const { root, repo } = await fixture();
+  await writeFile(join(root, "small"), "small\n");
+  await writeFile(join(root, "huge"), "");
+  await truncate(join(root, "huge"), 5 * 1024 ** 3);
+  await writeFile(join(root, "committed"), Buffer.alloc(2048, 1));
+  await repo.gitResult(["add", "small", "committed"]);
+  await repo.gitResult(["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "files"]);
+  const results = await run(root, [
+    { kind: "working-file", path: "huge", maxBytes: 1024 },
+    { kind: "working-file", path: "small", maxBytes: 1024 },
+    { kind: "working-file", path: "small", maxBytes: 0 },
+    { kind: "blob", object: "HEAD:committed", maxBytes: 1024 },
+    { kind: "blob", object: "HEAD:committed", maxBytes: 4096 },
+    { kind: "blob", object: "HEAD:missing", maxBytes: 1024 },
+    { kind: "blob", object: "HEAD", maxBytes: 1024 },
+  ]);
+  expect(decodeWorkingFile(results[0]!)).toEqual({ mode: "100644", size: 5 * 1024 ** 3 });
+  expect(decodeWorkingFile(results[1]!)).toEqual({ mode: "100644", size: 6, contents: Buffer.from("small\n") });
+  expect(decodeWorkingFile(results[2]!)).toEqual({ mode: "100644", size: 6 });
+  expect(decodeBlob(results[3]!)).toEqual({ size: 2048 });
+  expect(decodeBlob(results[4]!)).toEqual({ size: 2048, contents: Buffer.alloc(2048, 1) });
+  expect(decodeBlob(results[5]!)).toBeUndefined();
+  expect(decodeBlob(results[6]!)).toBeUndefined();
 });
 
 test("temporary index capture preserves the real index on success and write-tree failure", async () => {
@@ -79,7 +106,7 @@ test("temporary index capture preserves the real index on success and write-tree
 
 test("unborn index capture and requests larger than argv limits use stdin", async () => {
   const { root } = await fixture();
-  const requests: RepositoryRequest[] = Array.from({ length: 1000 }, () => ({ kind: "working-file", path: "x".repeat(150) }));
+  const requests: RepositoryRequest[] = Array.from({ length: 1000 }, () => ({ kind: "working-file", path: "x".repeat(150), maxBytes: 1024 }));
   const results = await run(root, [{ kind: "index-tree" }, ...requests]);
   expect(results[0]!.exitCode).toBe(0);
   expect(results[0]!.stdout.toString().trim()).toBe("4b825dc642cb6eb9a060e54bf8d69288fbee4904");
@@ -89,7 +116,7 @@ test("unborn index capture and requests larger than argv limits use stdin", asyn
 
 test("batch runner makes read errors visible and rejects escaping paths", async () => {
   const { root } = await fixture();
-  await expect(run(root, [{ kind: "working-file", path: "../outside" }, { kind: "index-tree" }])).rejects.toThrow("File path escapes repository");
+  await expect(run(root, [{ kind: "working-file", path: "../outside", maxBytes: 1024 }, { kind: "index-tree" }])).rejects.toThrow("File path escapes repository");
   expect(await readdir(join(root, "temporary"))).toEqual([]);
 });
 

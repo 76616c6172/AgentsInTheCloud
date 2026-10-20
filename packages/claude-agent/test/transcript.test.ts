@@ -4,6 +4,8 @@ import type { JsonObject, JsonValue } from "@agents-in-the-cloud/core";
 import { claudeRows } from "../src/server/rows.ts";
 import { ClaudeState } from "../src/server/state.ts";
 import { projectClaudeTranscript } from "../src/server/transcript.ts";
+import { workingCommentaryItems } from "@agents-in-the-cloud/agent/server/render-transcript";
+import type { TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 
 const time = (second: number) => `2026-10-12T12:00:${String(second).padStart(2, "0")}.000Z`;
 const user = (uuid: string, second: number, content: JsonValue, extra: JsonObject = {}) => ({ type: "user", uuid, timestamp: time(second), message: { role: "user", content }, ...extra });
@@ -83,6 +85,60 @@ test("history replaces streamed rows, keeps unrecorded prompts and drops prompts
   value.add({ kind: "steer", uuid: "queued", timestamp: Date.parse(time(6)), text: "Still waiting" });
   value.merge(claudeRows(jsonl(user("sent", 0, [{ type: "text", text: "Hello" }]), user("echo", 5, "<command-name>/compact</command-name><command-args></command-args>"))));
   expect(value.rows.map(row => row.uuid)).toEqual(["sent", "echo", "queued"]);
+});
+
+const notification = (taskId: string, toolUseId: string, summary: string, extra = "") => `<task-notification>\n<task-id>${taskId}</task-id>\n<tool-use-id>${toolUseId}</tool-use-id>\n<status>completed</status>\n<summary>${summary}</summary>${extra}\n</task-notification>`;
+const outline = (item: TranscriptItem | undefined) => item?.type === "message" ? ["message", item.sender, item.title] : [item?.type, "text" in item! ? item.text : undefined];
+
+test("Claude's report on finished background work is a turn of its own, after the answer that started it", () => {
+  const started = jsonl(
+    user("prompt", 0, [{ type: "text", text: "Run the suite in the background" }]),
+    assistant("a1", 1, "msg_1", [{ type: "tool_use", id: "toolu_1", name: "Bash", input: { command: "bun test", run_in_background: true } }]),
+    user("result", 1, [{ type: "tool_result", tool_use_id: "toolu_1", content: "Running in background", is_error: false }]),
+    assistant("a2", 2, "msg_2", [{ type: "text", text: "Started the suite." }]),
+  );
+  const value = state(started);
+  // Claude starts reporting before history records the notification.
+  value.add({ kind: "task", uuid: "announced", timestamp: Date.parse(time(8)), runId: "run-1", toolUseId: "toolu_1", status: "completed", summary: "Background command \"Run tests\" completed (exit code 0)" });
+  const live = projectClaudeTranscript(value, true);
+  expect(live.map(outline)).toEqual([["user", "Run the suite in the background"], ["working", undefined], ["text", "Started the suite."], ["message", "bun test", "finished"], ["working", undefined]]);
+  expect(live.map(item => item.type === "working" && item.live)).toEqual([false, false, false, false, true]);
+  expect(live[3]).toMatchObject({ dispatchedByToolCallId: "toolu_1", details: { Summary: "Background command \"Run tests\" completed (exit code 0)", Duration: "7s" } });
+  const reported = started + "\n" + jsonl(
+    user("recorded", 8, notification("suite", "toolu_1", "Background command \"Run tests\" completed (exit code 0)"), { origin: { kind: "task-notification", runId: "run-1" } }),
+    assistant("a3", 9, "msg_3", [{ type: "text", text: "All tests pass." }]),
+  );
+  value.merge(claudeRows(reported));
+  expect(projectClaudeTranscript(value, false).map(outline)).toEqual([
+    ["user", "Run the suite in the background"], ["working", undefined], ["text", "Started the suite."],
+    ["message", "bun test", "finished"], ["working", undefined], ["text", "All tests pass."],
+  ]);
+  // A resumed task finishes again under the same task ID, in a run of its own.
+  value.add({ kind: "task", uuid: "announced-again", timestamp: Date.parse(time(20)), runId: "run-2", status: "completed", summary: "Background command \"Run tests\" completed" });
+  value.merge(claudeRows(reported));
+  expect(value.rows.at(-1)).toMatchObject({ uuid: "announced-again" });
+});
+
+test("a subagent's report, type and usage show in its message, which hides with the turn's work once it answers", () => {
+  const items = projectClaudeTranscript(state(jsonl(
+    user("prompt", 0, [{ type: "text", text: "Review auth, then build" }]),
+    assistant("a1", 1, "msg_1", [{ type: "tool_use", id: "toolu_agent", name: "Agent", input: { description: "Auth review", subagent_type: "general-purpose", prompt: "Review src/auth", run_in_background: true } }]),
+    user("launched", 1, [{ type: "tool_result", tool_use_id: "toolu_agent", content: "Async agent launched", is_error: false }]),
+    assistant("a2", 2, "msg_2", [{ type: "tool_use", id: "toolu_build", name: "Bash", input: { command: "bun run build" } }]),
+    user("built", 40, [{ type: "tool_result", tool_use_id: "toolu_build", content: "Built", is_error: false }]),
+    { type: "attachment", uuid: "task", timestamp: time(41), attachment: { type: "queued_command", prompt: notification("review", "toolu_agent", "Agent \"Auth review\" finished", "\n<result>No issues in **src/auth**.</result>\n<usage><subagent_tokens>41200</subagent_tokens><tool_uses>23</tool_uses><duration_ms>134000</duration_ms></usage>"), source_uuid: "queued", runId: "run-1" } },
+    assistant("a3", 42, "msg_3", [{ type: "text", text: "Built, and the review found nothing." }]),
+  )), false);
+  expect(items.map(item => item.type)).toEqual(["user", "working", "text"]);
+  const working = items[1];
+  if (working?.type !== "working") throw new Error("Expected a working section");
+  expect(working.items.map(outline)).toEqual([["tool", undefined], ["tool", undefined], ["message", "Auth review", "finished"]]);
+  expect(working.items[2]).toEqual({
+    type: "message", key: "task", timestamp: Date.parse(time(41)), sender: "Auth review", title: "finished", bodyMarkdown: "No issues in **src/auth**.", dispatchedByToolCallId: "toolu_agent",
+    details: { Summary: "Agent \"Auth review\" finished", Type: "general-purpose", Duration: "2m14s", "Tool uses": "23", Tokens: "41.2k" },
+  });
+  expect(workingCommentaryItems({ ...working, completedAt: undefined }).map(item => item.key)).toEqual(["task"]);
+  expect(workingCommentaryItems(working)).toEqual([]);
 });
 
 test("prompts may start with any tag; only Claude's own tagged messages stay hidden", () => {

@@ -23,11 +23,12 @@ const rowSchema = Type.Object({
   type: Type.String(), subtype: Type.Optional(Type.String()), uuid: Type.Optional(Type.String()), timestamp: Type.Optional(Type.String()),
   isSidechain: Type.Optional(Type.Boolean()), isMeta: Type.Optional(Type.Boolean()), isCompactSummary: Type.Optional(Type.Boolean()), isApiErrorMessage: Type.Optional(Type.Boolean()),
   content: Type.Optional(Type.Unknown()),
+  origin: Type.Optional(Type.Object({ runId: Type.Optional(Type.String()) })),
   message: Type.Optional(Type.Object({
     id: Type.Optional(Type.String()), content: Type.Union([Type.String(), Type.Array(blockSchema)]),
     stop_reason: Type.Optional(Type.Union([Type.String(), Type.Null()])), usage: Type.Optional(usageSchema),
   })),
-  attachment: Type.Optional(Type.Object({ type: Type.String(), prompt: Type.Optional(Type.Union([Type.String(), Type.Array(blockSchema)])), source_uuid: Type.Optional(Type.String()) })),
+  attachment: Type.Optional(Type.Object({ type: Type.String(), prompt: Type.Optional(Type.Union([Type.String(), Type.Array(blockSchema)])), source_uuid: Type.Optional(Type.String()), runId: Type.Optional(Type.String()) })),
   customTitle: Type.Optional(Type.String()), aiTitle: Type.Optional(Type.String()),
 });
 export type ClaudeBlock = Static<typeof blockSchema>;
@@ -42,7 +43,12 @@ export type ClaudeRow =
   | { kind: "assistant"; uuid: string; timestamp: number; messageId: string; content: ClaudeBlock[]; stopReason: string | null; usage?: Static<typeof usageSchema>; error: boolean }
   /** A prompt sent while Claude worked, absorbed into its running turn. */
   | { kind: "steer"; uuid: string; timestamp: number; text: string }
+  /** A background command or subagent finished, during Claude's turn or before a turn reporting on it. A resumed subagent finishes again, in a new run. */
+  | { kind: "task"; uuid: string; timestamp: number; runId: string; toolUseId?: string; status: string; summary: string; result?: string; usage?: ClaudeTaskUsage }
   | { kind: "compact"; uuid: string; timestamp: number };
+
+/** What a background subagent spent. */
+export interface ClaudeTaskUsage { tokens: number; toolUses: number; durationMs: number }
 
 /** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents. */
 export function claudeRows(jsonl: string): ClaudeRow[] {
@@ -51,16 +57,30 @@ export function claudeRows(jsonl: string): ClaudeRow[] {
     if (row.isSidechain === true) continue;
     const timestamp = nativeTimestamp(row.timestamp);
     if (row.type === "attachment" && row.attachment?.type === "queued_command" && row.uuid) {
-      rows.push({ kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, text: claudeText(claudeBlocks(row.attachment.prompt ?? "")) });
+      // Background work that finishes mid-turn is delivered into it, like a prompt sent while Claude works.
+      const text = claudeText(claudeBlocks(row.attachment.prompt ?? ""));
+      rows.push(taskRow(row.uuid, timestamp, text, row.attachment.runId) ?? { kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, text });
     } else if (!row.uuid || !row.message) {
       if (row.type === "system" && row.subtype === "compact_boundary" && row.uuid) rows.push({ kind: "compact", uuid: row.uuid, timestamp });
     } else if (row.type === "user") {
-      rows.push({ kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
+      rows.push(taskRow(row.uuid, timestamp, claudeText(claudeBlocks(row.message.content)), row.origin?.runId) ?? { kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
     } else if (row.type === "assistant") {
       rows.push({ kind: "assistant", uuid: row.uuid, timestamp, messageId: row.message.id ?? row.uuid, content: claudeBlocks(row.message.content), stopReason: row.message.stop_reason ?? null, usage: row.message.usage, error: row.isApiErrorMessage === true });
     }
   }
   return rows;
+}
+
+function taskRow(uuid: string, timestamp: number, text: string, runId: string | undefined): ClaudeRow | undefined {
+  const value = text.trim();
+  if (!value.startsWith("<task-notification>")) return undefined;
+  const usage = tag(value, "usage");
+  const count = (name: string) => Number(tag(usage!, name) ?? 0);
+  return {
+    kind: "task", uuid, timestamp, runId: runId ?? uuid, toolUseId: tag(value, "tool-use-id"), status: tag(value, "status") ?? "completed",
+    summary: tag(value, "summary")?.trim() ?? "", result: tag(value, "result")?.trim() || undefined,
+    usage: usage ? { tokens: count("subagent_tokens"), toolUses: count("tool_uses"), durationMs: count("duration_ms") } : undefined,
+  };
 }
 
 /** The Agent's own Claude config directory keeps its conversations apart from the Claude Code CLI's. */
@@ -105,7 +125,7 @@ export async function listClaudeSessions(directory: string, limit: number): Prom
 
 const interruption = /^\[Request interrupted by user[^\]]*\]$/;
 /** Messages Claude Code writes into the conversation for itself, never shown as prompts. */
-const internalMessages = new Set(["local-command-caveat", "system-reminder", "task-notification"]);
+const internalMessages = new Set(["local-command-caveat", "system-reminder"]);
 
 /** Images in a row's order, including those inside tool results. */
 export function claudeImageSources(content: ClaudeBlock[]): Array<{ media_type: string; data: string }> {

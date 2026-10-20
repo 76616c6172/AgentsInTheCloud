@@ -1,10 +1,9 @@
-import type { AgentRenderContext } from "./render-context.ts";
 /** Renderer-friendly transcript model for the pi-backed runtime. */
 
 import type { TurnTimingSummary } from "./turn-timing.ts";
 import { Type, type Static } from "typebox";
 import type { StopReason } from "@earendil-works/pi-ai";
-import { Value } from "typebox/value";
+import { Compile } from "typebox/compile";
 import { isJsonObject, type JsonValue } from "@agents-in-the-cloud/core";
 
 export interface SessionImageRef {
@@ -49,6 +48,7 @@ function assistantErrorText(message: { stopReason: string; errorMessage?: string
 
 type NoteTone = "system" | "summary" | "warning" | "error";
 
+// Checked for every tool result when a transcript reloads.
 const toolViewDetailsSchema = Type.Object({
   aborted: Type.Optional(Type.Boolean()),
   timedOut: Type.Optional(Type.Boolean()),
@@ -59,10 +59,12 @@ const toolViewDetailsSchema = Type.Object({
   workspaceId: Type.Optional(Type.String()),
 });
 
+const toolViewDetailsValidator = Compile(toolViewDetailsSchema);
+
 export type ToolViewDetails = Static<typeof toolViewDetailsSchema> & { [key: string]: JsonValue | undefined };
 
 export function isToolViewDetails(value: unknown): value is ToolViewDetails {
-  if (!Value.Check(toolViewDetailsSchema, value)) return false;
+  if (!toolViewDetailsValidator.Check(value)) return false;
   const definedEntries = Object.entries(value).filter(([, entry]) => entry !== undefined);
   return isJsonObject(Object.fromEntries(definedEntries));
 }
@@ -110,7 +112,6 @@ export type WorkingTranscriptItem = TranscriptItemBase & {
 };
 
 export type TranscriptItem =
-  | (TranscriptItemBase & { type: "extension"; render(ctx: AgentRenderContext): string })
   | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; pending?: boolean; queuedSubmissionId?: string })
   | (TranscriptItemBase & { type: "inherited-context"; source: string; messageCount: number; items: TranscriptItem[] })
   | WorkingTranscriptItem
@@ -118,7 +119,25 @@ export type TranscriptItem =
   | (TranscriptItemBase & { type: "text"; text: string; final: boolean; live?: boolean })
   | (TranscriptItemBase & { type: "tool"; tool: ToolView })
   | (TranscriptItemBase & { type: "note"; text: string; tone: NoteTone })
+  /** Something that reached the Agent from elsewhere, such as a subagent's report or a finished background command. */
+  | (TranscriptItemBase & {
+    type: "message";
+    /** Who sent it, such as a subagent or a command. */
+    sender: string;
+    /** What happened, shown after the sender while collapsed. */
+    title: string;
+    bodyMarkdown?: string;
+    /** Further facts, in order. */
+    details: Record<string, string>;
+    /** The tool call that started the sender. */
+    dispatchedByToolCallId?: string;
+  })
   | (TranscriptItemBase & { type: "error"; text: string });
+
+/** Whether a reveal request for `target`, an item key, anchor or tool call ID, points at this item. */
+export function isTranscriptTarget(item: TranscriptItem, target: string): boolean {
+  return item.key === target || item.anchor === target || (item.type === "tool" && item.tool.callId === target);
+}
 
 export function findTranscriptItem(items: TranscriptItem[], key: string): TranscriptItem | undefined {
   for (const item of items) {

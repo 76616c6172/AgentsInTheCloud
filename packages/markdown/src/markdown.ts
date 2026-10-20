@@ -115,6 +115,9 @@ markdown.renderer.rules.image = (tokens, index, options, environment: MarkdownEn
     tokens[index]!.attrSet("src", src);
     tokens[index]!.attrJoin("class", "agent-media-img");
     tokens[index]!.attrSet("referrerpolicy", "no-referrer");
+    tokens[index]!.attrSet("data-controller", "agents-in-the-cloud-fullscreen");
+    tokens[index]!.attrSet("data-agents-in-the-cloud-fullscreen-mode-value", "media");
+    tokens[index]!.attrSet("data-agents-in-the-cloud-fullscreen-title-value", tokens[index]!.content || source.split(/[?#]/)[0]!.split("/").pop()!);
   }
   return defaultImage(tokens, index, options, environment, renderer);
 };

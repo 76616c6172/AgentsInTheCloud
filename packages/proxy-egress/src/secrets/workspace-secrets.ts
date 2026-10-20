@@ -99,7 +99,6 @@ function buildContext(workspaceId: string, secrets: Record<string, SecretDefinit
     allowedHosts: ["*"],
     blockInternalRanges: false,
     isIpAllowed: (info) => privateNetworkAccessAllows(privateNetworkAccess, info),
-    replaceSecretsInQuery: false,
     secrets,
     onRequest: async (request, registerSecret) => {
       for (const { transform } of requestTransforms.values()) request = await transform(request, registerSecret);

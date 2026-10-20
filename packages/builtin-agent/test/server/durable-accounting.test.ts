@@ -52,3 +52,19 @@ test("subscription pacing hook runs without a presentation mount and ignores API
     } finally { await harness.close(context); }
   }
 });
+
+test("subscription pacing counts OpenCode Go, whose subscription is an API key", async () => {
+  const recorded: string[] = [];
+  const registry = createRegistry();
+  registry.install(durableSubscriptionActivity({ getAuth: async () => ({ source: "API Key", auth: { apiKey: "fake" } }) }, provider => { recorded.push(provider); }));
+  const models = createModels();
+  const faux = fauxProvider({ provider: "opencode-go", tokensPerSecond: 100_000 });
+  models.setProvider(faux.provider);
+  faux.setResponses([fauxAssistantMessage("answer")]);
+  const harness = await Harness.open(new MemoryStorage(), { models, registry }, context);
+  try {
+    const conversation = await harness.createConversation({ ownership: { kind: "ownerless" }, agent: { model: { provider: "opencode-go", modelId: "faux-1" } } }, context);
+    await (await conversation.submit({ type: "input", content: "question", requestId: "one" }, context)).wait(context);
+    expect(recorded).toEqual(["opencode-go"]);
+  } finally { await harness.close(context); }
+});

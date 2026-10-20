@@ -146,6 +146,35 @@ describe("workspace secrets", () => {
     expect((await load()).env.TOKEN).toBeUndefined();
   });
 
+  test("URL permission covers query strings, only for allowed hosts", async () => {
+    const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/lastfm.git")).workspaceTemplate;
+    const secretValue = "lastfm-key+with&reserved=characters /";
+    const values = { envName: "LASTFM_API_KEY", hostPattern: "ws.audioscrobbler.com", secretValue };
+    const secret = await createWorkspaceTemplateSecret(workspaceTemplate.id, { ...values, allowInPath: true });
+    const load = () => getWorkspaceSecretContext("test-workspace", async () => workspaceTemplateInit(workspaceTemplate.id));
+    const context = await load();
+    const query = `?method=user.getrecenttracks&api_key=${context.env.LASTFM_API_KEY}&user=listener&tag=one&tag=two`;
+    const result = await context.hooks.onRequest(new Request(`https://ws.audioscrobbler.com/2.0/${query}`));
+    const url = new URL(result.url);
+    expect(url.searchParams.get("api_key")).toBe(secretValue);
+    expect(url.searchParams.get("method")).toBe("user.getrecenttracks");
+    expect(url.searchParams.get("user")).toBe("listener");
+    expect(url.searchParams.getAll("tag")).toEqual(["one", "two"]);
+    expect(context.hooks.scrubResponseHeader(result.url, result)).toContain("api_key=[REDACTED]&user=listener");
+
+    for (const host of ["other.example.net", "ws.audioscrobbler.com.attacker.example"]) {
+      const nonmatchingUrl = `https://${host}/2.0/${query}`;
+      expect((await context.hooks.onRequest(new Request(nonmatchingUrl))).url).toBe(nonmatchingUrl);
+      const rawSecretUrl = new URL(nonmatchingUrl);
+      rawSecretUrl.searchParams.set("api_key", secretValue);
+      await expect(context.hooks.onRequest(new Request(rawSecretUrl))).rejects.toThrow(`secret LASTFM_API_KEY not allowed for host: ${host}`);
+    }
+
+    await updateWorkspaceTemplateSecret(workspaceTemplate.id, secret.id, { ...values, allowInPath: false });
+    const disallowedUrl = `https://ws.audioscrobbler.com/2.0/${query}`;
+    expect((await (await load()).hooks.onRequest(new Request(disallowedUrl))).url).toBe(disallowedUrl);
+  });
+
   test("path injection defaults to Telegram only and respects live per-secret overrides", async () => {
     setGitHubToken("github-credential");
     const workspaceTemplate = (await addWorkspaceTemplate("https://github.com/org/path-secrets.git")).workspaceTemplate;

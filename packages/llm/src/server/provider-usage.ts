@@ -6,19 +6,35 @@ import { fetchCodexSubscriptionUsage } from "./codex-subscription-usage.ts";
 import { fetchXaiSubscriptionUsage } from "./xai-subscription-usage.ts";
 import { fetchRadiusUsage } from "./radius-usage.ts";
 import { fetchGitHubCopilotSubscriptionUsage } from "./github-copilot-subscription-usage.ts";
+import { fetchOpenCodeGoSubscriptionUsage } from "./opencode-go-subscription-usage.ts";
 import { cheapestProviderModel, createPiModelRuntime, readStoredPiCredential } from "./pi-config-models.ts";
+import type { AuthResult } from "@earendil-works/pi-ai";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 
 // Only providers with implemented subscription adapters appear in the overview.
 // Radius reports a credit balance without allowance windows, so it never drives the usage button.
-export const supportedUsageProviders = [{ id: "anthropic", label: "Anthropic" }, { id: "openai-codex", label: "ChatGPT / Codex" }, { id: "xai", label: "xAI" }, { id: "radius", label: "Radius" }, { id: "github-copilot", label: "GitHub Copilot" }] as const;
+// `credential` is what carries the limits: a subscription sign-in, or for OpenCode Go, its API key.
+export const supportedUsageProviders = [
+  { id: "anthropic", label: "Anthropic", credential: "oauth" },
+  { id: "openai-codex", label: "ChatGPT / Codex", credential: "oauth" },
+  { id: "xai", label: "xAI", credential: "oauth" },
+  { id: "radius", label: "Radius", credential: "oauth" },
+  { id: "github-copilot", label: "GitHub Copilot", credential: "oauth" },
+  { id: "opencode-go", label: "OpenCode Go", credential: "api_key" },
+] as const;
 export type UsageProvider = typeof supportedUsageProviders[number];
+
+/** Whether this connection is the kind that has usage limits, e.g. not an API key standing in for a subscription. */
+export function hasUsageLimits(provider: UsageProvider, auth: AuthResult | undefined): boolean {
+  return !!auth && (provider.credential === "api_key" || auth.source === "OAuth");
+}
 type UsageRequest = { runtime: ModelRuntime; refresh: boolean };
 const subscriptionAdapters = {
   // Codex reports usage cheaply on every request, so it is always current.
   "openai-codex": (token) => fetchCodexSubscriptionUsage(token),
   xai: (token) => fetchXaiSubscriptionUsage(token),
   radius: (token) => fetchRadiusUsage(token),
+  "opencode-go": (token) => fetchOpenCodeGoSubscriptionUsage(token),
   // The usage check needs the GitHub sign-in behind the Copilot token, which getAuth has just refreshed.
   "github-copilot": async () => {
     const credential = readStoredPiCredential("github-copilot");
@@ -58,10 +74,10 @@ export async function getProviderUsageOverview(provider: UsageProvider, options:
   const connected = runtime.getProviderAuthStatus(provider.id).configured;
   if (connected) {
     try {
-      // Pi owns credential storage and serialized OAuth refresh for both subscriptions.
+      // Pi owns credential storage and serialized OAuth refresh.
       const auth = await runtime.getAuth(provider.id, { signal: AbortSignal.timeout(10_000) });
       if (!auth?.auth.apiKey) throw new SubscriptionUsageError(`${provider.label} credentials are unavailable. Reconnect ${provider.label}.`);
-      if (auth.source !== "OAuth") throw new SubscriptionUsageError(`${provider.label} subscription usage requires OAuth sign-in, not an API key. Reconnect ${provider.label} with your subscription.`);
+      if (!hasUsageLimits(provider, auth)) throw new SubscriptionUsageError(`${provider.label} subscription usage requires OAuth sign-in, not an API key. Reconnect ${provider.label} with your subscription.`);
       reported = await subscriptionAdapters[provider.id](auth.auth.apiKey, { runtime, refresh: options.refresh ?? false });
     } catch (cause) {
       if (cause instanceof ModelsError && cause.code === "oauth") {

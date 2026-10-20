@@ -9,7 +9,8 @@ export type AgentTranscriptAnchor = {
  * Anchors are resolved by the host for snapshots, lazy details and reveal requests;
  * they do not replace live tool/text DOM while it is streaming. */
 export interface AgentTranscriptSnapshot {
-  rows: Extract<TranscriptItem, { type: "extension" }>[];
+  /** Messages that reached the Agent, placed by when they arrived. */
+  messages: Extract<TranscriptItem, { type: "message" }>[];
   anchors: AgentTranscriptAnchor[];
   /** Entries before this persisted marker are copied context; entries after it are local activity. */
   inheritedContext?: { boundaryEntryId: string; source: string };
@@ -25,9 +26,16 @@ export function applyTranscriptContributions(items: TranscriptItem[], snapshot: 
   });
   const time = (item: TranscriptItem) => item.timestamp ?? (item.type === "working" ? item.startedAt : 0);
   const result = annotate(items);
-  for (const item of snapshot.rows) {
+  const insert = (items: TranscriptItem[], item: TranscriptItem) => {
+    const next = items.findIndex(candidate => time(candidate) > time(item));
+    items.splice(next < 0 ? items.length : next, 0, item);
+  };
+  for (const item of snapshot.messages) {
+    // A message that arrives while a turn runs belongs to that turn; annotate already copied its items.
     const next = result.findIndex(candidate => time(candidate) > time(item));
-    result.splice(next < 0 ? result.length : next, 0, item);
+    const previous = result[(next < 0 ? result.length : next) - 1];
+    const end = previous?.type === "working" ? previous.completedAt ?? previous.stoppedAt : undefined;
+    insert(previous?.type === "working" && (end === undefined || time(item) <= end) ? previous.items : result, item);
   }
   return result;
 }

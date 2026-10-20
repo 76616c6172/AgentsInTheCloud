@@ -19,7 +19,7 @@ export class LiveTranscriptRenderer {
       }
       const rendering = item.type === "text" && item.live ? ctx.streamingText!(item.key, item.text) : undefined;
       const key = ids.item(ctx, item.key);
-      const fingerprint = item.type === "working" || item.type === "extension" ? undefined : JSON.stringify(rendering ? { ...item, text: "" } : item);
+      const fingerprint = item.type === "working" ? undefined : JSON.stringify(rendering ? { ...item, text: "" } : item);
       const cached = this.cache.get(key);
       const html = fingerprint !== undefined && cached?.fingerprint === fingerprint ? cached.html
         : item.type === "working" && commentaryIslands !== undefined ? renderWorkingSection(ctx, item, commentaryIslands)

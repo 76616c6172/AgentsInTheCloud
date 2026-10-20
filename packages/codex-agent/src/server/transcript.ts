@@ -48,6 +48,7 @@ function projectCodexItem(item: ThreadItem, live: boolean): TranscriptItem {
     case "contextCompaction": return { type: "note", key, text: "Codex compacted the conversation.", tone: "summary" };
     case "webSearch": return { type: "tool", key, tool: { callId: key, name: "Codex web search", args: { query: item.query }, status: live ? "running" : "ok", resultText: JSON.stringify(item.action, null, 2) } };
     case "collabAgentToolCall": return { type: "tool", key, tool: { callId: key, name: `Codex ${item.tool}`, args: { prompt: item.prompt, threads: item.receiverThreadIds }, status: status(item.status), resultText: JSON.stringify(item.agentsStates, null, 2) } };
+    case "subAgentActivity": return { type: "message", key, sender: item.agentPath, title: item.kind, details: { Thread: item.agentThreadId } };
     default: return { type: "note", key, text: JSON.stringify(item, null, 2), tone: "system" };
   }
 }

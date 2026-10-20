@@ -1,5 +1,11 @@
 import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 
+/** The transcript item a reveal `target` points at: its key, anchor or tool call ID. */
+export function transcriptTargetSelector(target: string): string {
+  const value = CSS.escape(target);
+  return `[data-transcript-anchor="${value}"], [data-transcript-key="${value}"], [data-tool-call-id="${value}"]`;
+}
+
 // Disclosure choice belongs to this pane instance, not another tab or browser.
 const turnDisclosureChoices = new WeakMap<Element, Map<string, boolean>>();
 
@@ -85,8 +91,7 @@ export function createAgentTurnController(Controller: WorkspaceClientControllerC
 
     private reveal(): void {
       if (!this.revealValue) return;
-      const selector = `[data-transcript-anchor="${CSS.escape(this.revealValue)}"], [data-transcript-key="${CSS.escape(this.revealValue)}"]`;
-      const target = this.items.querySelector<HTMLElement>(selector);
+      const target = this.items.querySelector<HTMLElement>(transcriptTargetSelector(this.revealValue));
       if (!target) return;
       for (const detail of target.querySelectorAll("details")) detail.open = true;
       this.element.dispatchEvent(new CustomEvent("agent:turn-reveal", { bubbles: true, detail: { target } }));

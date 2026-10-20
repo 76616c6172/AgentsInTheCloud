@@ -61,6 +61,8 @@ export async function buildRepositoryImage(baseImage: string, tag: string, build
   }
 
   // Readiness is bounded and explicit. Never fall back to the System builder.
+  // The repository builder is a Docker daemon container, not a workspace.
+  // oxlint-disable-next-line agents-in-the-cloud/no-docker-exec
   await requireDocker(["exec", name, "sh", "-ec",
     'for attempt in $(seq 1 120); do if docker --host unix:///control/docker.sock info >/dev/null 2>&1; then chmod 0666 /control/docker.sock; exit 0; fi; sleep 0.5; done; echo "Repository builder failed to start" >&2; exit 1',
   ]);

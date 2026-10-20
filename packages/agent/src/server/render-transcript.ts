@@ -5,7 +5,7 @@ import { renderStreamingMarkdownSnapshot } from "@agents-in-the-cloud/markdown";
 import type { ModelRef } from "@agents-in-the-cloud/llm/server";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 import { agentPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
-import { codeBlockHtml, detailFullscreen, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow } from "./render-markup.ts";
+import { codeBlockHtml, detailFullscreen, detailTableHtml, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow, transcriptTargetLink } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";
 import { formatDuration, formatTokens, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
 
@@ -73,15 +73,22 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
     body = item.live
       ? transcriptRow(renderStreamingTextBody(ctx, item.key, item.text, className))
       : renderMarkdownRow(ctx, item.text, className);
-  } else if (item.type === "tool") body = transcriptRow(renderToolCard(ctx, item.key, item.tool, { ...options, open: options.open || Boolean(ctx.revealTarget && (item.anchor === ctx.revealTarget || item.key === ctx.revealTarget)) }));
-  else if (item.type === "extension") body = item.render(ctx);
+  } else if (item.type === "tool") body = transcriptRow(renderToolCard(ctx, item.key, item.tool, options));
+  else if (item.type === "message") body = renderMessage(ctx, item);
   else if (item.type === "note") {
     body = item.tone === "summary"
       ? transcriptRow(disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: "Compaction summary" } }, bodyHtml: `<div class="markdown">${markdown(ctx, item.text)}</div>` }))
       : renderMarkdownRow(ctx, item.text, `agent-note ${escapeHtml(item.tone)}`);
   }
   else body = transcriptRow(`<div class="agent-error">${escapeHtml(item.text)}</div>`);
-  return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}>${body}</div>`;
+  return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}${item.type === "tool" ? ` data-tool-call-id="${escapeHtml(item.tool.callId)}"` : ""}>${body}</div>`;
+}
+
+function renderMessage(ctx: AgentRenderContext, message: Extract<TranscriptItem, { type: "message" }>): string {
+  const details = Object.entries(message.details).map(([label, text]) => ({ label, html: escapeHtml(text) }));
+  if (message.dispatchedByToolCallId) details.push({ label: "Started by", html: transcriptTargetLink(ctx, message.dispatchedByToolCallId, "Tool call") });
+  const body = `${message.bodyMarkdown ? `<div class="markdown agent-message-body">${markdown(ctx, message.bodyMarkdown)}</div>` : ""}${details.length ? detailTableHtml(details) : ""}`;
+  return transcriptRow(`<div class="agent-message">${disclosureHtml({ summary: transcriptRowContent({ kind: "text", text: `Incoming Message: ${message.sender} · ${message.title}` }), bodyHtml: body })}</div>`);
 }
 
 function renderWorkingContent(ctx: AgentRenderContext, section: WorkingTranscriptItem, options: { live?: boolean; open?: boolean } = {}): string {
@@ -95,9 +102,10 @@ function renderWorkingItems(ctx: AgentRenderContext, section: WorkingTranscriptI
   return `<div id="${ids.workingItems(ctx, section.key)}">${items}</div>`;
 }
 
+/** What a collapsed turn shows of its work until it answers: its text and the messages that reached it. */
 export function workingCommentaryItems(section: WorkingTranscriptItem): TranscriptItem[] {
   if (section.completedAt !== undefined && section.hasFinalAnswer) return [];
-  return section.items.filter((item) => item.type === "text");
+  return section.items.filter((item) => item.type === "text" || item.type === "message");
 }
 
 /** Live renderers pass the commentary collection's islands so morphing the turn keeps its rows mounted. */
@@ -106,18 +114,17 @@ export function renderWorkingSection(ctx: AgentRenderContext, section: WorkingTr
   const summary = workingSummary(ctx, section);
   const commentary = commentaryContext(ctx);
   commentaryHtml ??= workingCommentaryItems(section).map((item) => renderTranscriptItem(commentary, item)).join("");
-  const revealing = Boolean(ctx.revealTarget && section.items.some((item) => item.anchor === ctx.revealTarget || item.key === ctx.revealTarget));
   const finished = section.completedAt !== undefined || section.stoppedAt !== undefined;
   const lazy = !ctx.readOnly && Boolean(ctx.lazyCompletedWorkingItems && finished);
   const attributes = ctx.readOnly ? "" : lazy
-    ? 'data-controller="agent-lazy-detail" data-action="toggle->agent-lazy-detail#load"'
-    : ctx.inlineWorkingItems ? `data-agent-turn-turn-id-value="${escapeHtml(section.key)}"` : `data-controller="agent-turn" data-agent-turn-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-turn-agent-id-value="${escapeHtml(ctx.agentId)}" data-agent-turn-turn-id-value="${escapeHtml(section.key)}" data-agent-turn-branch-id-value="${escapeHtml(ctx.branchId ?? "")}"${revealing ? ` data-agent-turn-reveal-value="${escapeHtml(ctx.revealTarget!)}"` : ""} data-action="toggle->agent-turn#toggle"`;
+    ? `data-controller="agent-lazy-detail" data-action="toggle->agent-lazy-detail#load" data-agent-turn-turn-id-value="${escapeHtml(section.key)}"`
+    : ctx.inlineWorkingItems ? `data-agent-turn-turn-id-value="${escapeHtml(section.key)}"` : `data-controller="agent-turn" data-agent-turn-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-turn-agent-id-value="${escapeHtml(ctx.agentId)}" data-agent-turn-turn-id-value="${escapeHtml(section.key)}" data-agent-turn-branch-id-value="${escapeHtml(ctx.branchId ?? "")}" data-action="toggle->agent-turn#toggle"`;
   const items = lazy
     ? `<turbo-frame id="${ids.detailFrame(ctx, section.key)}" data-turbo-permanent data-agent-lazy-detail-target="frame" data-src="${escapeHtml(transcriptItemPath(ctx, section.key))}"></turbo-frame>`
     : ctx.readOnly || ctx.inlineWorkingItems ? renderWorkingContent(ctx, section) : "";
   const builtinLazy = !ctx.readOnly && !ctx.inlineWorkingItems && !lazy;
   return `<div class="agent-working-block" id="${ids.item(ctx, section.key)}">${disclosureHtml({
-    element: { attributesHtml: attributes }, summary, open: revealing || ctx.compactTools,
+    element: { attributesHtml: attributes }, summary, open: ctx.compactTools,
     bodyAttributesHtml: lazy ? undefined : `id="${ids.workingItems(ctx, section.key)}"${builtinLazy ? ' data-agent-turn-target="items" data-turbo-permanent' : ""}`,
     bodyHtml: items,
   })}<div class="disclosure-content agent-working-commentary" id="${ids.workingItems(commentary, section.key)}">${commentaryHtml}</div></div>`;

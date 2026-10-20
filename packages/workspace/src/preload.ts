@@ -5,6 +5,7 @@ import { ensureDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-imag
 
 import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@agents-in-the-cloud/observable-terminal/server";
 import type { WorkspaceProvisionProgress } from "./provisioning.ts";
+import { requireRootInWorkspace } from "./helper.ts";
 
 type Report = (progress: WorkspaceProvisionProgress) => void;
 interface CachePreparation {
@@ -46,7 +47,7 @@ export function normalizeImageReference(input: string): string {
 
 /** One app owns the shared directory. Image prep is deduplicated; mkfs commands
  * serialize so different manifests sharing a layer cannot replace each other's files. */
-export function createImagePreloader(run: Command = command, docker: typeof requireDocker = requireDocker, cacheDirectory = "/data/erofs-cache", defaultWorkspace: () => Promise<string> = ensureDefaultWorkspaceImage, build: (args: string[], report: Report) => Promise<void> = buildCacheCommand) {
+export function createImagePreloader(run: Command = command, docker: typeof requireDocker = requireDocker, cacheDirectory = "/data/erofs-cache", defaultWorkspace: () => Promise<string> = ensureDefaultWorkspaceImage, build: (args: string[], report: Report) => Promise<void> = buildCacheCommand, inWorkspace: typeof requireRootInWorkspace = requireRootInWorkspace) {
   const resolving = new Map<string, Promise<string>>();
   const preparing = new Map<string, CachePreparation>();
   let cacheQueue = Promise.resolve();
@@ -133,18 +134,20 @@ export function createImagePreloader(run: Command = command, docker: typeof requ
     async load(directory: string, report: (detail: string) => void = () => {}): Promise<PreparedImage[]> {
       const images: PreparedImage[] = JSON.parse(await readFile(join(directory, "preloads.json"), "utf8"));
       for (const image of images) {
-        if (image.reference) continue;
         report(`Resolving image ${image.requested}`);
-        image.reference = await resolve(image.requested);
-        await writeFileAtomic(join(directory, "preloads.json"), JSON.stringify(images));
+        const reference = await resolve(image.reference ?? image.requested);
+        if (reference !== image.reference) {
+          image.reference = reference;
+          await writeFileAtomic(join(directory, "preloads.json"), JSON.stringify(images));
+        }
       }
       return images;
     },
-    async install(images: PreparedImage[], container: string, report: (detail: string) => void = () => {}, activity: Report = () => {}): Promise<void> {
+    async install(images: PreparedImage[], workspaceId: string, report: (detail: string) => void = () => {}, activity: Report = () => {}): Promise<void> {
       if (!images.length) return;
       // containerd is sufficient for importing snapshots; socket activation keeps Docker asleep.
       report("Starting workspace containerd");
-      await docker(["exec", "--user", "root", container, "systemctl", "start", "containerd.service"]);
+      await inWorkspace(workspaceId, ["systemctl", "start", "containerd.service"]);
       for (const image of images) {
         if (!image.reference) throw new Error(`Image has not been resolved: ${image.requested}`);
         await prepare(image.reference, (progress) => {
@@ -156,13 +159,13 @@ export function createImagePreloader(run: Command = command, docker: typeof requ
         report(`Exporting image ${image.requested}`);
         const archive = await run(["agents-in-the-cloud-image-transfer", "export", image.reference]);
         report(`Importing image ${image.requested} into workspace`);
-        const imported = await docker(["exec", "--user", "root", "-i", container, "agents-in-the-cloud-image-transfer", "import"], { stdin: archive.stdout });
+        const imported = await inWorkspace(workspaceId, ["agents-in-the-cloud-image-transfer", "import"], archive.stdout);
         if (image.requested === defaultWorkspacePreload) {
           // Transfer selects the native manifest from a multi-platform index.
           // FROM must name that installed manifest, not the source index digest.
-          const reference = imported.stdout.trim();
+          const reference = imported.trim();
           if (!/^[^\s]+@sha256:[a-f0-9]{64}$/.test(reference)) throw new Error("Image transfer did not return an installed image reference");
-          await docker(["exec", "--user", "root", "-i", container, "tee", "/etc/agents-in-the-cloud/default-workspace-image"], { stdin: `${reference}\n` });
+          await inWorkspace(workspaceId, ["tee", "/etc/agents-in-the-cloud/default-workspace-image"], `${reference}\n`);
         }
       }
     },
