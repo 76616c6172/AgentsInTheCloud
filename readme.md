@@ -26,8 +26,11 @@
 
 I'm still figuring out how to accept contributions.
 
-I would love to hear how the product could be made better for your use case. In your human voice, not your AI's. Your description can include some AI-generated extra detail, sure, but the main thing you're trying to tell me should be *you* trying to tell *me*.
+I would love to hear how the product could be made better for your use case. 
+In your human voice, not your AI's. Your description can include some AI-generated extra detail, sure, but the main thing you're trying to tell me should be *you* trying to tell *me*.
 
-For now, please don't send pull requests. Telling me exactly how the product could be better for you is very welcome, though. Think of it as a PR in the form of a prompt.
+I will not be merging external pull requests. I would rather have my own agent write the code. However it is okay to file a pull request
+as an illustration of something you would like to see, as a data point of "in this shape it actually solves my problem".  Don't be offended
+when I don't merge the PR, it's just much more work to review code than to review code your own agent wrote.
 
 We're all just figuring out this new world in real time :-). Hope you like the product, I had a lot of fun building it.
