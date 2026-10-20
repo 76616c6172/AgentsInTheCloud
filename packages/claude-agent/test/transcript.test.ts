@@ -124,7 +124,7 @@ test("history replaces streamed rows, keeps unrecorded prompts and drops prompts
   const value = new ClaudeState();
   value.add({ kind: "user", uuid: "sent", timestamp: Date.parse(time(0)), content: [{ type: "text", text: "Hello" }], meta: false });
   value.add({ kind: "user", uuid: "local-compact", timestamp: Date.parse(time(5)), content: [{ type: "text", text: "/compact" }], meta: false });
-  value.add({ kind: "steer", uuid: "queued", timestamp: Date.parse(time(6)), text: "Still waiting" });
+  value.add({ kind: "steer", uuid: "queued", timestamp: Date.parse(time(6)), content: [{ type: "text", text: "Still waiting" }] });
   value.merge(claudeRows(jsonl(user("sent", 0, [{ type: "text", text: "Hello" }]), user("echo", 5, "<command-name>/compact</command-name><command-args></command-args>"))));
   expect(value.rows.map(row => row.uuid)).toEqual(["sent", "echo", "queued"]);
 });
@@ -213,4 +213,14 @@ test("a turn that ends in an error shows as stopped, with the error after it", (
 test("references prompt images by their row and position", () => {
   const items = projectClaudeTranscript(state(jsonl(user("with-image", 0, [{ type: "text", text: "Look" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } }]))), false);
   expect(items[0]).toMatchObject({ type: "user", images: [{ entryId: "with-image", contentIndex: 0, mimeType: "image/png" }] });
+});
+
+test("shows the images a steering message carried", () => {
+  const items = projectClaudeTranscript(state(jsonl(
+    user("prompt", 0, [{ type: "text", text: "Run date" }]),
+    assistant("a1", 1, "msg_1", [{ type: "thinking", thinking: "Checking the clock." }]),
+    { type: "attachment", uuid: "steer-row", timestamp: time(2), attachment: { type: "queued_command", prompt: [{ type: "text", text: "Like this" }, { type: "image", source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" } }], source_uuid: "steer" } },
+  )), true);
+  if (items[1]?.type !== "working") throw new Error("Expected a working section");
+  expect(items[1].items[1]).toMatchObject({ type: "user", text: "Like this", steering: true, images: [{ entryId: "steer", contentIndex: 0, mimeType: "image/png" }] });
 });

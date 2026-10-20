@@ -134,7 +134,8 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
       else if (turn?.command) activity({ type: "text", key, text: row.text, final: false, live: false }, row.timestamp);
       else activity({ type: "note", key, text: row.text, tone: "system" }, row.timestamp);
     } else if (row.kind === "steer") {
-      activity({ type: "user", key: row.uuid, text: row.text, images: [], steering: true }, row.timestamp);
+      const images = claudeImageSources(row.content).map((source, contentIndex) => ({ entryId: row.uuid, contentIndex, mimeType: source.media_type }));
+      activity({ type: "user", key: row.uuid, text: claudeText(row.content), images, steering: true }, row.timestamp);
     } else if (row.kind === "compact") {
       const note: TranscriptItem = { type: "note", key: row.uuid, text: "Claude compacted the conversation.", tone: "summary" };
       const next = rows.slice(index + 1).find(next => next.kind === "assistant" || (next.kind === "user" && claudeUserIntent(next)?.kind === "prompt"));

@@ -44,7 +44,7 @@ export type ClaudeRow =
   | { kind: "user"; uuid: string; timestamp: number; content: ClaudeBlock[]; meta: boolean }
   | { kind: "assistant"; uuid: string; timestamp: number; messageId: string; content: ClaudeBlock[]; stopReason: string | null; usage?: Static<typeof usageSchema>; error: boolean }
   /** A prompt sent while Claude worked, absorbed into its running turn. */
-  | { kind: "steer"; uuid: string; timestamp: number; text: string }
+  | { kind: "steer"; uuid: string; timestamp: number; content: ClaudeBlock[] }
   /** A background command or subagent finished, during Claude's turn or before a turn reporting on it. A resumed subagent finishes again, in a new run. */
   | { kind: "task"; uuid: string; timestamp: number; runId: string; toolUseId?: string; status: string; summary: string; result?: string; usage?: ClaudeTaskUsage }
   | { kind: "compact"; uuid: string; timestamp: number }
@@ -62,8 +62,8 @@ export function claudeRows(jsonl: string, sidechain = false): ClaudeRow[] {
     const timestamp = nativeTimestamp(row.timestamp);
     if (row.type === "attachment" && row.attachment?.type === "queued_command" && row.uuid) {
       // Background work that finishes mid-turn is delivered into it, like a prompt sent while Claude works.
-      const text = claudeText(claudeBlocks(row.attachment.prompt ?? ""));
-      rows.push(taskRow(row.uuid, timestamp, text, row.attachment.runId) ?? { kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, text });
+      const content = claudeBlocks(row.attachment.prompt ?? "");
+      rows.push(taskRow(row.uuid, timestamp, claudeText(content), row.attachment.runId) ?? { kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, content });
     } else if (Value.Check(commandOutputSchema, row)) {
       const output = commandOutput(row.content);
       if (output) rows.push({ kind: "output", uuid: row.uuid, timestamp, ...output });

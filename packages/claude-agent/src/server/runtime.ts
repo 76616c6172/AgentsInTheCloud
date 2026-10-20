@@ -206,7 +206,7 @@ export class ClaudeRuntime {
       this.save();
       const uuid = promptUuid(requestId);
       // Claude absorbs a prompt sent while it works into its running turn, or queues it as the next one.
-      this.state.add(this.running ? { kind: "steer", uuid, timestamp: Date.now(), text } : { kind: "user", uuid, timestamp: Date.now(), content, meta: false });
+      this.state.add(this.running ? { kind: "steer", uuid, timestamp: Date.now(), content } : { kind: "user", uuid, timestamp: Date.now(), content, meta: false });
       this.running = true;
       // SAFETY: Content blocks match the API's text and base64 image parameters.
       this.transport!.send({ type: "user", uuid: uuid as `${string}-${string}-${string}-${string}-${string}`, session_id: "", parent_tool_use_id: null, origin: { kind: "human" }, message: { role: "user", content: content as never } });
