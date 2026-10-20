@@ -1,8 +1,8 @@
 /**
  * Stages the shared acceptance setup through Atelier's automation API
  * (docs/automation.md): a built-in agent with a long transcript, a Pi CLI
- * agent, a terminal tab and a prompt template with a composer button. An existing
- * workspace can be reused.
+ * agent and a terminal tab. The built-in agent also writes a prompt template with a
+ * composer button, as a user's agent would. An existing workspace can be reused.
  */
 
 export interface Stage {
@@ -34,7 +34,9 @@ async function json<T>(atelier: string, path: string, init: { method?: string; b
   return JSON.parse(text) as T;
 }
 
-const longPrompt = "Without using any tools, write a long markdown explanation (about 1500 words, with headings, lists and two short code blocks) of how terminal emulators handle window resizing (SIGWINCH, PTY, tmux).";
+/** The /ok button the composer scenarios expect. Written by the agent, so its turn ending must refresh the composer. */
+const promptTemplate = "---\ndescription: Reply with OK\ncomposer-button: true\n---\nReply with just the word OK.\n";
+const longPrompt = `First create the file /work/.agents-in-the-cloud/prompts/ok.md with exactly this content:\n\n${promptTemplate}\nThen, without using any more tools, write a long markdown explanation (about 1500 words, with headings, lists and two short code blocks) of how terminal emulators handle window resizing (SIGWINCH, PTY, tmux).`;
 
 async function workspace(atelier: string, id: string): Promise<WorkspaceJson["workspace"]> {
   return (await json<WorkspaceJson>(atelier, `/workspaces/${encodeURIComponent(id)}`)).workspace;
@@ -92,14 +94,7 @@ export async function stage(options: { atelier: string; workspaceId?: string; mo
     await json(atelier, `/workspaces/${id}/commands/terminal.create`, { method: "POST", body: { title: "Shell", cwd: "/work" } });
     terminal = (await workspace(atelier, id)).workViews.find((view) => view.reference.type === "terminal")!;
   }
-  await stagePromptTemplateButton(id);
   return { atelier, workspaceId: id, builtinId: builtin.id, piId: pi.id, terminalKey: terminal.key };
-}
-
-/** A prompt template with its composer button enabled, so composers show their Prompt template button row. */
-async function stagePromptTemplateButton(workspaceId: string): Promise<void> {
-  const template = "---\ndescription: Reply with OK\ncomposer-button: true\n---\nReply with just the word OK.\n";
-  await workspaceExec(workspaceId, ["sh", "-c", "mkdir -p /work/.agents-in-the-cloud/prompts && cat > /work/.agents-in-the-cloud/prompts/ok.md"], template);
 }
 
 /** tmux window sizes inside the workspace container, by session name. Read-only: no hooks are installed. */
@@ -112,8 +107,8 @@ export async function tmuxSizes(workspaceId: string): Promise<Record<string, str
 }
 
 /** Runs a command in the workspace container as its user and returns its output. */
-async function workspaceExec(workspaceId: string, command: string[], stdin?: string): Promise<string> {
-  const process = Bun.spawn(["docker", "exec", "-i", "-u", "agents-in-the-cloud", `agents-in-the-cloud-${workspaceId}`, ...command], { stdin: stdin === undefined ? "ignore" : new TextEncoder().encode(stdin), stdout: "pipe", stderr: "pipe" });
+async function workspaceExec(workspaceId: string, command: string[]): Promise<string> {
+  const process = Bun.spawn(["docker", "exec", "-u", "agents-in-the-cloud", `agents-in-the-cloud-${workspaceId}`, ...command], { stdin: "ignore", stdout: "pipe", stderr: "pipe" });
   const output = await new Response(process.stdout).text();
   if (await process.exited !== 0) throw new Error(`${command.join(" ")} failed: ${await new Response(process.stderr).text()}`);
   return output;
