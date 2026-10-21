@@ -60,7 +60,11 @@ export class AgentPresentation {
   static async create(agent: WorkspaceAgentInfo, controller: DurableAgentController) {
     const runtime = new AgentPresentation(agent, controller, await createPiModelRuntime());
     try {
-      runtime.presentation = await DurableAgentPresentation.attach(controller, { ...agent, branchId: String(controller.id), jsonFinalAnswers: runtime.jsonFinalAnswers }, BACKGROUND_CONTEXT, () => runtime.committed());
+      runtime.presentation = await DurableAgentPresentation.attach(controller, {
+        ...agent, branchId: String(controller.id), jsonFinalAnswers: runtime.jsonFinalAnswers,
+        // A one-shot agent takes no input but still runs live; only imported histories render as snapshots.
+        readOnly: agent.readOnly && !agent.oneShot,
+      }, BACKGROUND_CONTEXT, () => runtime.committed());
       runtime.unsubscribeWork = controller.subscribeWork(() => runtime.chrome.invalidate());
       runtime.unsubscribeUsage = controller.subscribeUsage(() => { void runtime.refreshUsage().catch(error => console.error("Could not refresh descendant usage", error)); });
       await runtime.refreshUsage();
