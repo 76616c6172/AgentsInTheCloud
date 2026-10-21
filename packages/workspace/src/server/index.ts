@@ -8,7 +8,7 @@ import {
   getAgentsInTheCloudRuntimeContext,
 } from "@agents-in-the-cloud/core";
 import type { WorkspaceModule, WorkspaceServerSocketHandler } from "@agents-in-the-cloud/shared";
-import { clearHostTerminalProcesses, hostTerminalProcesses, terminalSocketDimensions } from "@agents-in-the-cloud/observable-terminal/server";
+import { clearAppTerminalProcesses, appTerminalProcesses, terminalSocketDimensions } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspaceTerminalProcesses } from "../terminal-processes.ts";
 
 /**
@@ -18,8 +18,8 @@ import { workspaceTerminalProcesses } from "../terminal-processes.ts";
 const terminalProcessSocket: WorkspaceServerSocketHandler = (url) => {
   const inWorkspace = url.pathname.match(/^\/workspaces\/([^/]+)\/terminal-processes\/([^/]+)\/ws$/);
   if (inWorkspace) return workspaceTerminalProcesses(decodeURIComponent(inWorkspace[1]!)).connect(decodeURIComponent(inWorkspace[2]!), terminalSocketDimensions(url));
-  const onHost = url.pathname.match(/^\/terminal-processes\/([^/]+)\/ws$/);
-  if (onHost) return hostTerminalProcesses().connect(decodeURIComponent(onHost[1]!), terminalSocketDimensions(url));
+  const ofApp = url.pathname.match(/^\/terminal-processes\/([^/]+)\/ws$/);
+  if (ofApp) return appTerminalProcesses().connect(decodeURIComponent(ofApp[1]!), terminalSocketDimensions(url));
   return undefined;
 };
 
@@ -30,7 +30,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
   id: "workspace",
   async initialize({ events, registerSocketHandler }) {
     // Provisioning never outlives the app; whatever the last one left is gone.
-    await clearHostTerminalProcesses();
+    await clearAppTerminalProcesses();
     registerSocketHandler(terminalProcessSocket);
     await ensureSharedHome();
     const runtime = getAgentsInTheCloudRuntimeContext();

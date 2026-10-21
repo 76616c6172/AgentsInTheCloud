@@ -6,29 +6,27 @@ import { join } from "node:path";
 import { shellQuote } from "@agents-in-the-cloud/core";
 import { startWorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
 import { resolveWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
-import { attachObservableTerminal, type ObservableTerminalConnection } from "../../src/server/attach.ts";
-import { startLocally } from "../../src/server/local-terminal-processes.ts";
+import { attachHostObservableTerminal, buildObservableSessionCommand, type ObservableTerminalConnection } from "../../src/server/index.ts";
+import { attachObservableTerminal } from "../../src/server/attach.ts";
 
 for (const remote of [false, true]) {
-  describe.skip(`${remote ? "Docker" : "local"} terminal lifecycle`, () => {
+  describe.skip(`${remote ? "Docker" : "host"} terminal lifecycle`, () => {
     const container = `agents-in-the-cloud-terminal-test-${crypto.randomUUID()}`;
     // Built by `bun run --cwd packages/workspace-helper build`.
     const helper = new URL("../../../workspace-helper/workspace_tools/aitc-workspace-helper", import.meta.url).pathname;
     let socket = "";
-    // Locally, a tmux server of the tests' own.
-    let tmuxDirectory = "";
     const sessions: string[] = [];
     const connections: ObservableTerminalConnection[] = [];
 
-    async function command(args: string[], env?: Record<string, string | undefined>): Promise<string> {
-      const process = Bun.spawn(args, { stdout: "pipe", stderr: "pipe", env });
+    async function command(args: string[]): Promise<string> {
+      const process = Bun.spawn(args, { stdout: "pipe", stderr: "pipe" });
       const [stdout, stderr, code] = await Promise.all([new Response(process.stdout).text(), new Response(process.stderr).text(), process.exited]);
       if (code !== 0) throw new Error(`${args.join(" ")}: ${stderr} (exit ${code})`);
       return stdout.trim();
     }
     const run = (script: string) => command(remote
       ? ["docker", "exec", "--user", "agents-in-the-cloud", container, "sh", "-lc", script]
-      : ["sh", "-lc", script], remote ? undefined : { ...process.env, TMUX: undefined, TMUX_PANE: undefined, TMUX_TMPDIR: tmuxDirectory });
+      : ["sh", "-lc", script]);
     async function until(read: () => Promise<string>, expected: string): Promise<void> {
       let actual = "";
       for (let i = 0; i < 100; i++) {
@@ -41,7 +39,7 @@ for (const remote of [false, true]) {
     async function create(command = "/bin/bash --noprofile --norc"): Promise<string> {
       const session = `terminal-lifecycle-${crypto.randomUUID()}`;
       sessions.push(session);
-      await run(`tmux new-session -d -s ${shellQuote(session)} -c /tmp ${shellQuote(command)} \\; set-option -t ${shellQuote(session)} status off`);
+      await run(buildObservableSessionCommand({ session, cwd: "/tmp", command }));
       return session;
     }
     function attach(session: string, readonly = false) {
@@ -53,7 +51,7 @@ for (const remote of [false, true]) {
         onExit: exited.resolve,
       };
       const options = { session, cols: 80, rows: 24, readonly };
-      const connection = attachObservableTerminal({ ...options, start: remote ? (start) => startWorkspaceProcess(socket, start) : startLocally(tmuxDirectory) }, events);
+      const connection = remote ? attachObservableTerminal({ ...options, start: (start) => startWorkspaceProcess(socket, start) }, events) : attachHostObservableTerminal(options, events);
       connections.push(connection);
       return { connection, exited: exited.promise, output: () => output };
     }
@@ -62,7 +60,6 @@ for (const remote of [false, true]) {
     const size = (session: string) => run(`tmux display-message -p -t ${session} '#{pane_width}x#{pane_height}'`);
 
     beforeAll(async () => {
-      if (!remote) tmuxDirectory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-terminal-tmux-"));
       if (remote) {
         const image = await resolveWorkspaceImage();
         const directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-terminal-test-"));
@@ -193,13 +190,13 @@ for (const remote of [false, true]) {
     test("an abruptly terminated attachment owner leaves no stale client", async () => {
       const session = await create();
       const modulePath = new URL("../../src/server/attach.ts", import.meta.url).pathname;
-      const localModulePath = new URL("../../src/server/local-terminal-processes.ts", import.meta.url).pathname;
       const helperModulePath = new URL("../../../workspace-helper/src/index.ts", import.meta.url).pathname;
       const options = { session, cols: 80, rows: 24 };
-      const owner = Bun.spawn(["bun", "-e", `import { attachObservableTerminal } from ${JSON.stringify(modulePath)};
-        import { startLocally } from ${JSON.stringify(localModulePath)};
+      const owner = Bun.spawn(["bun", "-e", `import { attachObservableTerminal, attachHostObservableTerminal } from ${JSON.stringify(modulePath)};
         import { startWorkspaceProcess } from ${JSON.stringify(helperModulePath)};
-        attachObservableTerminal({ ...${JSON.stringify(options)}, start: ${remote ? `(start) => startWorkspaceProcess(${JSON.stringify(socket)}, start)` : `startLocally(${JSON.stringify(tmuxDirectory)})`} }, { onData() {}, onExit() {} });`],
+        ${remote
+          ? `attachObservableTerminal({ ...${JSON.stringify(options)}, start: (start) => startWorkspaceProcess(${JSON.stringify(socket)}, start) }, { onData() {}, onExit() {} });`
+          : `attachHostObservableTerminal(${JSON.stringify(options)}, { onData() {}, onExit() {} });`}`],
         { stdout: "pipe", stderr: "pipe" });
       try {
         await until(() => count(session), "1");

@@ -30,7 +30,7 @@ for (const innerAgentsInTheCloud of [false, true]) for (const scenario of ["cach
         }}));
         const observablePath = ${JSON.stringify(join(import.meta.dir, "../../observable-terminal/src/server/index.ts"))};
         const observable = await import(observablePath);
-        mock.module(observablePath, () => ({...observable, hostTerminalProcesses: () => ({}), runTerminalProcess: async (_processes, options) => {
+        mock.module(observablePath, () => ({...observable, appTerminalProcesses: () => ({}), runTerminalProcess: async (_processes, options) => {
           builds.push(options.command);
           return {state:'exited',exitCode:0,aborted:false,timedOut:false,output:{ansi:'',text:''}};
         }}));

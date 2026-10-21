@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { runDocker, waitForCommand, commandSignal, workloadCgroupArgs, shellQuote, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { hostTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
-import { hostTerminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
+import { appTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
+import { appTerminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
 import { type WorkspaceImageMetadata } from "./metadata.ts";
 import { ensureGeneratedDefaultWorkspaceImage, prepareDefaultWorkspaceImage } from "./default-image.ts";
 export { ensureGeneratedDefaultWorkspaceImage, prepareDefaultWorkspaceImage } from "./default-image.ts";
@@ -98,11 +98,11 @@ function startBuildTask(metadata: WorkspaceImageMetadata, source: WorkspaceImage
         const exitCode = await proc.exited;
         if (exitCode !== 0) throw new Error(`docker build failed with exit code ${exitCode}`);
       } else {
-        const result = await runTerminalProcess(hostTerminalProcesses(), {
+        const result = await runTerminalProcess(appTerminalProcesses(), {
           cwd: contextDir,
           command: `echo "Starting Docker image build..."\nDOCKER_BUILDKIT=1 ${[...dockerCommand, ...args].map(shellQuote).join(" ")}`,
         }, async (id) => {
-          task.terminalSocketPath = hostTerminalProcessSocketPath(id);
+          task.terminalSocketPath = appTerminalProcessSocketPath(id);
           await reportImageProgress(options.events, options.workspaceId, task);
         });
         task.terminalSocketPath = undefined;

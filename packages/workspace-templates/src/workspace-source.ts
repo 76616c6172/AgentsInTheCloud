@@ -16,8 +16,8 @@ import {
   type CommandResult,
 } from "@agents-in-the-cloud/core";
 import { gitCredentialHelperCommand, gitHostingTokenEnvironment } from "@agents-in-the-cloud/git-hosting";
-import { hostTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
-import { hostTerminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
+import { appTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
+import { appTerminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { workspaceTemplateIdFromInit, workspaceTemplateIdOfInit, getWorkspaceTemplateConfiguration, listWorkspaceTemplates, isGitWorkspaceTemplateInit } from "./workspace-template.ts";
@@ -205,8 +205,8 @@ printf '%s\n' "$effective_branch" > "$effective_branch_file"
 `;
 
   const env = { ...options.sshEnv, ...gitHostingTokenEnvironment() };
-  const result = await runTerminalProcess(hostTerminalProcesses(), { command: script, cwd: dir, env }, async (id) => {
-    await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, detail: "Clone repository", terminalSocketPath: hostTerminalProcessSocketPath(id) });
+  const result = await runTerminalProcess(appTerminalProcesses(), { command: script, cwd: dir, env }, async (id) => {
+    await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, detail: "Clone repository", terminalSocketPath: appTerminalProcessSocketPath(id) });
   });
   await appendFile(options.logPath, result.output.text).catch(() => undefined);
   await options.events?.emit("workspace_provision_progress", { workspaceId: options.workspaceId, output: tailTerminalOutput(result.output.ansi, terminalOutputDisplayBytes), terminalSocketPath: undefined });

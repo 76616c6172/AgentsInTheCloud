@@ -18,10 +18,11 @@ export function hostRequest<Command extends HostCommand>(request: Command, socke
       try {
         const reply: HostReply = JSON.parse(line);
         if (reply.type === "error") reject(new Error(reply.message));
-        else {
+        else if (reply.type === "result") {
           // SAFETY: The private System protocol returns the result associated with this command.
           resolve(reply.value as HostResults[Command["operation"]]);
         }
+        else reject(new Error("Unexpected host response"));
       } catch (error) { reject(error); }
       socket.end();
     });

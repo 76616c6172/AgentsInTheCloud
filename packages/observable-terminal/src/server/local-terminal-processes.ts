@@ -93,18 +93,18 @@ export async function clearLocalTerminalProcesses(directory: string): Promise<vo
   await rm(join(directory, "processes"), { recursive: true, force: true });
 }
 
-function hostTerminalProcessesDirectory(): string {
+function appTerminalProcessesDirectory(): string {
   return agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "terminal-processes");
 }
 
-let host: TerminalProcesses | undefined;
+let app: TerminalProcesses | undefined;
 
 /** Terminal processes on the app's own machine, such as provisioning's. */
-export function hostTerminalProcesses(): TerminalProcesses {
-  return host ??= localTerminalProcesses(hostTerminalProcessesDirectory());
+export function appTerminalProcesses(): TerminalProcesses {
+  return app ??= localTerminalProcesses(appTerminalProcessesDirectory());
 }
 
 /** Provisioning never outlives the app, so what the last app left is cleared when it starts. */
-export function clearHostTerminalProcesses(): Promise<void> {
-  return clearLocalTerminalProcesses(hostTerminalProcessesDirectory());
+export function clearAppTerminalProcesses(): Promise<void> {
+  return clearLocalTerminalProcesses(appTerminalProcessesDirectory());
 }

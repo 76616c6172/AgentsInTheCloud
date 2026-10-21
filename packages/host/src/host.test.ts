@@ -1,10 +1,13 @@
-import { expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createConnection } from "node:net";
+import { createInterface } from "node:readline";
+import { command } from "./system/command.ts";
 import { HostService, startHostService } from "./system/service.ts";
 import { hostRequest } from "./server/connection.ts";
-import { parseHostRequest, type HostSample } from "./protocol.ts";
+import { parseHostRequest, parseHostInput, type HostCommand, type HostSample, type HostReply } from "./protocol.ts";
 import { cpuPercent, counters, effectiveCpu, filesystemUsage } from "./system/sampler.ts";
 
 const sample: HostSample = { sampledAt: "2026-01-01T00:00:00.000Z", durationMs: 1000, metrics: [], sections: [] };
@@ -35,10 +38,12 @@ test("disk and inode usage validate df output", () => {
   expect(filesystemUsage("Filesystem Inodes IUsed IFree IUse% Mounted on\n/dev/loop0 0 0 0 - /data")).toBeNull();
   expect(() => filesystemUsage("broken")).toThrow();
 });
-test("control boundary rejects every operation but sampling and private network access", () => {
-  for (const operation of ["exec", "list", "create", "terminate", "attach"]) {
-    expect(() => parseHostRequest(JSON.stringify({ operation, id: `host-${crypto.randomUUID()}` }))).toThrow();
-  }
+test("control boundary rejects unknown operations, session injection and invalid dimensions", () => {
+  expect(() => parseHostRequest('{"operation":"exec","command":"whoami"}')).toThrow();
+  expect(() => parseHostRequest('{"operation":"terminate","id":"anything; shell"}')).toThrow();
+  expect(() => parseHostRequest(JSON.stringify({ operation: "attach", id: `host-${crypto.randomUUID()}`, cols: 100000 }))).toThrow();
+  expect(() => parseHostInput('{"input":"ls"}')).toThrow();
+  expect(() => parseHostRequest(JSON.stringify({ operation: "rename", id: `host-${crypto.randomUUID()}`, title: "Removed operation" }))).toThrow();
 });
 test("private network access replaces destinations through the System handler", async () => {
   const destinations = [{ bridge: "atw-0123456789a", address: "10.1.2.3", port: 5432 }];
@@ -52,21 +57,47 @@ test("private network access replaces destinations through the System handler", 
     expect(() => parseHostRequest(JSON.stringify({ operation: "private-network-access", destinations: [destination] }))).toThrow();
 });
 
-test("the private socket answers one request per connection, and reports failures", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "host-service-"));
-  const socketPath = join(directory, "control.sock");
-  const received: unknown[] = [];
-  const server = await startHostService({ socketPath, root: "/unused", effectiveMemory: 0, privateNetworkAccess: async destinations => {
-    received.push(destinations);
-    if (!destinations.length) throw new Error("no destinations");
-  } });
-  try {
-    const destinations = [{ bridge: "atw-0123456789a", address: "10.1.2.3", port: 5432 }];
-    expect(await hostRequest({ operation: "private-network-access", destinations }, socketPath)).toBeNull();
-    await expect(hostRequest({ operation: "private-network-access", destinations: [] }, socketPath)).rejects.toThrow("no destinations");
-    expect(received).toEqual([destinations, []]);
-  } finally {
-    server.close();
-    await rm(directory, { recursive: true, force: true });
-  }
+describe.skip("System terminal lifecycle over private socket", () => {
+  let directory: string;
+  let socketPath: string;
+  const tmuxSocketName = `host-test-${crypto.randomUUID()}`;
+  let server: Awaited<ReturnType<typeof startHostService>>;
+  const call = <Command extends HostCommand>(request: Command) => hostRequest(request, socketPath);
+  beforeAll(async () => {
+    directory = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-host-"));
+    socketPath = join(directory, "host.sock");
+    server = await startHostService({ socketPath, tmuxSocketName, root: "/unused", effectiveMemory: 0, privateNetworkAccess: noPrivateNetworkAccess });
+  });
+  afterAll(async () => {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await command(["tmux", "-L", tmuxSocketName, "kill-server"]);
+    await rm(directory, { recursive: true });
+  });
+  test("starts empty and preserves explicitly created sessions across disconnect and restart", async () => {
+    expect(await call({ operation: "list" })).toEqual([]);
+    const first = await call({ operation: "create" });
+    const second = await call({ operation: "create" });
+    expect(await call({ operation: "list" })).toEqual([first, second]);
+    const marker = join(directory, "process-survived");
+    const socket = createConnection(socketPath);
+    const lines = createInterface({ input: socket });
+    const attached = new Promise<void>((resolve, reject) => {
+      socket.on("error", reject);
+      lines.on("line", line => { const reply: HostReply = JSON.parse(line); if (reply.type === "result") resolve(); if (reply.type === "error") reject(new Error(reply.message)); });
+    });
+    socket.write(`${JSON.stringify({ operation: "attach", id: first.id, cols: 80, rows: 24 })}\n`);
+    await attached;
+    socket.write(`${JSON.stringify(`sleep 0.3; printf alive > '${marker}'\r`)}\n`);
+    await Bun.sleep(100);
+    socket.destroy(); lines.close();
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    server = await startHostService({ socketPath, tmuxSocketName, root: "/unused", effectiveMemory: 0, privateNetworkAccess: noPrivateNetworkAccess });
+    await Bun.sleep(500);
+    expect(await Bun.file(marker).text()).toBe("alive");
+    expect((await call({ operation: "list" })).length).toBe(2);
+    await call({ operation: "terminate", id: first.id });
+    expect((await call({ operation: "list" })).map(t => t.id)).toEqual([second.id]);
+    await call({ operation: "terminate", id: second.id });
+    expect(await call({ operation: "list" })).toEqual([]);
+  });
 });

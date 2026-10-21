@@ -3,8 +3,8 @@ import { join } from "node:path";
 import { isNotFoundError, requireDocker, workloadCommand, runCommand, waitForCommand, withCommandSignal, shellQuote, writeFileAtomic } from "@agents-in-the-cloud/core";
 import { ensureDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 
-import { hostTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
-import { hostTerminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
+import { appTerminalProcesses, runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
+import { appTerminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
 import type { WorkspaceProvisionProgress } from "./provisioning.ts";
 import { requireRootInWorkspace } from "./helper.ts";
 
@@ -15,8 +15,8 @@ interface CachePreparation {
   listeners: Set<Report>;
 }
 async function buildCacheCommand(args: string[], report: Report) {
-  const result = await runTerminalProcess(hostTerminalProcesses(), { command: args.map(shellQuote).join(" "), cwd: "/" }, (id) => {
-    report({ terminalSocketPath: hostTerminalProcessSocketPath(id), output: undefined });
+  const result = await runTerminalProcess(appTerminalProcesses(), { command: args.map(shellQuote).join(" "), cwd: "/" }, (id) => {
+    report({ terminalSocketPath: appTerminalProcessSocketPath(id), output: undefined });
   });
   report({ terminalSocketPath: undefined, output: tailTerminalOutput(result.output.ansi, terminalOutputDisplayBytes) });
   if (result.exitCode !== 0) throw new Error(tailTerminalText(result.output.text) || `Image cache preparation failed with exit code ${result.exitCode}`);

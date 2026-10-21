@@ -45,7 +45,7 @@ export function terminalProcessSocketPath(workspaceId: string, id: string): stri
 }
 
 /** Where viewers connect to a terminal process on the app's own machine. */
-export function hostTerminalProcessSocketPath(id: string): string {
+export function appTerminalProcessSocketPath(id: string): string {
   return `/terminal-processes/${encodeURIComponent(id)}/ws`;
 }
 

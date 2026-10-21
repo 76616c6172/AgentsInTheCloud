@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import { runDocker, shellQuote } from "@agents-in-the-cloud/core";
+import { buildObservableSessionCommand } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspaceRuntimeUnits } from "../src/workspace-systemd-units.ts";
 
 const image = process.argv[2];
@@ -53,7 +54,7 @@ try {
     test "$group" = /system.slice/agents-in-the-cloud-tmux.service || exit 95
   `;
   async function pane(session: string, command: string) {
-    await docker(["exec", "--user", "agents-in-the-cloud", "--workdir", "/work", name, "sh", "-c", `tmux -N new-session -d -s ${shellQuote(session)} -c /work ${shellQuote(command)}`]);
+    await docker(["exec", "--user", "agents-in-the-cloud", "--workdir", "/work", name, "sh", "-c", buildObservableSessionCommand({ session, cwd: "/work", command: shellQuote(command), requireExistingServer: true })]);
   }
   async function waitFile(path: string) {
     for (let attempt = 0; attempt < 200; attempt++) {
@@ -100,7 +101,7 @@ printf '%s' "$?" > /tmp/command-exit`);
   await pane("restarted", `bash -c ${shellQuote(probe)}; printf '%s' "$?" > /tmp/restarted-exit`);
   assert.equal(await waitFile("/tmp/restarted-exit"), "0");
   await exec("systemctl", "stop", "agents-in-the-cloud-tmux.service");
-  const unmanaged = await docker(["exec", "--user", "agents-in-the-cloud", name, "sh", "-c", "tmux -N new-session -d -s unmanaged -c /work 'sleep 60'"], undefined, false);
+  const unmanaged = await docker(["exec", "--user", "agents-in-the-cloud", name, "sh", "-c", buildObservableSessionCommand({ session: "unmanaged", cwd: "/work", command: "sleep 60", requireExistingServer: true })], undefined, false);
   assert.notEqual(unmanaged.exitCode, 0, "workspace calls must not auto-start an unmanaged server");
   await exec("mkdir", "-p", "/run/systemd/system/agents-in-the-cloud-tmux.service.d");
   await docker(["exec", "-i", name, "tee", "/run/systemd/system/agents-in-the-cloud-tmux.service.d/failure.conf"], "[Service]\nExecStart=\nExecStart=/bin/false\nRestart=no\n");
