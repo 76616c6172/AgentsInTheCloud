@@ -89,14 +89,15 @@ async function submitMessage(workspaceId: string, agentId: string, request: Requ
   const model = (await runtime.settings()).model;
   const namingContext = trimmed ? { messages: [...await runtime.userMessages(), trimmed], agentModel: model && { provider: model.provider, id: model.modelId } } : undefined;
   // A new prompt that finds the agent busy waits its turn; only explicit steering joins the running turn.
-  await runtime.submit({ text: expandedText, requestId, whenBusy: mode === "steer" ? "steer" : "followUp", images: images.map(image => ({ type: "image", data: image.data, mimeType: image.mimeType })), attachmentNotes });
+  const submission = await runtime.submit({ text: expandedText, requestId, whenBusy: mode === "steer" ? "steer" : "followUp", images: images.map(image => ({ type: "image", data: image.data, mimeType: image.mimeType })), attachmentNotes });
   if (namingContext) {
     await options.events?.emit("workspace_user_activity", { workspaceId });
     (options.suggestTitleFromPrompt ?? maybeNameAgentFromPrompt)(agent, namingContext.messages, { events: options.events, agentModel: namingContext.agentModel });
   }
   await removeStagedAttachments(attachmentDraft, attachmentIds);
   await removeInitialPromptDraft(workspaceId, agentId);
-  const acceptedHeaders = { "x-agents-in-the-cloud-attachment-draft-consumed": "true" };
+  // The composer steers a follow-up it sent by this ID.
+  const acceptedHeaders = { "x-agents-in-the-cloud-attachment-draft-consumed": "true", "x-agents-in-the-cloud-submission-id": String(submission.id) };
   return json
     ? Response.json({ agent: { agentId, state: "running" } }, { status: 202, headers: acceptedHeaders })
     : turboStreamResponse("", { headers: acceptedHeaders });
