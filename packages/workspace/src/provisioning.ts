@@ -3,8 +3,10 @@ import { errorMessage, type WorkspaceProvisionFailurePolicy } from "@agents-in-t
 
 export interface WorkspaceProvisionProgress {
   detail?: string;
+  /** The step's output so far, or once it finished; it may have terminal colors. */
   output?: string;
-  terminalSession?: string;
+  /** Where to watch the terminal process the step runs, while it runs. */
+  terminalSocketPath?: string;
 }
 export type WorkspaceProvisionStepStatus = "running" | "done" | "failed" | "warning";
 export interface WorkspaceProvisionStep extends WorkspaceProvisionProgress {

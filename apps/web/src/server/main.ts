@@ -1,7 +1,6 @@
 import { configureAgentMcp, handleAgentMcpRequest } from "@agents-in-the-cloud/agent/server";
 import { createAgentsInTheCloudEventBus, getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
 import { designSystemCatalogueHtml } from "@agents-in-the-cloud/design-system/catalogue";
-import { attachHostObservableTerminal, observableTerminalCols, observableTerminalRows, type ObservableTerminalConnection } from "@agents-in-the-cloud/observable-terminal/server";
 import { deliverAttachmentDraft, removeAttachmentDraft, validDraftId } from "@agents-in-the-cloud/prompt/server";
 import { requestWorkspaceSshTrust } from "@agents-in-the-cloud/workspace-templates";
 import {
@@ -14,11 +13,10 @@ import {
   handleCanonicalWorkspaceRequest,
   StoppedWorkspaceError,
 } from "@agents-in-the-cloud/proxy-ingress/server";
-import { agentsInTheCloudName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
+import { agentsInTheCloudName, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
 import { response, textResponse } from "@agents-in-the-cloud/shared/http";
 import { prepareWorkspaceRuntime, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@agents-in-the-cloud/workspace";
 import { ensureDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
-import type { ServerWebSocket } from "bun";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { Type } from "typebox";
@@ -204,16 +202,8 @@ async function compressDynamicResponse(request: Request, response: Response): Pr
   return new Response(gzipSync(body, { level: 6 }), { status: response.status, statusText: response.statusText, headers });
 }
 
-interface ProvisionTermSocketData {
-  kind: "provision-term";
-  session: string;
-  terminal?: ObservableTerminalConnection;
-}
-
-type ProvisionTermSocket = Pick<ServerWebSocket<undefined>, "send" | "close">;
-
 type WorkspaceModuleSocketData = WorkspaceServerSocketSession & { kind: "workspace-module" };
-type SocketData = WorkspaceModuleSocketData | ProvisionTermSocketData | CableSocketData;
+type SocketData = WorkspaceModuleSocketData | CableSocketData;
 
 async function resolveWorkspaceApp(app: WorkspaceAppRef, requestUrl: URL): Promise<WorkspaceAppBackend | undefined> {
   for (const resolver of workspaceAppResolvers) {
@@ -259,43 +249,11 @@ agentsInTheCloudEvents.on("workspace_deleted", ({ workspaceId }) => ingressSocke
 async function validateSocket(request: Request, url: URL): Promise<SocketData | undefined> {
   const cableData = cableServer.validate(request, url);
   if (cableData) return cableData;
-  const provisionMatch = url.pathname.match(/^\/provision-term\/([^/]+)\/ws$/);
-  if (provisionMatch) {
-    const session = decodeURIComponent(provisionMatch[1]);
-    if (!session.startsWith("agents-in-the-cloud-provision-")) return undefined;
-    return { kind: "provision-term", session };
-  }
   for (const handler of socketHandlers) {
     const session = await handler(url, request);
     if (session) return { kind: "workspace-module", ...session };
   }
   return undefined;
-}
-
-function openProvisionTermSocket(ws: ProvisionTermSocket, data: ProvisionTermSocketData): void {
-  void (async () => {
-    let lastError: unknown;
-    for (let attempt = 0; attempt < 30; attempt += 1) {
-      try {
-        data.terminal = attachHostObservableTerminal({ session: data.session, cols: observableTerminalCols, rows: observableTerminalRows, readonly: true, fixedSize: true }, {
-          onData: (chunk) => {
-            try { ws.send(chunk); } catch { /* closed */ }
-          },
-          onExit: () => ws.close(),
-        });
-        return;
-      } catch (error) {
-        lastError = error;
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    }
-    try { ws.send(`\r\n[provision terminal attach failed: ${errorMessage(lastError)}]\r\n`); } catch { /* closed */ }
-    ws.close();
-  })();
-}
-
-function closeProvisionTermSocket(data: ProvisionTermSocketData): void {
-  data.terminal?.close();
 }
 
 const defaultWorkspaceImage = await ensureDefaultWorkspaceImage({ buildOutput: "inherit" });
@@ -344,7 +302,6 @@ const server = Bun.serve<SocketData>({
     perMessageDeflate: true,
     open(ws) {
       if (ws.data.kind === "cable") cableServer.open(ws, ws.data);
-      else if (ws.data.kind === "provision-term") openProvisionTermSocket(ws, ws.data);
       else ws.data.open?.(ws);
     },
     message(ws, message) {
@@ -353,7 +310,6 @@ const server = Bun.serve<SocketData>({
     },
     close(ws) {
       if (ws.data.kind === "cable") cableServer.close(ws);
-      else if (ws.data.kind === "provision-term") closeProvisionTermSocket(ws.data);
       else ws.data.close?.(ws);
     },
   },

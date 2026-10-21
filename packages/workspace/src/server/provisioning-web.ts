@@ -4,7 +4,7 @@ import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
 import { copyButtonHtml } from "@agents-in-the-cloud/design-system/copy-button";
 import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { observableTerminalStaticFiles } from "@agents-in-the-cloud/observable-terminal/server";
+import { observableTerminalStaticFiles, terminalOutputHtml } from "@agents-in-the-cloud/observable-terminal/server";
 import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
 import type { WorkspaceProvisionStep, WorkspaceProvisionSnapshot, WorkspaceProvisionStepStatus } from "../provisioning.ts";
 
@@ -35,12 +35,15 @@ function renderProvisionStep(workspaceId: string, step: WorkspaceProvisionStep, 
   const awaitingContinue = waiting?.stepId === step.id;
   const liveOutput = step.status === "running" ? step.output : undefined;
   const activity = liveOutput
-    ? `<pre class="provision-terminal-progress provision-output-log" data-controller="auto-scroll">${escapeHtml(liveOutput)}</pre>`
-    : step.status === "running" && step.terminalSession
-      ? `<div id="${domId("provision_terminal", workspaceId, step.id, step.terminalSession)}" data-turbo-permanent class="provision-terminal observable-terminal-host" data-controller="provision-terminal" data-provision-terminal-session-value="${escapeHtml(step.terminalSession)}"></div>`
+    ? `<pre class="provision-terminal-progress provision-output-log" data-controller="auto-scroll">${terminalOutputHtml(liveOutput)}</pre>`
+    : step.status === "running" && step.terminalSocketPath
+      ? `<div id="${domId("provision_terminal", workspaceId, step.id, step.terminalSocketPath)}" data-turbo-permanent class="provision-terminal observable-terminal-host" data-controller="provision-terminal" data-provision-terminal-url-value="${escapeHtml(step.terminalSocketPath)}"></div>`
       : "";
-  const log = [step.output, step.error && !step.output?.includes(step.error) ? step.error : undefined].filter(Boolean).join("\n\n");
-  const output = log && step.status !== "running" ? disclosureHtml({ open: Boolean(step.error), summary: { kind: "compact", label: { kind: "text", text: "View output" } }, bodyHtml: `<pre class="provision-output-log provision-output" data-controller="auto-scroll">${escapeHtml(log)}</pre>` }) : "";
+  const log = [
+    step.output ? terminalOutputHtml(step.output) : undefined,
+    step.error && !step.output?.includes(step.error) ? escapeHtml(step.error) : undefined,
+  ].filter(Boolean).join("\n\n");
+  const output = log && step.status !== "running" ? disclosureHtml({ open: Boolean(step.error), summary: { kind: "compact", label: { kind: "text", text: "View output" } }, bodyHtml: `<pre class="provision-output-log provision-output" data-controller="auto-scroll">${log}</pre>` }) : "";
   const detailText = step.status === "warning" ? "Continued despite this failure" : step.detail;
   const detail = detailText ? `<span class="r-sub provision-step-detail">${escapeHtml(detailText)}</span>` : "";
   const continueUrl = `/workspaces/${encodeURIComponent(workspaceId)}/provisioning/continue`;

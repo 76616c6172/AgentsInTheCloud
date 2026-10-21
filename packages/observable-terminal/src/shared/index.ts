@@ -44,5 +44,10 @@ export function terminalProcessSocketPath(workspaceId: string, id: string): stri
   return `/workspaces/${encodeURIComponent(workspaceId)}/terminal-processes/${encodeURIComponent(id)}/ws`;
 }
 
+/** Where viewers connect to a terminal process on the app's own machine. */
+export function hostTerminalProcessSocketPath(id: string): string {
+  return `/terminal-processes/${encodeURIComponent(id)}/ws`;
+}
+
 /** The terminal's process has ended, or its session no longer exists: reconnecting won't bring it back. */
 export const terminalEndedCloseCode = 4404;

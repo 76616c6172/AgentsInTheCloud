@@ -5,6 +5,7 @@ import {
   truncateLine,
   truncateTail,
 } from "@earendil-works/pi-coding-agent";
+import { tailTerminalOutput, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
 import { Type } from "typebox";
 
 const maxModelLineChars = 500;
@@ -15,7 +16,6 @@ const maxModelLineChars = 500;
  */
 const modelTrailerLines = 4;
 const modelTrailerBytes = 1024;
-const maxDisplayAnsiBytes = 200_000;
 
 /**
  * Color conventions understood by the most common build-tool ecosystems.
@@ -70,9 +70,7 @@ export function formatBashOutput(text: string, ansi: string, fullOutputPath: str
     output += `\n\n${truncationNotice}`;
   }
 
-  const displayLimited = truncateTail(ansi, { maxBytes: maxDisplayAnsiBytes, maxLines: Number.MAX_SAFE_INTEGER });
-  let displayAnsi = displayLimited.content;
-  if (displayLimited.truncated) displayAnsi = `… output truncated to last ${maxDisplayAnsiBytes} bytes\n${displayAnsi}`;
+  let displayAnsi = tailTerminalOutput(ansi, terminalOutputDisplayBytes);
   if (truncationNotice) displayAnsi += `\n\n${truncationNotice}`;
 
   return { output, displayAnsi, modelTruncated };

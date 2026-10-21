@@ -62,10 +62,6 @@ export function buildCapturePaneCommand(options: { session: string; historyLimit
   return `tmux ${flags.join(" ")} 2>/dev/null || true`;
 }
 
-export function buildSetRemainOnExitCommand(): string {
-  return "tmux set-window-option remain-on-exit on; tmux set-window-option remain-on-exit-format ''";
-}
-
 export function buildListSessionsCommand(format = "#S"): string {
   return `tmux list-sessions -F ${shellQuote(format)}`;
 }

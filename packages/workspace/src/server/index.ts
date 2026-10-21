@@ -8,14 +8,19 @@ import {
   getAgentsInTheCloudRuntimeContext,
 } from "@agents-in-the-cloud/core";
 import type { WorkspaceModule, WorkspaceServerSocketHandler } from "@agents-in-the-cloud/shared";
-import { terminalSocketDimensions } from "@agents-in-the-cloud/observable-terminal/server";
+import { clearHostTerminalProcesses, hostTerminalProcesses, terminalSocketDimensions } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspaceTerminalProcesses } from "../terminal-processes.ts";
 
-/** Viewers of every terminal process in a workspace connect here, such as Terminal views and Agents' bash calls. */
+/**
+ * Viewers of every terminal process connect here: those in a workspace, such as
+ * Terminal views and Agents' bash calls, and those on the app's machine, such as provisioning's.
+ */
 const terminalProcessSocket: WorkspaceServerSocketHandler = (url) => {
-  const match = url.pathname.match(/^\/workspaces\/([^/]+)\/terminal-processes\/([^/]+)\/ws$/);
-  if (!match) return undefined;
-  return workspaceTerminalProcesses(decodeURIComponent(match[1]!)).connect(decodeURIComponent(match[2]!), terminalSocketDimensions(url));
+  const inWorkspace = url.pathname.match(/^\/workspaces\/([^/]+)\/terminal-processes\/([^/]+)\/ws$/);
+  if (inWorkspace) return workspaceTerminalProcesses(decodeURIComponent(inWorkspace[1]!)).connect(decodeURIComponent(inWorkspace[2]!), terminalSocketDimensions(url));
+  const onHost = url.pathname.match(/^\/terminal-processes\/([^/]+)\/ws$/);
+  if (onHost) return hostTerminalProcesses().connect(decodeURIComponent(onHost[1]!), terminalSocketDimensions(url));
+  return undefined;
 };
 
 const repositoryRoot = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -24,6 +29,8 @@ const docsMountPath = "/opt/agents-in-the-cloud/docs";
 export const agentsInTheCloudServerModule: WorkspaceModule = {
   id: "workspace",
   async initialize({ events, registerSocketHandler }) {
+    // Provisioning never outlives the app; whatever the last one left is gone.
+    await clearHostTerminalProcesses();
     registerSocketHandler(terminalProcessSocket);
     await ensureSharedHome();
     const runtime = getAgentsInTheCloudRuntimeContext();

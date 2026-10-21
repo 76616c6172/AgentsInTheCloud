@@ -6,12 +6,13 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { gitCredentialHelperShellBody } from "@agents-in-the-cloud/git-hosting";
 import { AgentsInTheCloudCoreError, agentsInTheCloudDataPath, createProcessFileLock, dockerHostAgentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, invalidArguments, isJsonObject, readTextIfExists, requireDocker, runDocker, withCommandSignal, waitForCommand, shellQuote, writeJsonAtomic, type AgentsInTheCloudEventBus, type CommandInput, type JsonObject } from "@agents-in-the-cloud/core";
-import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@agents-in-the-cloud/observable-terminal/server";
+import { runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
+import { terminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
+import { workspaceTerminalProcesses } from "./terminal-processes.ts";
 import { errorMessage, isWorkspaceAppPort, workspaceGatewayPort, type WorkspaceGateway, type WorkspaceHttpAppBackend, type WorkspaceServerProvisioningHook } from "@agents-in-the-cloud/shared";
 import { inspectWorkspaceImage, resolveWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 import { prepareWorkspaceSystemd } from "./systemd.ts";
-import { closeWorkspaceHelperConnection, refreshWorkspaceHelper, requireRootInWorkspace, runInWorkspace, workspaceHelperSocketPath, workspaceParentSocketDirectory } from "./helper.ts";
-import { workspaceHelperCliPath } from "@agents-in-the-cloud/workspace-helper";
+import { closeWorkspaceHelperConnection, refreshWorkspaceHelper, requireRootInWorkspace, runInWorkspace, workspaceParentSocketDirectory } from "./helper.ts";
 import { createWorkspaceContainerLifecycle, workspaceConfigurationLabel } from "./container-lifecycle.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -297,18 +298,11 @@ export const workspaceSetupProvisioningHook: WorkspaceServerProvisioningHook = {
       return;
     }
 
-    const session = `agents-in-the-cloud-provision-setup-${crypto.randomUUID().slice(0, 8)}`;
-    const result = await runHostObservableCommand({
-      session,
-      cwd: "/",
-      command: [process.execPath, workspaceHelperCliPath, workspaceHelperSocketPath(id), "agents-in-the-cloud", workspaceRoot, "sh", workspaceSetupScript].map(shellQuote).join(" "),
-      onSessionStarted: async () => {
-        await events?.emit("workspace_provision_progress", { workspaceId: id, terminalSession: session });
-      },
+    const result = await runTerminalProcess(workspaceTerminalProcesses(id), { command: `sh ${shellQuote(workspaceSetupScript)}`, cwd: workspaceRoot }, async (processId) => {
+      await events?.emit("workspace_provision_progress", { workspaceId: id, terminalSocketPath: terminalProcessSocketPath(id, processId) });
     });
-    const output = tailTerminalText(stripTerminalControls(result.output));
-    await events?.emit("workspace_provision_progress", { workspaceId: id, output });
-    if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("workspace_setup_failed", output || `${workspaceSetupScript} failed with exit code ${result.exitCode}`);
+    await events?.emit("workspace_provision_progress", { workspaceId: id, output: tailTerminalOutput(result.output.ansi, terminalOutputDisplayBytes), terminalSocketPath: undefined });
+    if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("workspace_setup_failed", tailTerminalText(result.output.text) || `${workspaceSetupScript} failed with exit code ${result.exitCode}`);
   },
 };
 

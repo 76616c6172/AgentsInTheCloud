@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { AgentsInTheCloudCoreError, commandSignal, invalidArguments } from "@agents-in-the-cloud/core";
+import { AgentsInTheCloudCoreError, commandSignal, invalidArguments, withCommandSignal } from "@agents-in-the-cloud/core";
 import type { WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
 import type { StartWorkspaceProcess, WorkspaceExecStart } from "@agents-in-the-cloud/workspace-helper";
 import { terminalEndedCloseCode } from "../shared/index.ts";
@@ -391,4 +391,21 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
       };
     },
   };
+}
+
+/**
+ * Runs a command to completion as a terminal process that viewers can watch
+ * while it runs, telling `started` its id. The process is released however this
+ * ends; when waiting is cancelled, that kills it.
+ */
+export async function runTerminalProcess(processes: TerminalProcesses, start: Omit<TerminalProcessStart, "id">, started: (id: string) => void | Promise<void>): Promise<Extract<TerminalProcessState, { state: "exited" }>> {
+  const id = crypto.randomUUID();
+  await processes.start({ ...start, id });
+  try {
+    await started(id);
+    return await processes.waitForExit(id);
+  } finally {
+    // Not under the waiting's signal, which may be what was cancelled.
+    await withCommandSignal(AbortSignal.timeout(10_000), () => processes.release(id));
+  }
 }

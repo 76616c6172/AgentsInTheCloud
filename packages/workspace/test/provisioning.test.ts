@@ -55,7 +55,7 @@ describe("workspace provisioning execution", () => {
     const finished = provisioning.run("one", async (run) => {
       await run.step("prepare", "Prepare", () => {
         if (++attempts === 1) {
-          run.report({ output: "failed attempt", terminalSession: "old" });
+          run.report({ output: "failed attempt", terminalSocketPath: "/terminal-processes/old/ws" });
           throw new Error("not ready");
         }
       }, "retry-or-continue");

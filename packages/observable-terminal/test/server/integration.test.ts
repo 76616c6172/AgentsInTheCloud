@@ -1,10 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { $ } from "bun";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { shellQuote, withCommandSignal } from "@agents-in-the-cloud/core";
-import { attachHostObservableTerminal, buildKillSessionCommand, buildObservableSessionCommand, normalizeCarriageReturns, observableTerminalCols, observableTerminalRows, runHostObservableCommand } from "../../src/server/index.ts";
+import { shellQuote } from "@agents-in-the-cloud/core";
+import { attachHostObservableTerminal, buildKillSessionCommand, buildObservableSessionCommand, normalizeCarriageReturns, observableTerminalCols, observableTerminalRows } from "../../src/server/index.ts";
 import { buildCapturePaneCommand } from "../../src/server/tmux.ts";
 
 const sessions: string[] = [];
@@ -48,58 +45,30 @@ describe.skip("observable terminal integration", () => {
     sessions.push(session);
     process.env.TERM = "dumb";
     try {
-      const result = await runHostObservableCommand({
-        session,
-        cwd: process.cwd(),
-        command: "printf 'docker build progress\\n'; sleep 1",
-        onSessionStarted: () => new Promise<void>((resolve, reject) => {
-          const decoder = new TextDecoder();
-          let output = "";
-          const timer = setTimeout(() => reject(new Error(output || "timed out waiting for attach output")), 3_000);
-          attachHostObservableTerminal({ session, cols: observableTerminalCols, rows: observableTerminalRows, readonly: true, fixedSize: true }, {
-            onData: (chunk) => {
-              output += decoder.decode(chunk, { stream: true });
-              if (output.includes("docker build progress")) {
-                clearTimeout(timer);
-                resolve();
-              }
-            },
-            onExit: (exitCode) => {
-              if (!output.includes("docker build progress")) {
-                clearTimeout(timer);
-                reject(new Error(`${output || "attach exited before output"} (exit ${exitCode})`));
-              }
-            },
-          });
-        }),
+      await sh(buildObservableSessionCommand({ session, cwd: process.cwd(), command: "printf 'docker build progress\\n'; sleep 1", fixedSize: true, remainOnExit: true }));
+      await new Promise<void>((resolve, reject) => {
+        const decoder = new TextDecoder();
+        let output = "";
+        const timer = setTimeout(() => reject(new Error(output || "timed out waiting for attach output")), 3_000);
+        attachHostObservableTerminal({ session, cols: observableTerminalCols, rows: observableTerminalRows, readonly: true, fixedSize: true }, {
+          onData: (chunk) => {
+            output += decoder.decode(chunk, { stream: true });
+            if (output.includes("docker build progress")) {
+              clearTimeout(timer);
+              resolve();
+            }
+          },
+          onExit: (exitCode) => {
+            if (!output.includes("docker build progress")) {
+              clearTimeout(timer);
+              reject(new Error(`${output || "attach exited before output"} (exit ${exitCode})`));
+            }
+          },
+        });
       });
-      expect(result.exitCode).toBe(0);
     } finally {
       if (originalTerm === undefined) delete process.env.TERM;
       else process.env.TERM = originalTerm;
-    }
-  });
-});
-
-describe.skip("observable command cancellation", () => {
-  test("cancellation stops the command group rather than just the terminal viewer", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "observable-cancel-"));
-    const controller = new AbortController();
-    const session = `agents-in-the-cloud-observable-cancel-${crypto.randomUUID().slice(0, 8)}`;
-    try {
-      const pending = withCommandSignal(controller.signal, () => runHostObservableCommand({
-        session, cwd: directory,
-        command: "touch started; (sleep 1; touch late) & wait",
-      })).catch((error: Error) => error);
-      while (!(await Bun.file(join(directory, "started")).exists())) await Bun.sleep(5);
-      controller.abort(new Error("cancelled"));
-      expect(await pending).toMatchObject({ message: "cancelled" });
-      await Bun.sleep(1200);
-      expect(await Bun.file(join(directory, "late")).exists()).toBe(false);
-    } finally {
-      controller.abort();
-      await sh(buildKillSessionCommand(session));
-      await rm(directory, { recursive: true, force: true });
     }
   });
 });

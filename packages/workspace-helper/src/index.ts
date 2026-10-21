@@ -2,8 +2,6 @@ import { Client, credentials, Metadata, status, type ClientDuplexStream, type Cl
 import { loadSync } from "@grpc/proto-loader";
 import { fileURLToPath } from "node:url";
 
-/** Runs a workspace process from a host terminal: `bun <cli> <socket> <user> <workdir> <argv...>`. */
-export const workspaceHelperCliPath = fileURLToPath(new URL("./cli.ts", import.meta.url));
 
 export type WorkspaceHelperUser = "agents-in-the-cloud" | "root";
 export type WorkspaceHelperSignal = "SIGHUP" | "SIGINT" | "SIGTERM" | "SIGKILL";
