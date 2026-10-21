@@ -103,11 +103,12 @@ export function createAgentTermSocketSession(url: URL): WorkspaceServerSocketSes
   if (!match) return undefined;
   const workspaceId = decodeURIComponent(match[1]);
   const session = decodeURIComponent(match[2]);
-  if (!/^agents-in-the-cloud-agent-(?:[0-9a-f]{8}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/.test(session)) return undefined;
+  // Bash tool calls run as terminal processes named after their operation id.
+  if (!/^aitc-process-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session)) return undefined;
   return createObservableTerminalSocket({
     start: (start) => startInWorkspace(workspaceId, start),
     session,
-    // The receipt supervisor uses the default workspace server.
+    // Terminal processes use the default workspace server.
     requireExistingServer: true,
     // Inline terminals must never resize the agent's fixed-size command pane.
     cols: observableTerminalCols,

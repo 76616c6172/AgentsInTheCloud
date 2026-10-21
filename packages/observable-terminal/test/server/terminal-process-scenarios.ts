@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createTerminalProcesses, terminalProcessSession, type RunTerminalProcessCommand, type TerminalProcesses } from "../../src/server/terminal-process.ts";
+import { createTerminalProcesses, terminalProcessSession, type RunTerminalProcessCommand, type TerminalProcesses, type TerminalProcessState } from "../../src/server/terminal-process.ts";
 
 /** Where the processes run. Every command it runs must reach the tmux server in `tmuxDirectory`. */
 export interface TerminalProcessPlace {
@@ -46,7 +46,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       return { exitCode: result.exitCode, stdout: result.stdout.toString() };
     }
 
-    function start(command: string, options: { env?: Record<string, string>; cwd?: string; cols?: number; rows?: number } = {}) {
+    function start(command: string, options: { env?: Record<string, string>; cwd?: string; cols?: number; rows?: number; deadline?: number; keepText?: boolean } = {}) {
       const id = crypto.randomUUID();
       started.push(id);
       return { id, started: processes.start({ id, command, cwd: options.cwd ?? directory, ...options }) };
@@ -155,7 +155,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       await started;
       await processes.stop(id);
       const result = await processes.waitForExit(id);
-      expect(result.exitCode).toBe(143);
+      expect(result).toMatchObject({ exitCode: 143, aborted: true, timedOut: false });
       // Like any terminal, it shows bash reporting the signal.
       expect(result.output.text).toBe("before\nTerminated");
     });
@@ -165,7 +165,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       await started;
       await processes.stop(id);
       const result = await processes.waitForExit(id);
-      expect(result.exitCode).toBe(137);
+      expect(result).toMatchObject({ exitCode: 137, aborted: true, timedOut: false });
       expect(result.output.text).toBe("stubborn\nKilled");
     });
 
@@ -175,6 +175,63 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       const result = await processes.waitForExit(id);
       await processes.stop(id);
       expect(await processes.state(id)).toEqual(result);
+    });
+
+    test("stopping a process before it starts keeps it from starting", async () => {
+      const marker = join(directory, `${crypto.randomUUID()}.marker`);
+      const id = crypto.randomUUID();
+      started.push(id);
+      await processes.stop(id);
+      const stopped = { state: "exited", exitCode: null, aborted: true, timedOut: false, output: { ansi: "", text: "" } } satisfies TerminalProcessState;
+      expect(await processes.state(id)).toEqual(stopped);
+      await processes.start({ id, command: `touch ${marker}`, cwd: directory });
+      await Bun.sleep(300);
+      expect(await processes.state(id)).toEqual(stopped);
+      expect(await Bun.file(marker).exists()).toBe(false);
+    });
+
+    test("a deadline interrupts the command where it runs", async () => {
+      const { id, started } = start("echo before; sleep 30", { deadline: Date.now() + 500 });
+      await started;
+      expect((await processes.state(id)).state).toBe("running");
+      const result = await processes.waitForExit(id);
+      expect(result).toMatchObject({ exitCode: 143, aborted: false, timedOut: true });
+      expect(result.output.text).toBe("before\nTerminated");
+    });
+
+    test("a deadline kills a command that ignores interruption", async () => {
+      const { id, started } = start("trap '' TERM; echo stubborn; while :; do sleep 0.1; done", { deadline: Date.now() + 300 });
+      await started;
+      expect(await processes.waitForExit(id)).toMatchObject({ exitCode: 137, aborted: false, timedOut: true });
+    });
+
+    test("a command whose deadline already passed never runs", async () => {
+      const marker = join(directory, `${crypto.randomUUID()}.marker`);
+      const { id, started } = start(`touch ${marker}`, { deadline: Date.now() - 1 });
+      await started;
+      expect(await processes.waitForExit(id)).toMatchObject({ exitCode: null, aborted: false, timedOut: true });
+      expect(await Bun.file(marker).exists()).toBe(false);
+    });
+
+    test("a command that finishes before its deadline leaves nothing behind", async () => {
+      const { id, started } = start("echo quick", { deadline: Date.now() + 30_000 });
+      await started;
+      const result = await processes.waitForExit(id);
+      expect(result).toMatchObject({ exitCode: 0, aborted: false, timedOut: false });
+      expect(result.output.text).toBe("quick");
+      const watchdogs = await place!.run({ argv: ["pgrep", "-f", `${id}/watchdog`], user: "agents-in-the-cloud", workdir: "/" }, {});
+      expect(watchdogs.exitCode).toBe(1);
+    });
+
+    test("kept plain text holds the whole output and outlives release", async () => {
+      const { id, started } = start("printf '\\033[31mred\\033[0m\\n'; seq 1 300", { keepText: true });
+      await started;
+      await processes.waitForExit(id);
+      await processes.release(id);
+      const lines = (await readFile(processes.textFile(id), "utf8")).trimEnd().split("\n");
+      expect(lines[0]).toBe("red");
+      expect(lines.at(-1)).toBe("300");
+      expect(lines).toHaveLength(301);
     });
 
     test("releasing a running process kills it and forgets it", async () => {
