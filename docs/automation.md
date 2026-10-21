@@ -72,11 +72,11 @@ Other browser-navigable surfaces are:
 /settings                               # Settings: app-level preferences and shared configuration
 /settings?section=models                # A specific settings section
 /settings/developer-tools               # Developer tools: app-level maintenance and design-system inspection
-/host                                   # Host: System diagnostics and privileged terminals
+/host                                   # Host: System diagnostics
 /design-system-catalogue.html           # Live component catalogue (HTML)
 ```
 
-Host targets AgentsInTheCloud System, outside individual Workspaces, rather than necessarily the physical machine running Docker. `GET /host` with `Accept: application/json` reports availability and the access boundary; it does not create a terminal.
+Host targets AgentsInTheCloud System, outside individual Workspaces, rather than necessarily the physical machine running Docker. `GET /host` with `Accept: application/json` reports availability and the access boundary.
 
 **Developer tools** is the app-level maintenance and design-system inspection page, separate from Workspace template configuration. The existing `/settings/development` URL remains valid.
 

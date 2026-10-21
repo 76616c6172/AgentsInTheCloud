@@ -151,7 +151,7 @@ Work views can be selected, reordered, and closed inside the single contextual W
 
 ### Host
 
-Open **Host** from the Workspace pane for AgentsInTheCloud System diagnostics and privileged terminals. Host is outside individual Workspaces; it does not necessarily expose the physical machine running Docker. Host terminals run as root and can affect the app, every Workspace, and secrets. Closing the Host panel disconnects its terminals without stopping their processes; closing a terminal stops its processes. Host requires a System installation with a Host connection.
+**Host**, in Settings, shows AgentsInTheCloud System diagnostics. Host is outside individual Workspaces; it does not necessarily expose the physical machine running Docker.
 
 ### Docker and Compose
 

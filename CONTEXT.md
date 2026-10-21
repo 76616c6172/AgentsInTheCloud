@@ -49,8 +49,8 @@ The credential used by a Git hosting connection. AgentsInTheCloud keeps the toke
 _Avoid_: GitHub token (when any provider is meant), Workspace GitHub token
 
 **Host**:
-The feature for inspecting AgentsInTheCloud System diagnostics and using privileged terminals outside individual Workspaces. Host access targets the System environment, not necessarily the physical machine running Docker.
-_Avoid_: System panel (as the feature name), Workspace terminal (for Host access), physical host (as an implicit access boundary)
+The feature for inspecting AgentsInTheCloud System diagnostics, outside individual Workspaces. Host targets the System environment, not necessarily the physical machine running Docker.
+_Avoid_: System panel (as the feature name), physical host (as an implicit access boundary)
 
 **Updates**:
 The feature for checking for AgentsInTheCloud releases and managing Update operations. Updates is separate from managing packages or agent CLIs inside a Workspace.
@@ -281,8 +281,8 @@ A persistent Work view whose referenced resource cannot currently be loaded. It 
 _Avoid_: Broken tab, missing tab
 
 **Terminal**:
-The feature for command-line access inside a Workspace. Terminal is distinct from Host’s privileged terminals in AgentsInTheCloud System.
-_Avoid_: Shell (as the feature name), Host terminal (for Workspace command-line access)
+The feature for command-line access inside a Workspace.
+_Avoid_: Shell (as the feature name)
 
 **Terminal view**:
 A Resource Work view connected to a terminal session through Terminal. It either owns a session created specifically for it or attaches to an independently existing session.

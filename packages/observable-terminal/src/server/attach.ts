@@ -1,4 +1,3 @@
-import { shellQuote } from "@agents-in-the-cloud/core";
 import { exitStatus, type StartWorkspaceProcess, type WorkspaceExecStart, type WorkspaceHelperUser } from "@agents-in-the-cloud/workspace-helper";
 import { observableTerminalEnvironment } from "./constants.ts";
 
@@ -13,27 +12,21 @@ export interface ObservableTerminalEvents {
   onExit(exitCode: number): void;
 }
 
-export interface HostObservableTerminalAttachOptions {
+export interface ObservableTerminalAttachOptions {
   session: string;
-  /** Optional isolated tmux server, for System-owned host sessions. */
-  socketName?: string;
   /** Attach only; never start a replacement server for a missing execution. */
   requireExistingServer?: boolean;
   cols: number;
   rows: number;
   readonly?: boolean;
-}
-
-export interface ObservableTerminalAttachOptions extends HostObservableTerminalAttachOptions {
-  /** Starts the tmux client in the workspace. */
+  /** Starts the tmux client, in a workspace or on this machine. */
   start: StartWorkspaceProcess;
   user?: WorkspaceHelperUser;
   workdir?: string;
 }
 
-function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] {
+function tmuxAttachArgs(options: Omit<ObservableTerminalAttachOptions, "start">): string[] {
   const args: string[] = options.requireExistingServer ? ["-N"] : [];
-  if (options.socketName) args.push("-L", options.socketName);
   if (!options.readonly) {
     // History belongs to tmux, not the browser terminal. Configure each attachment
     // so new and existing sessions work without caller-specific preparation.
@@ -48,9 +41,8 @@ function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] 
   // Tell tmux that the Gespenst client accepts OSC 8. Pi probes this client
   // feature before emitting file:// hyperlinks; RGB alone is not enough.
   if (!options.readonly) {
-    const socket = options.socketName ? `-L ${shellQuote(options.socketName)} ` : "";
-    args.push("if-shell", `tmux ${socket}show-options -g terminal-features | grep -Fq 'xterm-256color:hyperlinks'`, "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";");
-    args.push("if-shell", `tmux ${socket}show-options -g terminal-features | grep -Fq 'xterm-256color:clipboard'`, "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";");
+    args.push("if-shell", "tmux show-options -g terminal-features | grep -Fq 'xterm-256color:hyperlinks'", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";");
+    args.push("if-shell", "tmux show-options -g terminal-features | grep -Fq 'xterm-256color:clipboard'", "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";");
   }
   args.push("attach-session");
   if (options.readonly) args.push("-r");
@@ -65,40 +57,6 @@ export function buildAttachStart(options: Omit<ObservableTerminalAttachOptions, 
     workdir: options.workdir,
     env: observableTerminalEnvironment,
     terminal: { cols: options.cols, rows: options.rows },
-  };
-}
-
-export function attachHostObservableTerminal(options: HostObservableTerminalAttachOptions, events: ObservableTerminalEvents): ObservableTerminalConnection {
-  const env = { ...process.env, ...observableTerminalEnvironment, TMUX: undefined, TMUX_PANE: undefined };
-  const terminal = new Bun.Terminal({
-    name: "xterm-256color",
-    cols: options.cols,
-    rows: options.rows,
-    data: (_terminal, data) => events.onData(data),
-  });
-  const subprocess = Bun.spawn({ cmd: ["tmux", ...tmuxAttachArgs(options)], env, terminal });
-
-  let closed = false;
-  void subprocess.exited.then((exitCode) => {
-    if (!closed) terminal.close();
-    closed = true;
-    events.onExit(exitCode);
-  });
-
-  return {
-    write: (data) => { if (!closed) terminal.write(data); },
-    resize: (cols, rows) => {
-      if (closed) return;
-      terminal.resize(cols, rows);
-      // Bun's PTY resize updates dimensions without notifying the client.
-      subprocess.kill("SIGWINCH");
-    },
-    close: () => {
-      if (closed) return;
-      closed = true;
-      subprocess.kill("SIGHUP");
-      terminal.close();
-    },
   };
 }
 
