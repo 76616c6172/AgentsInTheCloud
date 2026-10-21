@@ -22,6 +22,7 @@ export class AgentPresentation {
   readonly agentId: string;
   readonly label: string;
   readonly readOnly: boolean;
+  readonly jsonFinalAnswers: boolean;
   private presentation!: DurableAgentPresentation;
   private readonly transcriptListeners = new Map<AgentLivePresentationListener, { unsubscribe(): void }>();
   private unsubscribeWork!: () => void;
@@ -54,11 +55,12 @@ export class AgentPresentation {
     this.agentId = agent.agentId;
     this.label = agent.label;
     this.readOnly = controller.readOnly;
+    this.jsonFinalAnswers = Boolean(agent.oneShot);
   }
   static async create(agent: WorkspaceAgentInfo, controller: DurableAgentController) {
     const runtime = new AgentPresentation(agent, controller, await createPiModelRuntime());
     try {
-      runtime.presentation = await DurableAgentPresentation.attach(controller, { ...agent, branchId: String(controller.id) }, BACKGROUND_CONTEXT, () => runtime.committed());
+      runtime.presentation = await DurableAgentPresentation.attach(controller, { ...agent, branchId: String(controller.id), jsonFinalAnswers: runtime.jsonFinalAnswers }, BACKGROUND_CONTEXT, () => runtime.committed());
       runtime.unsubscribeWork = controller.subscribeWork(() => runtime.chrome.invalidate());
       runtime.unsubscribeUsage = controller.subscribeUsage(() => { void runtime.refreshUsage().catch(error => console.error("Could not refresh descendant usage", error)); });
       await runtime.refreshUsage();
@@ -87,7 +89,7 @@ export class AgentPresentation {
   private async attachSelectedBranch() {
     if (this.disposed) return;
     const previous = this.presentation;
-    const next = await DurableAgentPresentation.attach(this.controller, { workspaceId: this.workspaceId, agentId: this.agentId, branchId: String(this.controller.id) }, BACKGROUND_CONTEXT, () => this.committed());
+    const next = await DurableAgentPresentation.attach(this.controller, { workspaceId: this.workspaceId, agentId: this.agentId, branchId: String(this.controller.id), jsonFinalAnswers: this.jsonFinalAnswers }, BACKGROUND_CONTEXT, () => this.committed());
     if (this.disposed) { await next.dispose(); return; }
     this.presentation = next;
     this.observePresentation();

@@ -184,6 +184,11 @@ export function finalAssistantText(parts: ReadonlyArray<AssistantContentPart>): 
   return finalAssistantTextIndexes(parts).map((index) => parts[index]!.text ?? "").join("");
 }
 
+/** A JSON answer's source: models may fence it as a code block. */
+export function unfencedJson(text: string): string {
+  return /^\s*```(?:json)?\s*\n([\s\S]*?)\n?```\s*$/.exec(text)?.[1] ?? text;
+}
+
 /** Run markers keep steering in one block; older unmarked history retains its user boundaries. */
 export function buildTranscript(records: TranscriptRecord[], options: { openEnded?: boolean } = {}): TranscriptItem[] {
   const items: TranscriptItem[] = [];

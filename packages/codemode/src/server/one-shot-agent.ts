@@ -7,7 +7,7 @@ import { clampThinkingLevel, type Models, type ModelThinkingLevel } from "@earen
 import { AgentDoc, configure, defineDoc, defineEntry, defineTool, UsageDoc, type ConversationId } from "@earendil-works/pi-durable";
 import { CODEMODE_TOOL_NAME } from "@earendil-works/pi-durable/codemode";
 import { assertDurableToolAdmission, WorkspaceAgents } from "@agents-in-the-cloud/builtin-agent/server";
-import { finalAssistantText } from "@agents-in-the-cloud/agent/server/transcript";
+import { finalAssistantText, unfencedJson } from "@agents-in-the-cloud/agent/server/transcript";
 import { Type, type TSchema } from "typebox";
 import { Compile } from "typebox/compile";
 
@@ -132,11 +132,10 @@ export function createOneShotAgentTool(models: Pick<Models, "getModel">) {
         const answer = await api.commit(tx => tx.entry(settled.answer), context);
         const reply = answer?.model?.findLast(item => item.role === "assistant");
         const text = reply?.role === "assistant" ? finalAssistantText(reply.content) : "";
-        const fenced = /^\s*```(?:json)?\s*\n([\s\S]*?)\n?```\s*$/.exec(text);
         let value: JsonValue;
         try {
           // SAFETY: JSON.parse returns JSON values only.
-          value = JSON.parse(fenced?.[1] ?? text) as JsonValue;
+          value = JSON.parse(unfencedJson(text)) as JsonValue;
         } catch (error) {
           if (!(error instanceof SyntaxError)) throw error;
           problem = `it is not JSON (${error.message})`;

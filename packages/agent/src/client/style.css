@@ -80,6 +80,7 @@
 
 /* assistant final message: plain typeset text, no bubble */
 .agent-final:empty { display: none; }
+.agent-final-json { margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-control); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 .agent-error { color: var(--danger); background: var(--danger-soft); border: 1px solid #f1c7c7; border-radius: var(--radius-control); padding: 6px 8px; }
 
