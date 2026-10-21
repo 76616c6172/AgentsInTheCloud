@@ -30,6 +30,7 @@
     "@agents-in-the-cloud/vscode": "workspace:*",
     "typebox": "^1.0.57",
     "@agents-in-the-cloud/subagents": "workspace:*",
+    "@agents-in-the-cloud/codemode": "workspace:*",
     "@agents-in-the-cloud/desktop": "workspace:*",
     "@agents-in-the-cloud/llm": "workspace:*",
     "@agents-in-the-cloud/host": "workspace:*",

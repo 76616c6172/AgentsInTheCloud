@@ -25,6 +25,7 @@
         "@agents-in-the-cloud/claude-agent": "workspace:*",
         "@agents-in-the-cloud/claude-cli-agent": "workspace:*",
         "@agents-in-the-cloud/cli-agent": "workspace:*",
+        "@agents-in-the-cloud/codemode": "workspace:*",
         "@agents-in-the-cloud/codex-agent": "workspace:*",
         "@agents-in-the-cloud/codex-cli-agent": "workspace:*",
         "@agents-in-the-cloud/core": "workspace:*",
@@ -121,7 +122,6 @@
         "@agents-in-the-cloud/workspace-templates": "workspace:*",
         "@earendil-works/chord": "catalog:",
         "@earendil-works/pi-ai": "catalog:",
-        "@earendil-works/pi-codemode": "catalog:",
         "@earendil-works/pi-coding-agent": "catalog:",
         "@earendil-works/pi-durable": "catalog:",
         "proper-lockfile": "4.1.2",
@@ -189,6 +189,22 @@
         "@agents-in-the-cloud/prompt": "workspace:*",
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/codemode": {
+      "name": "@agents-in-the-cloud/codemode",
+      "dependencies": {
+        "@agents-in-the-cloud/agent": "workspace:*",
+        "@agents-in-the-cloud/builtin-agent": "workspace:*",
+        "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/design-system": "workspace:*",
+        "@agents-in-the-cloud/shared": "workspace:*",
+        "@agents-in-the-cloud/workspace": "workspace:*",
+        "@earendil-works/chord": "catalog:",
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-codemode": "catalog:",
+        "@earendil-works/pi-durable": "catalog:",
         "typebox": "^1.0.57",
       },
     },
@@ -587,6 +603,8 @@
     "@agents-in-the-cloud/claude-cli-agent": ["@agents-in-the-cloud/claude-cli-agent@workspace:packages/claude-cli-agent"],
 
     "@agents-in-the-cloud/cli-agent": ["@agents-in-the-cloud/cli-agent@workspace:packages/cli-agent"],
+
+    "@agents-in-the-cloud/codemode": ["@agents-in-the-cloud/codemode@workspace:packages/codemode"],
 
     "@agents-in-the-cloud/codex-agent": ["@agents-in-the-cloud/codex-agent@workspace:packages/codex-agent"],
 

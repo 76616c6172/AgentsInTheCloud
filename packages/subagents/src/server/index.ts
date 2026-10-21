@@ -1,43 +1,29 @@
-import { Type } from "typebox";
-import { Value } from "typebox/value";
 import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
-import { listWorkspaceAgents, configureAgentDelegation, durableWorkspaceOwner } from "@agents-in-the-cloud/builtin-agent/server";
+import { registerAgentToolPresentations } from "@agents-in-the-cloud/agent/server";
+import { listWorkspaceAgents, configureAgentDelegation, registerBuiltinAgentIntegration } from "@agents-in-the-cloud/builtin-agent/server";
 import { createNativeDelegationExtension } from "./native-runtime.ts";
 import { delegationModels, stampDelegationRequestIdentity } from "./native-models.ts";
 import { nativeDelegationTranscript } from "./native-transcript.ts";
 import { attributedEntry } from "./native-state.ts";
 import { nativeToolPresentations } from "./native-tool-presentation.ts";
 import { nativeSnapshot } from "./native-view-state.ts";
-import { renderSubagentsControl, handleSubagentRequest, subscribeSubagentBackground } from "./subagent-view.ts";
-import { handleSubagentBackgroundRequest } from "./background.ts";
+import { handleSubagentRequest } from "./subagent-view.ts";
+import { subagentBackground } from "./background.ts";
 import { subagentsOpenApiPaths } from "./openapi.ts";
 
 export const agentsInTheCloudServerModule: WorkspaceModule = {
   id: "subagents",
   initialize() {
     configureAgentDelegation({
-      renderControl: renderSubagentsControl,
       create(models, harness) { return { extension: createNativeDelegationExtension(harness), models: delegationModels(models, harness) }; },
       requestMessages: stampDelegationRequestIdentity,
-      transcript: nativeDelegationTranscript,
       attributed: attributedEntry,
-      toolPresentations: nativeToolPresentations,
-      async resolveAgent(workspaceId, agentId) {
-        const record = (await (await durableWorkspaceOwner(workspaceId)).catalog()).find(record => record.parentId && record.agentId === agentId);
-        return record ? { ...record, workspaceId, path: "", storage: "durable" } : undefined;
-      },
     });
+    registerAgentToolPresentations(nativeToolPresentations);
+    registerBuiltinAgentIntegration({ id: "subagents", transcript: nativeDelegationTranscript, background: subagentBackground });
   },
   staticFiles: { "/subagents.css": { url: new URL("../client/subagents.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
   openApiPaths: subagentsOpenApiPaths,
-  cableChannels: [{
-    name: "subagents",
-    subscribe(identifier, listener) {
-      if (identifier.channel !== "module" || identifier.name !== "subagents") throw new Error("Invalid Subagents channel");
-      const params = Value.Parse(Type.Object({ agentId: Type.String({ minLength: 1 }) }, { additionalProperties: false }), identifier.params);
-      return subscribeSubagentBackground(identifier.workspaceId, params.agentId, listener);
-    },
-  }],
   routes: [{
     async handle(request, url, context) {
       const reveal = url.pathname.match(/^\/workspaces\/([^/]+)\/subagents\/reveal$/);
@@ -59,7 +45,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         const query = new URLSearchParams({ agent: child.rootId, background: child.id, message: message.id });
         return new Response(null, { status: 303, headers: { location: `/workspaces/${encodeURIComponent(workspaceId)}?${query}` } });
       }
-      return await handleSubagentBackgroundRequest(request, url) ?? handleSubagentRequest(request, url, { events: context.events });
+      return handleSubagentRequest(request, url, { events: context.events });
     },
   }],
 };

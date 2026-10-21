@@ -9,10 +9,12 @@ import { CodemodeSandbox } from "@earendil-works/pi-codemode";
 import { Type } from "typebox";
 import type { PromptTemplate } from "@agents-in-the-cloud/agent/server/prompt-templates";
 import type { ToolView, TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
-import { openDurableAgentRuntime, type DurableAgentRuntime } from "../../src/server/durable-runtime.ts";
-import { createWorkspaceCodemodeExtension } from "../../src/server/durable-codemode.ts";
-import { assertNoTemplateAttachments, codemodeTemplateResponse, createCodemodeTemplates } from "../../src/server/durable-codemode-templates.ts";
-import { durableViewState, projectDurableTranscript } from "../../src/server/durable-transcript.ts";
+import { openDurableAgentRuntime, type DurableAgentRuntime } from "@agents-in-the-cloud/builtin-agent/server/durable-runtime";
+import { assertNoTemplateAttachments, codemodeTemplateResponse, createCodemodeTemplates } from "@agents-in-the-cloud/builtin-agent/server/durable-codemode-templates";
+import { durableViewState, projectDurableTranscript } from "@agents-in-the-cloud/builtin-agent/server";
+import { createWorkspaceCodemodeExtension } from "../../src/server/extension.ts";
+// Transcripts show each script's calls as code mode records them.
+import "./support.ts";
 
 const context = BACKGROUND_CONTEXT;
 const paths: string[] = [];

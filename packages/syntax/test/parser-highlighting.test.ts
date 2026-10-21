@@ -73,3 +73,12 @@ test("cache accounts for replacements and oversized entries within its character
   cache.set("c", { html: "123456789012" });
   expect(cache.get("c")).toBeUndefined();
 });
+
+test("JSON keys stand apart from string values", () => {
+  const code = '{"name": "Mango", "count": 3}';
+  const tokens = parserHighlightSpans(code, "json")!.map((span) => [code.slice(span.from, span.to), span.role]);
+  expect(tokens).toContainEqual(['"name"', "attribute"]);
+  expect(tokens).toContainEqual(['"Mango"', "string"]);
+  // Elsewhere, property names stay plain.
+  expect(parserHighlightSpans("const a = { name: 1 }; a.name;", "javascript")!.some((span) => span.role === "attribute")).toBe(false);
+});

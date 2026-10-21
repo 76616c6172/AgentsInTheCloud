@@ -1,0 +1,21 @@
+{
+  "name": "@agents-in-the-cloud/codemode",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts"
+  },
+  "dependencies": {
+    "@agents-in-the-cloud/agent": "workspace:*",
+    "@agents-in-the-cloud/builtin-agent": "workspace:*",
+    "@agents-in-the-cloud/core": "workspace:*",
+    "@agents-in-the-cloud/design-system": "workspace:*",
+    "@agents-in-the-cloud/shared": "workspace:*",
+    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-codemode": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "typebox": "^1.0.57"
+  }
+}

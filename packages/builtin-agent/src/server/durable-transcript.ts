@@ -1,4 +1,5 @@
 import { agentDelegation } from "./delegation.ts";
+import { integrationTranscript } from "./integrations.ts";
 import { applyTranscriptContributions } from "@agents-in-the-cloud/agent/server/transcript-contributions";
 import { durableTimingEntry, DurableTurnTiming } from "./durable-timing.ts";
 import { durableStopEntry } from "./durable-lifecycle.ts";
@@ -9,7 +10,6 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { isJsonObject } from "@agents-in-the-cloud/core";
 import { codemodeTemplateRunEndEntry } from "./durable-codemode-templates.ts";
-import { callEndDetails, codemodeCallEntry, type CallEnd, type CallStart, type CodemodeCallRecord } from "./durable-codemode.ts";
 import { buildTranscript, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type SessionImageRef, type ToolView, type TranscriptItem, type TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
 
 /** The native watch is an exact committed frame, not an AgentSession event stream. */
@@ -59,7 +59,7 @@ function images(content: Message["content"], entryId: string, offset = 0): Sessi
  * persisted run ledger. Only pi.live.run is authoritative for current activity.
  */
 export function projectDurableTranscript(view: ConversationView): TranscriptItem[] {
-  const contribution = agentDelegation?.transcript(view);
+  const contribution = integrationTranscript(view);
   const inherited = contribution?.inheritedContext;
   if (inherited) {
     const index = view.entries.findIndex(entry => String(entry.id) === inherited.boundaryEntryId);
@@ -77,17 +77,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   const partialTools = new Set<string>();
   const turnEnds = new Map<string, { timestamp: number; completed: boolean }>();
   const timings = new Map<string, DurableTurnTiming>();
-  // Each code mode call's calls by key, in the order they started. A rerun after a restart records
-  // them again: the first start and the last end count.
-  const codemodeCalls = new Map<string, Map<string, { start?: CallStart; end?: CallEnd }>>();
-  function recordCodemodeCall(record: CodemodeCallRecord) {
-    const calls = codemodeCalls.get(record.callId) ?? new Map();
-    codemodeCalls.set(record.callId, calls);
-    const call = calls.get(record.key) ?? {};
-    calls.set(record.key, call);
-    if (record.phase === "start") call.start ??= record;
-    else call.end = record;
-  }
   let turn: string | undefined;
   let pendingBoundary = true;
   // Code mode template calls that ended their run, as recorded when they finished.
@@ -129,10 +118,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   // ConversationView is already in context order: head marker first, then
   // oldest-to-newest entries. Sorting by ID would misplace compaction summaries.
   for (const entry of view.entries) {
-    if (codemodeCallEntry.is(entry)) {
-      recordCodemodeCall(entry.data);
-      continue;
-    }
     if (codemodeTemplateRunEndEntry.is(entry)) {
       runEndingCalls.add(entry.data.callId);
       continue;
@@ -187,30 +172,25 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   const slots = new Map(live.tools?.map(slot => [slot.callId, slot]));
   const nestedSlots = new Map(live.nestedTools?.map(slot => [slot.callId, slot]));
 
-  /** A code mode script's calls, from their records, with live progress while they run. */
-  function attachCodemodeCalls(tool: ToolView) {
-    // Without records, the script's own list of its calls shows.
-    const calls = [...codemodeCalls.get(tool.callId) ?? []].flatMap(([key, { start, end }]) => {
-      if (!start) return [];
-      const nested: ToolView = { callId: `${tool.callId}/${key}`, name: start.name, args: start.arguments, status: "running" };
-      if (end) {
-        const details = callEndDetails(end);
-        nested.status = end.isError || toolDetailsIndicateError(details) ? "error" : "ok";
-        nested.durationMs = end.durationMs;
-        nested.resultText = end.output ?? end.error;
-        nested.details = details;
-      } else if (tool.status === "running") {
+  const nestedCalls = new Map(contribution?.nested?.map(({ toolCallId, calls }) => [toolCallId, calls]));
+
+  /** The calls a tool made to other tools, as an integration recorded them, with live progress while they run. */
+  function attachNestedCalls(tool: ToolView) {
+    const calls = nestedCalls.get(tool.callId)?.map((recorded): ToolView => {
+      if (recorded.status !== "running") return recorded;
+      const nested = { ...recorded };
+      if (tool.status === "running") {
         const slot = nestedSlots.get(nested.callId);
         if (slot) applySlotProgress(nested, slot);
       } else {
-        // The script ended, for example by being stopped, before this call returned.
+        // The calling tool ended, for example by being stopped, before this call returned.
         nested.status = "error";
         nested.details = { aborted: true };
         nested.resultUnavailable = true;
       }
-      return [nested];
+      return nested;
     });
-    if (calls.length) tool.nested = calls;
+    if (calls?.length) tool.nested = calls;
   }
 
   function updateTools(tool: ToolView) {
@@ -235,7 +215,7 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
     for (const item of list) {
       // Tree/rewind actions need native operations, never old SessionManager IDs.
       item.rewindEntryId = undefined;
-      if (item.type === "tool") { updateTools(item.tool); attachCodemodeCalls(item.tool); }
+      if (item.type === "tool") { updateTools(item.tool); attachNestedCalls(item.tool); }
       if ((item.type === "text" || item.type === "thinking") && item.key.startsWith(`${partialKey}:`)) item.live = true;
       if (item.type === "working") {
         const measured = timings.get(item.inputEntryIds?.[0] ?? "");

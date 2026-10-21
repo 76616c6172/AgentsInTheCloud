@@ -7,6 +7,8 @@
     "./server": "./src/server/index.ts",
     "./server/durable-lifecycle": "./src/server/durable-lifecycle.ts",
     "./server/durable-runtime": "./src/server/durable-runtime.ts",
+    "./server/durable-assembly": "./src/server/durable-assembly.ts",
+    "./server/durable-codemode-templates": "./src/server/durable-codemode-templates.ts",
     "./client": "./src/client/index.ts",
     "./server/render-composer": "./src/server/render-composer.ts"
   },
@@ -26,7 +28,6 @@
     "@agents-in-the-cloud/llm": "workspace:*",
     "@agents-in-the-cloud/prompt": "workspace:*",
     "@earendil-works/pi-durable": "catalog:",
-    "@earendil-works/pi-codemode": "catalog:",
     "@earendil-works/chord": "catalog:",
     "proper-lockfile": "4.1.2",
     "@agents-in-the-cloud/legacy-converter": "workspace:*",

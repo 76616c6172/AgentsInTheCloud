@@ -2,8 +2,8 @@ import { CableTopics, type CableSubscription, type WorkspaceClientControllerCons
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
-/** Keeps the Agent's background bar current while its pane shows. */
-export function createSubagentsController(Controller: WorkspaceClientControllerConstructor) {
+/** Keeps the Agent's Background bar current while its pane shows. */
+export function createBackgroundController(Controller: WorkspaceClientControllerConstructor) {
   return class extends Controller {
     static values = { workspaceId: String, agentId: String };
     declare readonly element: HTMLElement;
@@ -15,7 +15,7 @@ export function createSubagentsController(Controller: WorkspaceClientControllerC
     disconnect(): void { this.stop(); }
     sync(): void {
       if (document.hidden || !this.element.parentElement!.checkVisibility()) { this.stop(); return; }
-      this.subscription ??= window.AgentsInTheCloudCable!.subscribe(CableTopics.module("subagents", this.workspaceIdValue, { agentId: this.agentIdValue }), {});
+      this.subscription ??= window.AgentsInTheCloudCable!.subscribe(CableTopics.module("agent-background", this.workspaceIdValue, { agentId: this.agentIdValue }), {});
     }
     private stop(): void {
       this.subscription?.unsubscribe();
@@ -24,11 +24,11 @@ export function createSubagentsController(Controller: WorkspaceClientControllerC
   };
 }
 
-/** A message a link revealed on a subagent's page; reopening the page doesn't reveal it again. */
+/** A message a link revealed on a child agent's page; reopening the page doesn't reveal it again. */
 const revealedMessages = new Set<string>();
 
-/** A subagent's page follows its live transcript while it shows, and reveals what links into that transcript point at. */
-export function createSubagentTranscriptController(Controller: WorkspaceClientControllerConstructor) {
+/** A child agent's page follows its live transcript while it shows, and reveals what links into that transcript point at. */
+export function createChildTranscriptController(Controller: WorkspaceClientControllerConstructor) {
   return class extends Controller {
     static values = { workspaceId: String, agentId: String };
     declare readonly element: HTMLElement;
@@ -54,7 +54,7 @@ export function createSubagentTranscriptController(Controller: WorkspaceClientCo
       revealedMessages.add(`${this.agentIdValue}:${message}`);
       void this.reveal(message);
     }
-    /** A link into this subagent's own transcript, such as "Started by" on a message from work it started. */
+    /** A link into this child's own transcript, such as "Started by" on a message from work it started. */
     follow(event: Event): void {
       const link = event.target instanceof Element ? event.target.closest<HTMLElement>('[data-action~="agent-pane#reveal"]') : null;
       if (link?.dataset.agentPaneAgentParam !== this.agentIdValue) return;
