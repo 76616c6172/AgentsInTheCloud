@@ -21,6 +21,8 @@ let workspaceImageEnsuring = false;
 let workspaceImageDirty = false;
 let server: ReturnType<typeof Bun.spawn> | undefined;
 let stoppingServer = false;
+let restarting: Promise<void> | undefined;
+let restartAgain = false;
 const pendingRestartReasons = new Set<string>();
 const devReloadFile = join("/tmp", `agents-in-the-cloud-dev-reload-${process.pid}.json`);
 const devReloadTempFile = `${devReloadFile}.tmp`;
@@ -111,7 +113,7 @@ function rememberRestartReason(reason: string, changed: string): void {
 function describeRestartReasons(): string {
   const reasons = [...pendingRestartReasons];
   pendingRestartReasons.clear();
-  if (reasons.length === 0) return "manual restart";
+  if (reasons.length === 0) return "requested during the previous restart";
   const shown = reasons.slice(0, 10);
   const suffix = reasons.length > shown.length ? ` (and ${reasons.length - shown.length} more)` : "";
   return `${shown.join(", ")}${suffix}`;
@@ -200,7 +202,22 @@ function startServer(): void {
   })();
 }
 
-async function restartServer(): Promise<void> {
+/** Restarts run one at a time; requests during a restart coalesce into one follow-up. Overlapping restarts would start two servers. */
+function restartServer(): Promise<void> {
+  if (restarting) {
+    restartAgain = true;
+    return restarting;
+  }
+  restarting = (async () => {
+    do {
+      restartAgain = false;
+      await restartServerOnce();
+    } while (restartAgain);
+  })().finally(() => { restarting = undefined; });
+  return restarting;
+}
+
+async function restartServerOnce(): Promise<void> {
   const why = describeRestartReasons();
   if (!server) {
     console.log(`[server] starting (${why})`);
