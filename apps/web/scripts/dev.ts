@@ -21,8 +21,8 @@ let workspaceImageEnsuring = false;
 let workspaceImageDirty = false;
 let server: ReturnType<typeof Bun.spawn> | undefined;
 let stoppingServer = false;
-let restarting: Promise<void> | undefined;
-let restartAgain = false;
+let restartQueue = Promise.resolve();
+let restartQueued = false;
 const pendingRestartReasons = new Set<string>();
 const devReloadFile = join("/tmp", `agents-in-the-cloud-dev-reload-${process.pid}.json`);
 const devReloadTempFile = `${devReloadFile}.tmp`;
@@ -202,19 +202,16 @@ function startServer(): void {
   })();
 }
 
-/** Restarts run one at a time; requests during a restart coalesce into one follow-up. Overlapping restarts would start two servers. */
+/** Restarts run one at a time, and requests made before a queued restart begins share it. Overlapping restarts would start two servers. */
 function restartServer(): Promise<void> {
-  if (restarting) {
-    restartAgain = true;
-    return restarting;
+  if (!restartQueued) {
+    restartQueued = true;
+    restartQueue = restartQueue.then(() => {
+      restartQueued = false;
+      return restartServerOnce();
+    });
   }
-  restarting = (async () => {
-    do {
-      restartAgain = false;
-      await restartServerOnce();
-    } while (restartAgain);
-  })().finally(() => { restarting = undefined; });
-  return restarting;
+  return restartQueue;
 }
 
 async function restartServerOnce(): Promise<void> {

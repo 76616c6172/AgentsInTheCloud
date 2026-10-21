@@ -632,17 +632,21 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return views.map((view) => ({ key: workViewKey(view.reference), ...view, ...registry.surfaceState(id, workViewKey(view.reference)) }));
   }
 
-  async function workspaceJson(id: string): Promise<Response> {
-    const entry = requireWorkspace(id);
-    const workspace: Pick<WorkspaceEntry, "id" | "phase" | "parked" | "requestingAttention" | "warnings"> & { title: string; url: string } = {
+  function workspaceSummary(entry: WorkspaceEntry) {
+    const workspace: Pick<WorkspaceEntry, "id" | "phase" | "parked" | "requestingAttention" | "warnings"> & { title: string; workspaceTemplateId?: string } = {
       id: entry.id,
       title: workspaceTitle(entry),
       phase: entry.phase,
       parked: entry.parked,
       requestingAttention: entry.requestingAttention,
-      url: `/workspaces/${encodeURIComponent(entry.id)}`,
     };
     if (entry.warnings?.length) workspace.warnings = entry.warnings;
+    return workspace;
+  }
+
+  async function workspaceJson(id: string): Promise<Response> {
+    const entry = requireWorkspace(id);
+    const workspace = { ...workspaceSummary(entry), url: `/workspaces/${encodeURIComponent(entry.id)}` };
     if (entry.parked || entry.phase.kind !== "runningPhase") return jsonResponse({ workspace });
 
     const { presentation, commandContributions, storedWorkViews, warningState } = await workspacePresentationBundle(id);
@@ -665,14 +669,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   function workspaceListEndpoint(request: Request, url: URL): Response {
     if (!requestAcceptsJson(request)) return Response.redirect(new URL("/", url).toString(), 302);
     return jsonResponse({ workspaces: registry.list().map((entry) => {
-      const workspace: Pick<WorkspaceEntry, "id" | "phase" | "parked" | "requestingAttention" | "warnings"> & { title: string; workspaceTemplateId?: string } = {
-        id: entry.id,
-        title: workspaceTitle(entry),
-        phase: entry.phase,
-        parked: entry.parked,
-      requestingAttention: entry.requestingAttention,
-      };
-      if (entry.warnings?.length) workspace.warnings = entry.warnings;
+      const workspace = workspaceSummary(entry);
       if (isGitWorkspaceTemplateInit(entry.init)) workspace.workspaceTemplateId = workspaceTemplateIdFromInit(entry.init);
       return workspace;
     }) });

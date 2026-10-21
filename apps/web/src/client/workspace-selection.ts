@@ -11,6 +11,7 @@ export type WorkspaceSelectionEvent = CustomEvent<{ resume(): Promise<void> }>;
 interface MountPresentation {
   prepareIntendedSurfaces(): Promise<void>;
   intendedSurfacesReady(): boolean;
+  focusSelectedAgent(): void;
 }
 
 class WorkspaceSelectionController extends Controller<HTMLElement> {
@@ -73,15 +74,12 @@ class WorkspaceSelectionController extends Controller<HTMLElement> {
     mount.dataset.lastActivatedAt = String(Date.now());
     await prepareLiveSurface(mount);
     if (selection !== this.selection) return;
-    const presentation = mount.querySelector<HTMLElement>("[data-controller~='workspace-presentation']");
-    presentation?.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-mount-visible", { detail: { selectedFromList: this.selectedFromList } }));
+    mount.querySelector("[data-controller~='workspace-presentation']")?.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-mount-visible", { detail: { selectedFromList: this.selectedFromList } }));
     this.selectedFromList = false;
-    if (presentation) {
-      const controller = controllerForElement<{ prepareIntendedSurfaces(): Promise<void>; focusSelectedAgent(): void }>(presentation, "workspace-presentation");
-      await controller?.prepareIntendedSurfaces();
-      if (selection !== this.selection) return;
-      controller?.focusSelectedAgent();
-    }
+    const presentation = this.presentation(mount);
+    await presentation?.prepareIntendedSurfaces();
+    if (selection !== this.selection) return;
+    presentation?.focusSelectedAgent();
     this.changed();
     this.reportVisibility();
 

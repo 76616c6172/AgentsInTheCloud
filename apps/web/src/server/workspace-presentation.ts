@@ -15,6 +15,7 @@ import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { renderAgentPane, renderMobileAgentAttention, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
 import type { WorkspaceDeletionState } from "./workspace-registry.ts";
+import { outdatedImageMessage } from "./workspace-warnings.ts";
 import type { WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
 import { barButton, behaviorTurboStream, busyAttentionIndicator, fullscreenViewAttributes, selectorCloseForm, type ViewCloseAction } from "./workspace-view-markup.ts";
 
@@ -92,7 +93,7 @@ function renderWorkspaceRowStatus(workspace: WorkspacePaneEntry): string {
     return workspaceStatusSlot(busyAttentionIndicator(workspace));
   }
   const warnings = (workspace.warnings ?? []).map((warning) => warning.message);
-  if (workspace.outdated) warnings.push("New workspaces get a newer image, after an AgentsInTheCloud update or a Dockerfile change. Make a new workspace to use it.");
+  if (workspace.outdated) warnings.push(outdatedImageMessage);
   return warnings.length
     ? workspaceStatusSlot(`<i class="fixed-shell-workspace-warning" aria-label="${escapeHtml(warnings.join("\n"))}" title="${escapeHtml(warnings.join("\n"))}">⚠︎</i>`)
     : "";
