@@ -173,6 +173,7 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   const nestedSlots = new Map(live.nestedTools?.map(slot => [slot.callId, slot]));
 
   const nestedCalls = new Map(contribution?.nested?.map(({ toolCallId, calls }) => [toolCallId, calls]));
+  const scriptFiles = new Map(contribution?.scriptFiles?.map(({ toolCallId, file }) => [toolCallId, file]));
 
   /** The calls a tool made to other tools, as an integration recorded them, with live progress while they run. */
   function attachNestedCalls(tool: ToolView) {
@@ -215,7 +216,12 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
     for (const item of list) {
       // Tree/rewind actions need native operations, never old SessionManager IDs.
       item.rewindEntryId = undefined;
-      if (item.type === "tool") { updateTools(item.tool); attachNestedCalls(item.tool); }
+      if (item.type === "tool") {
+        updateTools(item.tool);
+        attachNestedCalls(item.tool);
+        const scriptFile = scriptFiles.get(item.tool.callId);
+        if (scriptFile) item.tool.scriptFile = scriptFile;
+      }
       if ((item.type === "text" || item.type === "thinking") && item.key.startsWith(`${partialKey}:`)) item.live = true;
       if (item.type === "working") {
         const measured = timings.get(item.inputEntryIds?.[0] ?? "");

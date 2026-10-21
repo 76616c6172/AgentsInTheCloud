@@ -14,7 +14,7 @@ import { parseDiffFromFile, processPatch, type FileDiffMetadata } from "@pierre/
 import { diffStats, type DiffOperation } from "./diff.ts";
 import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay, highlightedBashCommandHtml } from "./embedded-code.ts";
 import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
-import { isBashTool, formatCost, formatDuration, formatTokens, toolOutcomeLabel, type ToolView } from "./transcript.ts";
+import { isBashTool, formatCost, formatDuration, formatTokens, toolOutcomeLabel, type ScriptFileView, type ToolView } from "./transcript.ts";
 import { agentPath, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, transcriptRowContent } from "./render-markup.ts";
 
@@ -307,11 +307,17 @@ function codemodeOutput(tool: ToolView): { text: string; wallMs?: number } {
   return header ? { text: text.slice(header[0].length).trim(), wallMs: Number(header[2]) * 1000 } : { text };
 }
 
+/** A script file as a call ran it: its path and the start of its contents' hash, like `/work/audit.js @ 3f9c2a1`. */
+function scriptFileLabel(file: ScriptFileView, path = file.path): string {
+  return `${path} @ ${file.sha256.slice(0, 7)}`;
+}
+
 function codemodeSummary(tool: ToolView): string {
   const calls = codemodeCalls(tool);
   const failed = calls.filter((call) => call.status === "error").length;
   const wallMs = tool.status === "ok" || tool.status === "error" ? codemodeOutput(tool).wallMs : undefined;
   return summaryHtml([
+    tool.scriptFile ? scriptFileLabel(tool.scriptFile, tool.scriptFile.path.split("/").at(-1)) : "",
     calls.length ? `${calls.length} tool ${calls.length === 1 ? "call" : "calls"}` : "",
     failed ? `${failed} failed` : "",
     wallMs === undefined ? "" : formatDuration(wallMs),
@@ -377,9 +383,11 @@ function outputHtml(output: string, textClass: string, codeClass: string): strin
  * the script streams its source does, and while it runs its calls do.
  */
 function renderCodemodeDetail(ctx: AgentRenderContext, key: string, tool: ToolView): string {
-  const code = stringArg(toolArgs(tool), "code") ?? "";
+  // A call naming a script file shows the file as the call ran it.
+  const code = tool.scriptFile?.code ?? stringArg(toolArgs(tool), "code") ?? "";
+  const scriptLabel = tool.scriptFile ? `Script · ${scriptFileLabel(tool.scriptFile)}` : "Script";
   // Like bash commands: keep the source layout while it streams, so lines do not jump.
-  const script = codemodeSectionHtml("agent-codemode-script", "Script", tool.status === "streaming",
+  const script = codemodeSectionHtml("agent-codemode-script", scriptLabel, tool.status === "streaming",
     `<div class="agent-tool-detail">${scriptSourceRegion(code, tool.status === "streaming" ? undefined : formatCodemodeScriptForDisplay(code))}</div>`);
   const calls = codemodeCalls(tool);
   const execution = calls.length ? codemodeSectionHtml("agent-codemode-execution", executionSummary(calls), tool.status === "running",

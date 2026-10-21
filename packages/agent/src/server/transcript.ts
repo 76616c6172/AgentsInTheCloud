@@ -69,6 +69,9 @@ export function isToolViewDetails(value: unknown): value is ToolViewDetails {
   return isJsonObject(Object.fromEntries(definedEntries));
 }
 
+/** A script file as a code mode call ran it: its contents when the call started. */
+export type ScriptFileView = { path: string; sha256: string; code: string };
+
 export interface ToolView {
   callId: string;
   name: string;
@@ -84,6 +87,8 @@ export interface ToolView {
   issuedAt?: number;
   /** Calls this tool made to other tools, such as a code mode script's. */
   nested?: ToolView[];
+  /** The script file a code mode call ran, as it was when the call started. */
+  scriptFile?: ScriptFileView;
   /** A finished call whose result was not kept, so only its arguments and error can show. */
   resultUnavailable?: boolean;
   /** The child agent this call runs, such as a script's one-shot agent, whose conversation opens from its row. */

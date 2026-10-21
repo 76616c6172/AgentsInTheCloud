@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import type { ToolView, TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
 import { registerBuiltinAgentIntegration } from "@agents-in-the-cloud/builtin-agent/server";
 import { codemodeTranscript } from "../../src/server/transcript.ts";
@@ -13,4 +14,9 @@ export function codemodeTool(items: readonly TranscriptItem[]): ToolView | undef
     if (nested) return nested;
   }
   return undefined;
+}
+
+/** Reads script files on this machine, as a test's workspace has them. */
+export async function localScriptFiles(path: string) {
+  return await readFile(path, "utf8").then(text => ({ text }), (error: Error) => ({ error: error.message }));
 }
