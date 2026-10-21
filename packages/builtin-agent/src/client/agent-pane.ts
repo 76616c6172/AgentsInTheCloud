@@ -56,6 +56,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     private connected = false;
     private submittedComposer?: { text: string; attachmentIds: string[]; requestId: string };
     private steerWhenAdmitted = false;
+    private sentSubmissionId?: string;
     private readonly identifySubmission = (event: FormDataEvent): void => {
       const body = event.formData;
       // Mode may change from send to steer while an uncertain request retries.
@@ -299,7 +300,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
           // Sending twice steers: the second press, in the now empty composer, promotes the newest follow-up,
           // or, while the first is still being sent, that one once it's admitted.
           if (this.submittedComposer) this.steerWhenAdmitted = true;
-          else [...this.transcriptTarget.querySelectorAll<HTMLButtonElement>("button[data-agent-queued-steer]")].at(-1)?.click();
+          else this.steerNewestFollowUp();
         }
       }
     }
@@ -394,8 +395,17 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         });
       }
       this.element.dispatchEvent(new Event("agent-composer:sent"));
-      const submissionId = event.detail.fetchResponse?.response.headers.get("x-agents-in-the-cloud-submission-id");
+      const submissionId = event.detail.fetchResponse?.response.headers.get("x-agents-in-the-cloud-submission-id") ?? undefined;
+      this.sentSubmissionId = steer ? undefined : submissionId;
       if (steer && submissionId) void this.steerQueuedInput(submissionId);
+    }
+
+    private steerNewestFollowUp(): void {
+      const sent = this.sentSubmissionId;
+      this.sentSubmissionId = undefined;
+      // Until the follow-up just sent appears, the newest one on screen is an older one.
+      if (sent && !this.transcriptTarget.querySelector(`[data-agent-queued-steer="${CSS.escape(sent)}"]`)) void this.steerQueuedInput(sent);
+      else [...this.transcriptTarget.querySelectorAll<HTMLButtonElement>("button[data-agent-queued-steer]")].at(-1)?.click();
     }
 
     private async steerQueuedInput(submissionId: string): Promise<void> {

@@ -62,7 +62,7 @@ function renderUserMessage(ctx: AgentRenderContext, user: Extract<TranscriptItem
 function renderQueuedInputActions(ctx: AgentRenderContext, key: string, queued: QueuedInput): string {
   const path = (action: string) => escapeHtml(agentPath(ctx, `/queued-inputs/${encodeURIComponent(queued.submissionId)}/${action}`));
   const steer = queued.mode === "followUp" || queued.stranded
-    ? buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: queued.stranded ? "Send now" : "Steer" }, attributesHtml: `formaction="${path("steer")}" data-agent-queued-steer aria-keyshortcuts="Meta+Enter Control+Enter"` }) : "";
+    ? buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: queued.stranded ? "Send now" : "Steer" }, attributesHtml: `formaction="${path("steer")}" data-agent-queued-steer="${escapeHtml(queued.submissionId)}" aria-keyshortcuts="Meta+Enter Control+Enter"` }) : "";
   const cancel = destructiveConfirmationHtml({
     id: domId(ids.item(ctx, key), "cancel"),
     trigger: { type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Remove queued message" } },
