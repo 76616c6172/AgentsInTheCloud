@@ -50,7 +50,7 @@ function renderUserMessage(ctx: AgentRenderContext, user: Extract<TranscriptItem
   const label = user.queued?.stranded ? "Not sent · the turn ended early"
     : user.queued?.mode === "followUp" ? "Follow-up · after this turn"
     : user.queued ? "Steering · after this step"
-    : user.pending ? "Queued" : user.steering ? "Steering" : "";
+    : user.steering ? "Steering" : "";
   const actions = user.queued && !ctx.readOnly ? renderQueuedInputActions(ctx, user.key, user.queued) : "";
   return transcriptRow(`<div class="agent-user" data-agent-user-text="${escapeHtml(user.text)}"><div class="agent-user-bubble markdown">${label ? `<div class="agent-user-label"><span>${label}</span>${actions}</div>` : ""}${markdown(ctx, user.text)}${images}</div></div>`);
 }

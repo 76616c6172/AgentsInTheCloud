@@ -125,7 +125,7 @@ export type WorkingTranscriptItem = TranscriptItemBase & {
 export type QueuedInput = { submissionId: string; mode: "steer" | "followUp"; stranded: boolean };
 
 export type TranscriptItem =
-  | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; pending?: boolean; queued?: QueuedInput })
+  | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; queued?: QueuedInput })
   | (TranscriptItemBase & { type: "inherited-context"; source: string; messageCount: number; items: TranscriptItem[] })
   | WorkingTranscriptItem
   | (TranscriptItemBase & { type: "thinking"; text: string; live?: boolean })
