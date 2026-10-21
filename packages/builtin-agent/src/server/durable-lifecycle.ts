@@ -31,6 +31,12 @@ export const DurableTaskAdmissions = defineDoc<{ requests: Record<string, { conv
  */
 export const durableStopEntry = defineEntry<{ at: number }>("agents-in-the-cloud.stop");
 
+/**
+ * Resumes input a failed turn left queued: pi-durable only places queued input at a boundary, and an idle
+ * conversation runs one when something is submitted. Bookkeeping with an empty model payload.
+ */
+export const durableQueueResumeEntry = defineEntry("agents-in-the-cloud.queue-resume");
+
 /** Refuses a tool's effect once its conversation is closed, or the work it belongs to was stopped. */
 export async function assertDurableToolAdmission(tx: Tx, api: Pick<ToolExecutionApi, "conversationId" | "taskId">) {
   const gates = await tx.doc(WorkspaceAdmission);

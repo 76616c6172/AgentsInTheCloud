@@ -1157,10 +1157,47 @@ test("a follow-up left behind by a turn that failed is shown as not sent, and St
   await watch.stop();
   expect(items.filter(item => item.type === "user" && item.queued).map(item => item.type === "user" && item.queued)).toEqual([{ submissionId: String(followUp.id), mode: "followUp", stranded: true }]);
   expect(await agent.steerQueuedInput(String(followUp.id))).toBe(true);
-  expect((await followUp.status(context)).status).toBe("unanswered");
-  const resent = await agent.submit({ requestId: `steer-${followUp.id}`, text: "Must not send twice" });
-  expect((await resent.wait(context)).status).toBe("done");
+  expect((await followUp.wait(context)).status).toBe("done");
   expect(faux.state.callCount).toBe(3);
+  const after = await agent.watch(context);
+  // The bookkeeping write that resumed the queue shows nothing.
+  expect(projectDurableTranscript(after.value).map(item => item.type)).toEqual(["user", "working", "error", "user", "working", "text"]);
+  await after.stop();
   expect(JSON.stringify((await agent.context(context)).messages)).toContain("Later please");
-  expect(JSON.stringify((await agent.context(context)).messages)).not.toContain("Must not send twice");
+});
+
+test("sending a follow-up a failed turn left behind resumes the queue in the order it was written", async () => {
+  const { runtime, faux, registry } = await setup();
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  registry.install(defineExtension({ name: "blocking-step-order", tools: [defineTool({
+    name: "block", description: "Wait", parameters: Type.Object({}),
+    async execute() {
+      started.resolve();
+      await release.promise;
+      return { output: [{ type: "text", text: "Step done" }] };
+    },
+  })] }));
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("block", {})], { stopReason: "toolUse" }),
+    fauxAssistantMessage("", { stopReason: "error", errorMessage: "Bad request: invalid" }),
+    fauxAssistantMessage("Answer"),
+    fauxAssistantMessage("Answer"),
+  ]);
+  const agent = await runtime.agent(record);
+  const original = await agent.submit({ requestId: "original", text: "Start" });
+  await started.promise;
+  const first = await agent.submit({ requestId: "first", text: "First follow-up", whenBusy: "followUp" });
+  const second = await agent.submit({ requestId: "second", text: "Second follow-up", whenBusy: "followUp" });
+  release.resolve();
+  expect((await original.wait(context)).status).toBe("unanswered");
+  expect(await agent.steerQueuedInput(String(first.id))).toBe(true);
+  expect((await first.wait(context)).status).toBe("done");
+  expect((await second.wait(context)).status).toBe("done");
+  const users = (await agent.context(context)).messages.filter(message => message.role === "user").map(message => JSON.stringify(message.content));
+  const firstAt = users.findIndex(text => text.includes("First follow-up"));
+  const secondAt = users.findIndex(text => text.includes("Second follow-up"));
+  expect(firstAt).toBeGreaterThanOrEqual(0);
+  expect(secondAt).toBeGreaterThanOrEqual(0);
+  expect(firstAt).toBeLessThan(secondAt);
 });

@@ -8,11 +8,10 @@ import { recordDurableSubscriptionActivity } from "./durable-accounting.ts";
 import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
 import { prepareWorkspaceRuntime } from "@agents-in-the-cloud/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
-import { Value } from "typebox/value";
 import { contentText, getSupportedThinkingLevels, type SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, ProviderDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
 import { createDurableHarnessOptions, prepareDurableAgent } from "./durable-assembly.ts";
-import { durableStopScope, commitDurableStop, markGatedDurableWork, settleStoppedDurableWork, WorkspaceAdmission, WorkspaceStops } from "./durable-lifecycle.ts";
+import { durableQueueResumeEntry, durableStopScope, commitDurableStop, markGatedDurableWork, settleStoppedDurableWork, WorkspaceAdmission, WorkspaceStops } from "./durable-lifecycle.ts";
 import { durableImageEndpoint } from "./durable-images.ts";
 import { submitDurableInput, type DurableInput } from "./durable-input.ts";
 import { openDurableWorkspace, WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
@@ -480,27 +479,27 @@ export async function openDurableAgentRuntime(
         });
       },
       /**
-       * Promote a queued follow-up to steering in place, keeping its submission and queue position. A turn that ends
-       * in an error leaves its queue behind on an idle agent; there, the input is sent again now, which starts a run.
+       * Promote a queued input to steering in place, keeping its submission and queue position. A turn that ends in an
+       * error leaves its queue behind on an idle agent; there, this also resumes the queue from its start.
        */
       steerQueuedInput(submissionId: string) {
         return command(async () => {
           const outcome = await harness.commit(async tx => {
             const input = (await tx.doc(InboxDoc, conversation.id)).items.find(item => String(item.id) === submissionId);
-            if (!input || input.mode === "write") return { kind: "gone" } as const;
-            // Drafts are only readable inside their commit.
-            if (!(await tx.doc(LiveDoc, conversation.id)).run) return { kind: "stranded", input: Value.Clone({ id: input.id, content: input.content, entry: input.entry }) } as const;
-            if (input.mode !== "followUp") return { kind: "gone" } as const;
+            if (!input || input.mode === "write") return "gone";
+            const idle = !(await tx.doc(LiveDoc, conversation.id)).run;
+            if (!idle && input.mode !== "followUp") return "gone";
             input.mode = "steer";
-            return { kind: "steered" } as const;
+            return idle ? "stranded" : "steered";
           }, context);
-          if (outcome.kind !== "stranded") return outcome.kind === "steered";
-          const stranded = outcome.input;
-          await load.validateModel((await conversation.agent(context)).model);
-          await readyForExecution();
-          assertAdmission();
-          if (await harness.abortSubmission(stranded.id, context, conversation.id) !== "aborted") return false;
-          await conversation.submit({ type: "input", requestId: `steer-${submissionId}`, content: stranded.content, entry: stranded.entry, whenBusy: "steer" }, context);
+          if (outcome === "gone") return false;
+          if (outcome === "stranded") {
+            await load.validateModel((await conversation.agent(context)).model);
+            await readyForExecution();
+            assertAdmission();
+            // An idle conversation with queued items runs a boundary for the next submission, placing queued input in order.
+            await conversation.submit({ type: "write", entry: { kind: durableQueueResumeEntry.kind, model: [] } }, context);
+          }
           return true;
         });
       },
