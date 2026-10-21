@@ -37,7 +37,7 @@ function renderProvisionStep(workspaceId: string, step: WorkspaceProvisionStep, 
   const activity = liveOutput
     ? `<pre class="provision-terminal-progress provision-output-log" data-controller="auto-scroll">${terminalOutputHtml(liveOutput)}</pre>`
     : step.status === "running" && step.terminalSocketPath
-      ? `<div id="${domId("provision_terminal", workspaceId, step.id, step.terminalSocketPath)}" data-turbo-permanent class="provision-terminal observable-terminal-host" data-controller="provision-terminal" data-provision-terminal-url-value="${escapeHtml(step.terminalSocketPath)}"></div>`
+      ? `<div id="${domId("provision_terminal", workspaceId, step.id, step.terminalSocketPath)}" data-turbo-permanent class="provision-terminal observable-terminal-host" data-controller="provision-terminal" data-action="agents-in-the-cloud:theme-change@document->provision-terminal#theme" data-provision-terminal-url-value="${escapeHtml(step.terminalSocketPath)}"></div>`
       : "";
   const log = [
     step.output ? terminalOutputHtml(step.output) : undefined,
