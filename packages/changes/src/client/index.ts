@@ -7,6 +7,7 @@ import { createDeletionReviewController } from "./deletion-controller.ts";
 import type { CodeView, CodeViewItem, CodeViewOptions, CodeViewDiffItem, VirtualizedFileDiff, SelectedLineRange } from "@pierre/diffs";
 import { copyTextToClipboard, type WorkspaceClientModule, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 import { createDiffEndpointsController } from "./diff-endpoints-controller.ts";
+import { createCommitLinkController } from "./commit-link-controller.ts";
 import { changesDiffOptions, wordDiffCSS } from "@agents-in-the-cloud/syntax/diff-options";
 
 const layoutStorageKey = "agents-in-the-cloud:changes-layout";
@@ -590,6 +591,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
     application.register("changes-edit", createChangesEditController(Controller));
     application.register("review-copy", createReviewCopyController(Controller));
     application.register("changes-diff-endpoints", createDiffEndpointsController(Controller));
+    application.register("commit-link", createCommitLinkController(Controller));
     hooks.onBecomeVisible(({ pane }) => {
       // Let Stimulus connect newly inserted views before requesting the refresh.
       requestAnimationFrame(() => {

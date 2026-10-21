@@ -32,6 +32,9 @@
 .markdown blockquote { border-left: 1px solid var(--line-strong); padding-left: 8px; color: var(--text-muted); }
 .markdown a { color: var(--accent); text-decoration: none; }
 .markdown a:hover { text-decoration: underline; }
+/* Commit links show the commit itself: its hash, then its subject or range size once loaded. */
+.markdown-commit-link-label:not(:empty) { margin-inline-start: .35em; }
+.markdown-commit-link[data-missing] { color: var(--text-muted); cursor: default; text-decoration: none; }
 .markdown :not(pre) > code {
   padding: .04em .2em;
   color: var(--accent);

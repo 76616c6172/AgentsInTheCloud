@@ -332,7 +332,9 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       const path = decodeURIComponent(url.pathname);
       const closesChanges = path.startsWith(`/workspaces/${this.workspaceIdValue}/work-views/`) && path.endsWith("/close") && path.includes('"type":"changes"');
       const leavesWorkspace = path.startsWith(`/workspaces/${this.workspaceIdValue}/`) && /\/(park|delete)$/.test(path);
-      if (!closesChanges && !leavesWorkspace) return;
+      // Turbo submits commit links (`data-turbo-stream`) as forms; they replace this comparison.
+      const opensCommitLink = path === `/workspaces/${this.workspaceIdValue}/changes/open`;
+      if (!closesChanges && !leavesWorkspace && !opensCommitLink) return;
       event.preventDefault(); event.stopImmediatePropagation();
       // SAFETY: This listener handles native form submission events.
       const submitter = (event as SubmitEvent).submitter;

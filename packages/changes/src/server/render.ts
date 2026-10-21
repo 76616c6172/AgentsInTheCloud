@@ -20,6 +20,7 @@ export const changesBodyId = (workspaceId: string, historyId: string) => domId("
 export const comparisonId = (workspaceId: string, historyId: string) => domId("changes", workspaceId, historyId, "comparison");
 export const historyContentId = (history: ChangesHistory) => domId("changes", history.id, "history");
 export const errorId = (workspaceId: string, historyId: string) => domId("changes", workspaceId, historyId, "error");
+export const noticeId = (workspaceId: string, historyId: string) => domId("changes", workspaceId, historyId, "notice");
 const json = <Value>(value: Value) => JSON.stringify(value).replaceAll("<", "\\u003c").replaceAll("&", "\\u0026");
 const historyModel = (history: ChangesHistory, snapshot: ChangesSnapshot): HistoryModel => ({ commits: history.commits, topology: history.topology, references: history.references, endpoints: snapshot.endpoints, head: history.head, branch: history.branch, upstream: history.upstream, unpushed: history.unpushed });
 
@@ -40,6 +41,12 @@ export function renderError(workspaceId: string, historyId: string, message = ""
   return `<div id="${errorId(workspaceId, historyId)}" class="changes-diff-endpoints-error" data-changes-diff-endpoints-target="error" role="alert" ${message ? "" : "hidden"}><span>${escapeHtml(message)}</span>${buttonHtml({ type: "button", variant: "secondary", content: { kind: "caption", caption: "Retry" }, attributesHtml: 'data-action="changes-diff-endpoints#retry"' })}${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Dismiss comparison error" }, attributesHtml: 'data-action="changes-diff-endpoints#dismissError"' })}</div>`;
 }
 
+/** Why a commit link's comparison couldn't be shown. Dismissing it clears it on the server, so it stays dismissed. */
+export function renderNotice(workspaceId: string, historyId: string, message?: string): string {
+  const dismiss = `<form class="changes-notice-dismiss" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/changes/notice/dismiss"><input type="hidden" name="history" value="${escapeHtml(historyId)}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Dismiss" } })}</form>`;
+  return `<div id="${noticeId(workspaceId, historyId)}">${message ? `<div class="changes-diff-endpoints-error" role="alert"><span>${escapeHtml(message)}</span>${dismiss}</div>` : ""}</div>`;
+}
+
 export function renderChanges(workspaceId: string, snapshot: ChangesSnapshot, pickerOpen = false): string {
   const history = snapshot.history;
   const pickerId = domId("changes", history.id, "picker");
@@ -52,7 +59,7 @@ export function renderChanges(workspaceId: string, snapshot: ChangesSnapshot, pi
   // History is the permanent shell; live comparisons replace only the Pierre island underneath it.
   return `<section id="${changesBodyId(workspaceId, history.id)}" data-turbo-permanent class="changes-body" data-controller="changes-diff-endpoints" data-changes-diff-endpoints-workspace-id-value="${escapeHtml(workspaceId)}" data-changes-diff-endpoints-history-id-value="${history.id}" data-changes-diff-endpoints-open-value="${pickerOpen}" data-action="changes-edit:refresh->changes-diff-endpoints#refresh live:before-stream-render@document->changes-diff-endpoints#preservePresentation turbo:before-stream-render@document->changes-diff-endpoints#preservePresentation keydown.esc->changes-diff-endpoints#escape">
     <header class="changes-diff-endpoints-header">${header}${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Refresh, label: "Refresh history and diff" }, attributesHtml: 'data-action="changes-diff-endpoints#refresh" data-changes-diff-endpoints-target="refresh"' })}</header>${picker}${renderComparison(workspaceId, snapshot)}
-    <div class="changes-loading" data-changes-diff-endpoints-target="loading" role="status" hidden><span class="changes-spinner" aria-hidden="true"></span><span>Generating comparison…</span></div>${renderError(workspaceId, history.id)}
+    <div class="changes-loading" data-changes-diff-endpoints-target="loading" role="status" hidden><span class="changes-spinner" aria-hidden="true"></span><span>Generating comparison…</span></div>${renderError(workspaceId, history.id)}${renderNotice(workspaceId, history.id, snapshot.notice)}
   </section>`;
 }
 

@@ -12,6 +12,7 @@ export { isHopByHopHeader, stripHopByHopHeaders } from "./proxy-headers.ts";
 export const agentsInTheCloudName = "AgentsInTheCloud" as const;
 
 export { parseWorkspaceFileTarget, workspaceFileOpenUrl, type WorkspaceFileTarget } from "./file-target.ts";
+export { changesCommitUrl, commitLinkPrefix, isCommitHash, parseCommitLinkHref, parseCommitLinkSpec, shortCommit, type CommitLinkTarget } from "./commit-target.ts";
 
 export function domId(...parts: string[]): string {
   return parts.join("_").replace(/[^a-zA-Z0-9_-]/g, "_");
