@@ -201,7 +201,7 @@ Agent control routes live under a path that depends on the Agent's `agentTypeId`
 - `POST <base>/messages` with `{ "text": "..." }`
 - `POST <base>/abort`
 
-Message submission returns `202 Accepted`; it does not wait for inference to finish. Builtin also accepts `"mode"`: while it works, `"steer"` (the default) joins the running turn, and `"send"` or `"followUp"` waits until it finishes. `POST <base>/queued-inputs/<submissionId>/steer` turns a queued follow-up into steering. Claude Code and Codex steer automatically while busy, and run their own slash commands through `messages`: a command that needs more input returns `200` with a `command` result instead. `/openapi.json` lists each type's routes and bodies.
+Message submission returns `202 Accepted`; it does not wait for inference to finish. Builtin also accepts `"mode"`: while it works, `"steer"` (the default) joins the running turn, and `"send"` or `"followUp"` waits until it finishes. `POST <base>/queued-inputs/<submissionId>/steer` turns a queued follow-up into steering; on an idle agent, whose turn ended in an error with input still queued, it resumes that queue in order. Claude Code and Codex steer automatically while busy, and run their own slash commands through `messages`: a command that needs more input returns `200` with a `command` result instead. `/openapi.json` lists each type's routes and bodies.
 
 ## Present the result
 

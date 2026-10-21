@@ -141,9 +141,9 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
       responses: { "200": { description: "Input withdrawn; cancelled is false if it is no longer queued. HTML clients receive a Turbo Stream.", content: { "application/json": { schema: { type: "object", properties: { input: { type: "object", required: ["submissionId", "cancelled"], properties: { submissionId: { type: "string" }, cancelled: { type: "boolean" } } } } } } } } },
     } },
     "/workspaces/{id}/agents/{agentId}/queued-inputs/{submissionId}/steer": { post: {
-      summary: "Turn one queued follow-up into steering, so the agent reads it after its current step instead of when it finishes",
+      summary: "Turn one queued follow-up into steering, so the agent reads it after its current step instead of when it finishes. If a turn ended in an error and left input queued on an idle agent, this also resumes that queue, in order, starting with the oldest",
       parameters: ["id", "agentId", "submissionId"].map(name => ({ name, in: "path", required: true, schema: { type: "string" } })),
-      responses: { "200": { description: "steered is false if the input is no longer a queued follow-up. HTML clients receive a Turbo Stream.", content: { "application/json": { schema: { type: "object", properties: { input: { type: "object", required: ["submissionId", "steered"], properties: { submissionId: { type: "string" }, steered: { type: "boolean" } } } } } } } } },
+      responses: { "200": { description: "steered is false if the input is no longer queued, or is already steering a running turn. HTML clients receive a Turbo Stream.", content: { "application/json": { schema: { type: "object", properties: { input: { type: "object", required: ["submissionId", "steered"], properties: { submissionId: { type: "string" }, steered: { type: "boolean" } } } } } } } } },
     } },
     "/workspaces/{id}/agents/{agentId}/tools/{callId}/abort": { post: {
       summary: "Abort one live tool call and its owned work without stopping the agent turn",
