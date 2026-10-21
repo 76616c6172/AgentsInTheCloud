@@ -94,7 +94,7 @@
   --danger: #d23b3b;
   --decorative: #7c3aed;
 
-  /* Shared source palette. Shiki and Pierre classify; AgentsInTheCloud owns color. */
+  /* Shared source palette. Highlights classifies; AgentsInTheCloud owns color. */
   --syntax-keyword: #cf222e;
   --syntax-string: #0a3069;
   --syntax-number: #0550ae;
@@ -259,13 +259,13 @@
   --floating-surface-shadow: 0 22px 56px rgba(0, 0, 0, .135);
 }
 
-/* Shiki fragments emit stable role classes so existing markup recolors instantly. */
+/* Highlighted fragments emit stable role classes so existing markup recolors instantly. */
 .syntax-keyword { color: var(--syntax-keyword); }
 .syntax-string, .syntax-string-expression { color: var(--syntax-string); }
 .syntax-number { color: var(--syntax-number); }
 .syntax-comment { color: var(--syntax-comment); }
 .syntax-function { color: var(--syntax-function); }
-.syntax-variable, .syntax-parameter { color: var(--syntax-variable); }
+.syntax-variable { color: var(--syntax-variable); }
 .syntax-type { color: var(--syntax-type); }
 .syntax-literal { color: var(--syntax-literal); }
 .syntax-attribute, .syntax-link { color: var(--syntax-attribute); }

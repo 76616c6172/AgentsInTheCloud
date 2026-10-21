@@ -101,8 +101,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       try {
         const data = new FormData(); data.set("snapshot", this.snapshotIdValue); data.set("path", path);
         // Load first so a failed editor import cannot abandon an acquired lease.
-        const [{ Editor }, { editorThemeCSS }, { parseDiffFromFile }] = await Promise.all([import("@pierre/diffs/edit"), import("@agents-in-the-cloud/syntax/pierre"), import("@pierre/diffs")]);
-        const tokenCSS = await editorThemeCSS();
+        const [{ Editor }, { parseDiffFromFile }] = await Promise.all([import("@pierre/diffs/edit"), import("@pierre/diffs")]);
         const html = await this.request("begin", data);
         const document = new DOMParser().parseFromString(html, "text/html");
         // SAFETY: The begin endpoint emits our typed edit lease in an HTML data island.
@@ -117,7 +116,6 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
         this.history.set(0, structuredClone(this.ranges));
         let focused = false;
         this.configure!({
-          unsafeCSS: tokenCSS,
           createEditor: (type, options, key) => new Editor(type, { ...options, onAttach: editor => {
             this.editor = editor;
             if (!focused) { focused = true; requestAnimationFrame(() => editor.focus({ lineNumber: model.contents ? "first-visible" : 1, preventScroll: true })); }

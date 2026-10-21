@@ -8,12 +8,11 @@ bun test packages/syntax/test/repro.test.ts
 bun test ./packages/syntax/bench/repro.perf.ts
 ```
 
-The regular suites verify captured inputs, parser token ranges, bounded cache reuse,
+The regular suites verify captured inputs, highlighted token ranges, bounded cache reuse,
 and server streaming lifecycle. The opt-in performance suite checks **20 ms per
 shared server highlight**, **50 ms per render**, and **1 second per complete
-streaming replay**, with a **10-second external watchdog**. Pierre's cold first
-render has an explicit **200 ms exception** because engine/grammar initialization
-still exceeds 50 ms. Repeated Pierre renders use the 50 ms budget.
+streaming replay**, with a **10-second external watchdog**. Cold first renders,
+including Pierre's, use the same 50 ms budget.
 Timing gates are opt-in (`.perf.ts` rather than `.test.ts`) to avoid introducing
 machine-dependent timing assertions into normal CI. See [RESULTS.md](RESULTS.md)
 for the measured improvement and remaining limits; [BASELINE.md](BASELINE.md)
@@ -38,9 +37,9 @@ bun packages/syntax/bench/child.ts syntax constructor.js 0
 
 | Path | Production code exercised |
 | --- | --- |
-| syntax | `highlightCodeHtml` including parser/Shiki tokenization, caching and theme conversion |
+| syntax | `highlightCodeHtml` including Highlights tokenization and theme conversion |
 | markdown | Markdown fenced code; `StreamingMarkdownRenderer` for prefix cases |
-| write | `renderActiveToolContent` and its real partial-JSON write parser, inline/fullscreen highlighting |
+| write | `renderToolCard` for a streaming write, inline/fullscreen highlighting |
 | read | Actual read preview and fullscreen highlighting |
 | bash | Embedded heredoc detection and highlighting via `embeddedBashCommand` |
 | review | Pierre `DiffHunksRenderer` with `changesDiffOptions` |
@@ -49,9 +48,8 @@ bun packages/syntax/bench/child.ts syntax constructor.js 0
 
 Every path uses all five captured fixtures. Full cases run three times in a
 fresh process: first use and two repeats. Stream cases use CSS and view.js with
-32-, 256-, and 2,048-character chunks. Write cases split serialized arguments,
-including JSON escape sequences and incomplete strings, then pass each complete
-prefix to the actual renderer. Markdown cases split fenced-code contents.
+32-, 256-, and 2,048-character chunks. Write cases pass each content prefix to the
+actual renderer as a streaming write. Markdown cases split fenced-code contents.
 Every synthetic prefix is rendered, deliberately bypassing runtime coalescing.
 This measures worst-case repeated-prefix cost independently of provider timing;
 server lifecycle tests separately exercise actual delta coalescing.
@@ -87,14 +85,10 @@ loop blocking. These tests execute server-side under Bun, not inside a browser.
 
 ## Implementation and streaming
 
-The common web languages (JS/TS/JSX/TSX, CSS, HTML with nested scripts/styles,
-and JSON) use Lezer's error-tolerant parsers instead of the expensive TextMate
-regex path. Other supported languages retain Shiki, now using Oniguruma WASM.
-Pierre also selects its WASM engine; the editor already uses Lezer.
-
-The server cache is bounded by 256 entries and 2,000,000 retained UTF-16 units
-(source/key plus output). Keys include resolved language. Identical inline and
-fullscreen content is highlighted once. Changed prefixes still require parsing.
+Server highlighting and Pierre both use Highlights, a WebAssembly lexer that
+handles incomplete prefixes and needs no warm-up. It is fast enough that
+highlighted fragments are not cached; whole Markdown diffs still are. The file
+editor uses CodeMirror's Lezer parsers.
 
 Tool arguments accumulate immediately, but rendering is coalesced to one flush
 per 50 ms while subscribed, slowing to 500 ms once accumulated arguments reach
@@ -114,7 +108,6 @@ improvement does not depend on coalescing or an assumed arrival rate.
 
 Pierre retains its default 1,000-character per-line tokenization limit. Its
 results on long lines therefore do not mean it fully highlights those lines.
-The shared server parser does process the captured long lines in full. Moving
+Server highlighting does process the captured long lines in full. Moving
 work to a worker is not part of this change. This corpus does not establish a
-hard wall-clock bound for arbitrary input, especially the remaining TextMate
-languages or Pierre's cold initialization.
+hard wall-clock bound for arbitrary input.

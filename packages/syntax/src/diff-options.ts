@@ -1,4 +1,4 @@
-export const agentsInTheCloudPierreTheme = "agents-in-the-cloud";
+import { agentsInTheCloudThemeName } from "./theme.ts";
 
 const changedLineCSS = `[data-line-type="change-addition"], [data-line-type="change-deletion"] { --mix-light: 80%; --mix-dark: 80%; }`;
 export const wordDiffCSS = `[data-line-type="change-addition"] [data-diff-span] { background-color: color-mix(in srgb, var(--diffs-addition-base) 20%, transparent); } [data-line-type="change-deletion"] [data-diff-span] { background-color: color-mix(in srgb, var(--diffs-deletion-base) 20%, transparent); }`;
@@ -7,8 +7,8 @@ const changesLayoutCSS = `[data-code] { padding-block: 0; overflow-x: auto; }`;
 function diffOptions(presentation: "changes" | "tool") {
   const changes = presentation === "changes";
   return {
-    preferredHighlighter: "shiki-wasm" as const,
-    theme: agentsInTheCloudPierreTheme,
+    preferredHighlighter: "highlights" as const,
+    theme: agentsInTheCloudThemeName,
     themeType: "dark" as const,
     diffStyle: "unified" as const,
     overflow: changes ? "wrap" as const : "scroll" as const,

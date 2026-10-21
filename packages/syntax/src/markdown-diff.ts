@@ -7,7 +7,7 @@ import { HighlightCache } from "./highlight-cache.ts";
 
 // Markdown rendering is synchronous. Load the neutral diff theme up front;
 // code fences emphasize the patch structure rather than language tokens.
-await preloadHighlighter({ themes: [toolDiffOptions.theme], langs: ["text"], preferredHighlighter: "shiki-wasm" });
+await preloadHighlighter({ themes: [toolDiffOptions.theme], langs: ["text"], preferredHighlighter: toolDiffOptions.preferredHighlighter });
 const cache = new HighlightCache(2_000_000, 128);
 
 export function renderMarkdownDiff(code: string, provisional = false): string {
