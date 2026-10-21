@@ -86,11 +86,15 @@ test("a finished command becomes the tool result, and its terminal process is re
 });
 
 test("output the model doesn't see stays readable at fullOutputPath", async () => {
-  const { result } = await run("seq 1 3000");
+  const { result } = await run("seq 1 3000; exit 1");
+  const { fullOutputPath } = Value.Parse(bashDetails, result.details);
+  // One text item: the Harness had nothing of its own to cut.
+  expect(result.content).toHaveLength(1);
   const [content] = result.content;
   if (content?.type !== "text") throw new Error("expected a text result");
-  expect(content.text).toStartWith("1001\n");
-  const lines = (await readFile(Value.Parse(bashDetails, result.details).fullOutputPath, "utf8")).trimEnd().split("\n");
+  expect(content.text).toStartWith("1005\n");
+  expect(content.text).toEndWith(`3000\n\n[Output truncated: showing the last 9.7KB of output. Full output: ${fullOutputPath}]\n\nCommand exited with code 1`);
+  const lines = (await readFile(fullOutputPath, "utf8")).trimEnd().split("\n");
   expect(lines).toHaveLength(3000);
   expect(lines[0]).toBe("1");
 });

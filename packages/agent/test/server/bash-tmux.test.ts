@@ -61,15 +61,16 @@ test("formats 100 captured lines without truncation", () => {
   expect(result.displayAnsi).not.toContain("Pane is dea");
 });
 
-test("keeps the tail within Pi's 50 KiB and 2000-line model limits", () => {
+test("keeps the tail within Pi's 50 KiB and 2000-line model limits, with room for the notice and exit status", () => {
   const lines = Array.from({ length: 2100 }, (_, index) => String(index + 1).padStart(4, "0"));
   const pane = `${lines.join("\n")}\nPane is dead\n`;
 
   const result = formatBashOutput(pane, pane, "/tmp/full.log");
   const output = result.output;
 
-  expect(output).toStartWith(lines[100]);
-  expect(output).not.toContain(lines[99]);
+  expect(`${output}\n\nCommand exited with code 1`.split("\n").length).toBeLessThanOrEqual(2000);
+  expect(output).toStartWith(lines[104]);
+  expect(output).not.toContain(lines[103]);
   expect(output).toContain(lines[2099]);
   expect(output).toContain("[Output truncated: showing the last");
   expect(output).toContain(`Full output: ${"/tmp/full.log"}]`);
@@ -83,10 +84,10 @@ test("limits model-facing output to the last 50 KiB", () => {
   const result = formatBashOutput(pane, pane, "/tmp/full.log");
   const output = result.output;
 
-  expect(Buffer.byteLength(output)).toBeLessThan(52 * 1024);
+  expect(Buffer.byteLength(`${output}\n\nCommand exited with code 1`)).toBeLessThanOrEqual(50 * 1024);
   expect(output).not.toContain(lines[0]);
   expect(output).toContain(lines[699]);
-  expect(output).toContain("[Output truncated: showing the last 50.0KB of output");
+  expect(output).toContain("[Output truncated: showing the last 48.9KB of output");
 });
 
 test("shortens individual model-facing lines to 500 characters and retains the full output path", () => {

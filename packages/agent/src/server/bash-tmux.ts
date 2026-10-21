@@ -18,6 +18,13 @@ import {
 import { Type } from "typebox";
 
 const maxModelLineChars = 500;
+/**
+ * Room left below the Harness's tool output limits for what follows the output:
+ * the truncation notice and the tool's exit status. The Harness keeps the start of
+ * longer text, so without it the notice naming the full output would be cut off.
+ */
+const modelTrailerLines = 4;
+const modelTrailerBytes = 1024;
 const maxDisplayAnsiBytes = 200_000;
 
 /**
@@ -64,7 +71,7 @@ function limitModelLines(text: string): LimitedModelLines {
 
 export function formatBashOutput(modelPane: string, displayPane: string, fullOutputPath: string) {
   const modelLines = limitModelLines(plainModelOutput(stripObservablePaneFraming(modelPane)));
-  const modelLimited = truncateTail(modelLines.text);
+  const modelLimited = truncateTail(modelLines.text, { maxLines: DEFAULT_MAX_LINES - modelTrailerLines, maxBytes: DEFAULT_MAX_BYTES - modelTrailerBytes });
   let output = modelLimited.content;
   const modelTruncated = modelLimited.truncated || modelLines.linesTruncated > 0;
   let truncationNotice = "";
