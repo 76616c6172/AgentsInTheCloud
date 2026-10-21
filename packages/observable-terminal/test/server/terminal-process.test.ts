@@ -1,4 +1,4 @@
-import { runLocally } from "../support/local-terminal-processes.ts";
+import { runLocally, startLocally } from "../support/local-terminal-processes.ts";
 import { describeTerminalProcesses } from "./terminal-process-scenarios.ts";
 
-describeTerminalProcesses("terminal processes", async (tmuxDirectory) => ({ run: runLocally(tmuxDirectory), async close() {} }));
+describeTerminalProcesses("terminal processes", async (tmuxDirectory) => ({ run: runLocally(tmuxDirectory), start: startLocally(tmuxDirectory), async close() {} }));

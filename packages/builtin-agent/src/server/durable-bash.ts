@@ -1,6 +1,6 @@
 import type { Context } from "@earendil-works/chord";
 import { defineDoc, defineExtension, defineTask, defineTool, type TaskId } from "@earendil-works/pi-durable";
-import { terminalProcessSession, type TerminalProcesses } from "@agents-in-the-cloud/observable-terminal/server";
+import type { TerminalProcesses } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspaceRoot, workspaceTerminalProcesses } from "@agents-in-the-cloud/workspace";
 import { Type, type Static } from "typebox";
 import { bashToolDefinition, forcedColorEnvironment, formatBashOutput } from "@agents-in-the-cloud/agent/server/bash-tmux";
@@ -105,7 +105,7 @@ export function createDurableBashExtension(workspaceId: string, processes: Termi
       const record = (await api.getTask(child, context))!;
       // SAFETY: this ID is atomically bound above to our version-1 operation task and its BashInput.
       const input = record.input as BashInput;
-      await api.details({ workspaceId, tmuxSession: terminalProcessSession(input.request.id), command: input.request.command }, context);
+      await api.details({ workspaceId, terminalProcessId: input.request.id, command: input.request.command }, context);
       const settled = await api.waitForTask(child, context);
       if (settled.state.outcome.status === "faulted" || settled.state.outcome.status === "failed") throw new Error(settled.state.outcome.error.message);
       if (settled.state.outcome.status !== "completed") throw new Error(`Command operation ${settled.state.outcome.status}`);

@@ -1,10 +1,3 @@
-import type { WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
-import { startInWorkspace } from "@agents-in-the-cloud/workspace";
-import {
-  createObservableTerminalSocket,
-  observableTerminalCols,
-  observableTerminalRows,
-} from "@agents-in-the-cloud/observable-terminal/server";
 import {
   DEFAULT_MAX_BYTES,
   DEFAULT_MAX_LINES,
@@ -94,28 +87,3 @@ export const bashToolDefinition = {
     timeout: Type.Optional(Type.Number({ description: "Timeout in seconds (default 600)" })),
   }),
 };
-
-// ---------------------------------------------------------------------------
-// Inline terminal websocket: read-only attach to an agent tmux session.
-// ---------------------------------------------------------------------------
-
-export function createAgentTermSocketSession(url: URL): WorkspaceServerSocketSession | undefined {
-  const match = url.pathname.match(/^\/workspaces\/([^/]+)\/agent-term\/([^/]+)\/ws$/);
-  if (!match) return undefined;
-  const workspaceId = decodeURIComponent(match[1]);
-  const session = decodeURIComponent(match[2]);
-  // Bash tool calls run as terminal processes named after their operation id.
-  if (!/^aitc-process-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(session)) return undefined;
-  return createObservableTerminalSocket({
-    start: (start) => startInWorkspace(workspaceId, start),
-    session,
-    // Terminal processes use the default workspace server.
-    requireExistingServer: true,
-    // Inline terminals must never resize the agent's fixed-size command pane.
-    cols: observableTerminalCols,
-    rows: observableTerminalRows,
-    user: "agents-in-the-cloud",
-    readonly: true,
-    fixedSize: true,
-  });
-}

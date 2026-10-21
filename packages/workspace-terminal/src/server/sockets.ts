@@ -14,12 +14,14 @@ export function createTerminalSocketHandler(): WorkspaceServerSocketHandler {
     if (!terminalId) return undefined;
     const terminal = (await listWorkspaceTerminals(workspaceId)).find((item) => item.id === terminalId);
     if (!terminal) throw new AgentsInTheCloudCoreError("terminal_not_found", `terminal not found: ${terminalId}`);
+    // Terminal processes have their own route, for every kind of viewer.
+    if (terminal.sessionRelationship === "process") return undefined;
     return createObservableTerminalSocket({
       start: (start) => startInWorkspace(workspaceId, start),
       session: terminal.tmuxSession,
       ...terminalSocketDimensions(url),
       user: "agents-in-the-cloud",
       workdir: workspaceRoot,
-    }, { sessionExists: () => tmuxSessionExists(workspaceId, terminal.tmuxSession) });
+    }, { ended: async () => !(await tmuxSessionExists(workspaceId, terminal.tmuxSession)) });
   };
 }

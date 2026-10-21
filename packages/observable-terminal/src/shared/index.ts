@@ -39,5 +39,10 @@ export function parseObservableTerminalMessage(text: string): ObservableTerminal
   return undefined;
 }
 
-/** A reachable workspace confirmed the execution no longer exists. */
-export const terminalSessionMissingCloseCode = 4404;
+/** Where viewers connect to a workspace's terminal process. */
+export function terminalProcessSocketPath(workspaceId: string, id: string): string {
+  return `/workspaces/${encodeURIComponent(workspaceId)}/terminal-processes/${encodeURIComponent(id)}/ws`;
+}
+
+/** The terminal's process has ended, or its session no longer exists: reconnecting won't bring it back. */
+export const terminalEndedCloseCode = 4404;

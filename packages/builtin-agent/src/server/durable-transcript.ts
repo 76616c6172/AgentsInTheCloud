@@ -42,9 +42,7 @@ function applySlotProgress(tool: ToolView, slot: Pick<ToolSlot, "output" | "deta
   if (isToolViewDetails(details)) {
     tool.details = details;
     if (toolDetailsIndicateError(details)) tool.status = "error";
-    // The receipt operation owns this immutable session on the default
-    // workspace tmux server. Detaching this read-only view never stops it.
-    tool.tmuxSession = details.tmuxSession;
+    tool.terminalProcessId = details.terminalProcessId;
   }
 }
 

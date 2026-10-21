@@ -1,5 +1,5 @@
 import { errorMessage } from "@agents-in-the-cloud/shared";
-import { parseObservableTerminalMessage, terminalSessionMissingCloseCode, type ObservableTerminalProgressMessage } from "../shared/index.ts";
+import { parseObservableTerminalMessage, terminalEndedCloseCode, type ObservableTerminalProgressMessage } from "../shared/index.ts";
 import { attachObservableTerminal, type ObservableTerminalAttachOptions, type ObservableTerminalConnection } from "./attach.ts";
 
 interface TerminalSocket {
@@ -17,7 +17,8 @@ export function terminalSocketDimensions(url: URL) {
 
 /** Own one attachment per socket, including final-output ordering and detach. */
 export function createObservableTerminalSocket(options: ObservableTerminalAttachOptions, events: {
-  sessionExists?: () => Promise<boolean>;
+  /** Whether the terminal has ended for good, checked on connecting and whenever an attachment exits. */
+  ended?: () => Promise<boolean>;
   onProgress?: (progress: ObservableTerminalProgressMessage) => void;
   onClose?: () => void;
 } = {}) {
@@ -27,17 +28,17 @@ export function createObservableTerminalSocket(options: ObservableTerminalAttach
   return {
     async open(socket: TerminalSocket): Promise<void> {
       try {
-        if (events.sessionExists && !(await events.sessionExists())) {
-          if (!closed) socket.close(terminalSessionMissingCloseCode, "session-missing");
+        if (events.ended && await events.ended()) {
+          if (!closed) socket.close(terminalEndedCloseCode, "ended");
           return;
         }
         if (closed) return;
         terminal = attachObservableTerminal(options, {
           onData: (chunk) => socket.send(chunk),
           onExit: () => {
-            if (!events.sessionExists) { socket.close(); return; }
-            void events.sessionExists().then((exists) => {
-              if (!closed) socket.close(exists ? undefined : terminalSessionMissingCloseCode, exists ? undefined : "session-missing");
+            if (!events.ended) { socket.close(); return; }
+            void events.ended().then((ended) => {
+              if (!closed) socket.close(ended ? terminalEndedCloseCode : undefined, ended ? "ended" : undefined);
             // External workspace process failures can reject with arbitrary values.
             // oxlint-disable-next-line anti-slop/no-unknown-parameters
             }).catch((error: unknown) => {

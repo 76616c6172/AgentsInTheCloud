@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { AgentsInTheCloudCoreError, commandSignal, invalidArguments } from "@agents-in-the-cloud/core";
-import type { WorkspaceExecStart } from "@agents-in-the-cloud/workspace-helper";
+import type { WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
+import type { StartWorkspaceProcess, WorkspaceExecStart } from "@agents-in-the-cloud/workspace-helper";
+import { terminalEndedCloseCode } from "../shared/index.ts";
+import { createObservableTerminalSocket } from "./socket.ts";
 import { observableTerminalCols, observableTerminalEnvironment, observableTerminalHistoryLimit, observableTerminalRows } from "./constants.ts";
 import { stripTerminalControls } from "./text.ts";
 
@@ -26,6 +29,8 @@ export interface TerminalProcessStart {
   deadline?: number;
   /** Also keep the output as plain text in `textFile(id)`, which outlives `release`. */
   keepText?: boolean;
+  /** Viewers can type, and the terminal follows their size. Otherwise they only watch it, at its own size. */
+  interactive?: boolean;
 }
 
 export interface TerminalProcessOutput {
@@ -36,7 +41,7 @@ export interface TerminalProcessOutput {
 }
 
 export type TerminalProcessState =
-  | { state: "running" }
+  | { state: "running"; interactive: boolean }
   | {
     state: "exited";
     /** Null when the command never ran: it was stopped before it started, or its deadline had passed. */
@@ -74,6 +79,12 @@ export interface TerminalProcesses {
   release(id: string): Promise<void>;
   /** Where `keepText` keeps the plain-text output. */
   textFile(id: string): string;
+  /**
+   * A viewer's live connection to the process's terminal, sized `size` if the
+   * process is interactive. It closes with `terminalEndedCloseCode` once the
+   * process is no longer running, at once if it already isn't.
+   */
+  connect(id: string, size: { cols: number; rows: number }): WorkspaceServerSocketSession;
 }
 
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
@@ -168,8 +179,8 @@ printf 'none\\n' > "$dir/exit"
 
 const startScript = `root=$1 dir=$2 session=$3 digest=$4 cwd=$5 cols=$6 rows=$7 history=$8 deadline=$9
 shift 9
-keep=$1 pane=$2 hook=$3
-shift 3
+keep=$1 interactive=$2 pane=$3 hook=$4
+shift 4
 ${lockRoot}if ! mkdir "$dir" 2>/dev/null; then
   if [ "$(cat "$dir/request" 2>/dev/null)" = "$digest" ]; then exit 0; fi
   # Stopped before it started.
@@ -196,9 +207,16 @@ cat > "$dir/finish" <<'FINISH'
 ${finishScript}FINISH
 cat > "$dir/run" <<'WRAPPER'
 ${wrapperScript}WRAPPER
+# Interactive panes follow their viewer's size and pass escape sequences, like the clipboard's, through.
+if [ "$interactive" = 1 ]; then
+  touch "$dir/interactive"
+  viewers="set-option -p -t =$session: allow-passthrough on"
+else
+  viewers="set-option -t =$session: window-size manual"
+fi
 if ! pid=$(tmux -N new-session -d -P -F '#{pane_pid}' -s "$session" -x "$cols" -y "$rows" -c "$cwd" "$@" "$pane" \\; \\
   set-option -t "=$session:" status off \\; \\
-  set-option -t "=$session:" window-size manual \\; \\
+  $viewers \\; \\
   set-option -t "=$session:" history-limit "$history" \\; \\
   set-option -p -t "=$session:" remain-on-exit on \\; \\
   set-option -p -t "=$session:" remain-on-exit-format '' \\; \\
@@ -222,7 +240,7 @@ flag() { if [ -f "$dir/$1" ]; then echo 1; else echo 0; fi; }
 report() { printf 'exited %s %s %s\\n' "$(cat "$dir/exit")" "$(flag aborted)" "$(flag timed-out)"; cat "$dir/output"; exit 0; }
 if [ -f "$dir/exit" ]; then report; fi
 if [ ! -d "$dir" ]; then echo missing; exit 0; fi
-if tmux -N has-session -t "=$session" 2>/dev/null; then echo running; exit 0; fi
+if tmux -N has-session -t "=$session" 2>/dev/null; then echo "running $(flag interactive)"; exit 0; fi
 if [ -f "$dir/exit" ]; then report; fi
 echo lost
 `;
@@ -264,8 +282,8 @@ rm -rf "$dir"
 
 function requestDigest(options: TerminalProcessStart, cols: number, rows: number): string {
   const env = Object.entries(options.env ?? {}).sort(([a], [b]) => a.localeCompare(b));
-  const { command, cwd, deadline, keepText } = options;
-  return createHash("sha256").update(JSON.stringify({ command, cwd, env, cols, rows, deadline, keepText })).digest("hex");
+  const { command, cwd, deadline, keepText, interactive } = options;
+  return createHash("sha256").update(JSON.stringify({ command, cwd, env, cols, rows, deadline, keepText, interactive })).digest("hex");
 }
 
 function parseOutput(ansi: string): TerminalProcessOutput {
@@ -274,8 +292,12 @@ function parseOutput(ansi: string): TerminalProcessOutput {
   return { ansi: trimmed, text: stripTerminalControls(trimmed).replace(/\s+$/, "") };
 }
 
-/** Terminal processes in one place, such as a workspace, keeping each result until it is released. */
-export function createTerminalProcesses(options: { run: RunTerminalProcessCommand; root: string }): TerminalProcesses {
+/**
+ * Terminal processes in one place, such as a workspace, keeping each result until
+ * it is released. `run` runs the short commands that manage them, and `start`
+ * the terminal clients that viewers connect through.
+ */
+export function createTerminalProcesses(options: { run: RunTerminalProcessCommand; start: StartWorkspaceProcess; root: string }): TerminalProcesses {
   // Paths appear unquoted in tmux commands, such as the pane-died hook.
   if (!rootPattern.test(options.root)) throw invalidArguments(`Invalid terminal processes root: ${options.root}`);
   const directory = (id: string): string => {
@@ -295,7 +317,8 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
     const stdout = await sh(stateScript, [directory(id), session]);
     const newline = stdout.indexOf("\n");
     const header = newline < 0 ? stdout : stdout.slice(0, newline);
-    if (header === "running") return { state: "running" };
+    const running = /^running ([01])$/.exec(header);
+    if (running) return { state: "running", interactive: running[1] === "1" };
     if (header === "missing" || header === "lost") return { state: header };
     const exited = /^exited (\d+|none) ([01]) ([01])$/.exec(header);
     if (!exited) throw new AgentsInTheCloudCoreError("terminal_process_failed", `Unexpected terminal process state: ${header}`);
@@ -321,7 +344,7 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
       await sh(startScript, [
         options.root, dir, session, requestDigest(start, cols, rows), start.cwd,
         String(cols), String(rows), String(observableTerminalHistoryLimit), start.deadline === undefined ? "" : String(start.deadline),
-        start.keepText ? "1" : "0", pane, hook, ...env,
+        start.keepText ? "1" : "0", start.interactive ? "1" : "0", pane, hook, ...env,
       ], start.command);
     },
     state,
@@ -343,6 +366,29 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
     },
     textFile(id) {
       return `${directory(id)}.txt`;
+    },
+    connect(id, size) {
+      const ended = async () => (await state(id)).state !== "running";
+      let viewer: ReturnType<typeof createObservableTerminalSocket> | undefined;
+      let closed = false;
+      return {
+        async open(socket) {
+          const current = await state(id);
+          if (closed) return;
+          if (current.state !== "running") { socket.close(terminalEndedCloseCode, "ended"); return; }
+          // Whether viewers can type and resize belongs to the process, not to the viewer.
+          viewer = createObservableTerminalSocket({
+            start: options.start, session: terminalProcessSession(id), ...size,
+            user: "agents-in-the-cloud", workdir: "/", requireExistingServer: true, readonly: !current.interactive,
+          }, { ended });
+          await viewer.open(socket);
+        },
+        message(socket, message) { viewer?.message(socket, message); },
+        close() {
+          closed = true;
+          viewer?.close();
+        },
+      };
     },
   };
 }

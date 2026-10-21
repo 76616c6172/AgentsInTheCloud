@@ -74,46 +74,46 @@ test("attachment failure delivers its diagnostic before closing", () => scenario
   expect(detachCount).toBe(0);
 `));
 
-test("missing execution closes with the ended code without attaching or printing errors", () => scenario(`
+test("an ended terminal closes with the ended code without attaching or printing errors", () => scenario(`
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket(options, { sessionExists: async () => false });
+  const connection = createObservableTerminalSocket(options, { ended: async () => true });
   await connection.open(socket);
   expect(callbacks).toBeUndefined();
   expect(output).toEqual([]);
-  expect(closed).toEqual([[4404, "session-missing"]]);
+  expect(closed).toEqual([[4404, "ended"]]);
 `));
 
-test("execution removed while attached delivers final output then signals ended", () => scenario(`
-  let exists = true;
+test("a terminal that ends while attached delivers final output then signals ended", () => scenario(`
+  let ended = false;
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket(options, { sessionExists: async () => exists });
+  const connection = createObservableTerminalSocket(options, { ended: async () => ended });
   await connection.open(socket);
   callbacks.onData(new TextEncoder().encode("last output"));
-  exists = false;
+  ended = true;
   callbacks.onExit(0);
   await Bun.sleep(0);
   expect(output).toEqual(["last output"]);
-  expect(closed).toEqual([[4404, "session-missing"]]);
+  expect(closed).toEqual([[4404, "ended"]]);
 `));
 
-test("attachment exit with an existing execution remains reconnectable", () => scenario(`
+test("an attachment that exits while the terminal goes on remains reconnectable", () => scenario(`
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket(options, { sessionExists: async () => true });
+  const connection = createObservableTerminalSocket(options, { ended: async () => false });
   await connection.open(socket);
   callbacks.onExit(1);
   await Bun.sleep(0);
   expect(closed).toEqual([[undefined, undefined]]);
 `));
 
-test("disconnect during the existence check never attaches a leaked client", () => scenario(`
-  let resolveExists;
-  const connection = createObservableTerminalSocket(options, { sessionExists: () => new Promise(resolve => resolveExists = resolve) });
+test("disconnecting during the ended check never attaches a leaked client", () => scenario(`
+  let resolveEnded;
+  const connection = createObservableTerminalSocket(options, { ended: () => new Promise(resolve => resolveEnded = resolve) });
   const opening = connection.open(socket);
   connection.close();
-  resolveExists(true);
+  resolveEnded(false);
   await opening;
   expect(callbacks).toBeUndefined();
   expect(output).toEqual([]);

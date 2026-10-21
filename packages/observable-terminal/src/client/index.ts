@@ -2,7 +2,7 @@
 
 import type { TerminalBufferRow, TerminalTheme } from "@gespenst/core";
 import { copyTextToClipboard, errorMessage } from "@agents-in-the-cloud/shared";
-import { encodeObservableTerminalMessage, terminalSessionMissingCloseCode } from "../shared/index.ts";
+import { encodeObservableTerminalMessage, terminalEndedCloseCode } from "../shared/index.ts";
 import { terminalLinkAt, type TerminalLink } from "./links.ts";
 
 declare const ATELIER_GHOSTTY_WASM_URL: string;
@@ -423,7 +423,7 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
       socket.onclose = (event) => {
         if (ws !== socket || disposed) return;
         ws = undefined;
-        if (event.code === terminalSessionMissingCloseCode) {
+        if (event.code === terminalEndedCloseCode) {
           ended = true;
           cancelRetry();
           if (terminalInput) { terminalInput.readOnly = true; terminalInput.blur(); }

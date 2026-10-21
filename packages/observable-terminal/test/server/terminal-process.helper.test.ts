@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildGoProgram } from "@agents-in-the-cloud/core";
-import { closeWorkspaceHelper, runWorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
+import { closeWorkspaceHelper, runWorkspaceProcess, startWorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
 import { describeTerminalProcesses } from "./terminal-process-scenarios.ts";
 
 /** The same scenarios through a real helper, which runs as root and starts processes as the agent's user. */
@@ -28,6 +28,7 @@ describeTerminalProcesses("terminal processes through the workspace helper", asy
       const result = await runWorkspaceProcess(socket, { ...start, env: { ...start.env, TMUX_TMPDIR: tmuxDirectory } }, options);
       return { ...result, stderr: result.stderr.toString() };
     },
+    start: (start) => startWorkspaceProcess(socket, { ...start, env: { ...start.env, TMUX_TMPDIR: tmuxDirectory } }),
     async close() {
       closeWorkspaceHelper(socket);
       helper.kill();

@@ -2,12 +2,15 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { StartWorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
+import { terminalEndedCloseCode } from "../../src/shared/index.ts";
 import { createTerminalProcesses, terminalProcessSession, type RunTerminalProcessCommand, type TerminalProcesses, type TerminalProcessState } from "../../src/server/terminal-process.ts";
 import { startPrivateTmux } from "../support/local-terminal-processes.ts";
 
 /** Where the processes run. Every command it runs must reach the tmux server in `tmuxDirectory`. */
 export interface TerminalProcessPlace {
   run: RunTerminalProcessCommand;
+  start: StartWorkspaceProcess;
   close(): Promise<void>;
 }
 
@@ -15,6 +18,34 @@ export interface TerminalProcessPlace {
  * The rejection's message. Awaiting a helper call through `expect(...).rejects`
  * stalls its gRPC stream under bun test, so these await the promise directly.
  */
+/** A viewer's end of a live connection, collecting what it is sent. */
+function viewer() {
+  const decoder = new TextDecoder();
+  let output = "";
+  const waiting: Array<{ text: string; resolve: () => void }> = [];
+  const closed = Promise.withResolvers<{ code?: number; reason?: string }>();
+  const attached = Promise.withResolvers<void>();
+  return {
+    socket: {
+      send(message: string | Uint8Array) {
+        output += message instanceof Uint8Array ? decoder.decode(message, { stream: true }) : message;
+        attached.resolve();
+        for (const wait of waiting) if (output.includes(wait.text)) wait.resolve();
+      },
+      close(code?: number, reason?: string) { closed.resolve({ code, reason }); },
+    },
+    closed: closed.promise,
+    /** Resolves once tmux has drawn the screen for the viewer. */
+    attached: attached.promise,
+    output: () => output,
+    /** Resolves once the viewer has been sent `text`. */
+    sees: (text: string) => new Promise<void>((resolve) => {
+      if (output.includes(text)) resolve();
+      else waiting.push({ text, resolve });
+    }),
+  };
+}
+
 async function rejection(promise: Promise<unknown>): Promise<string> {
   try {
     await promise;
@@ -38,7 +69,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       return { exitCode: result.exitCode, stdout: result.stdout.toString() };
     }
 
-    function start(command: string, options: { env?: Record<string, string>; cwd?: string; cols?: number; rows?: number; deadline?: number; keepText?: boolean } = {}) {
+    function start(command: string, options: { env?: Record<string, string>; cwd?: string; cols?: number; rows?: number; deadline?: number; keepText?: boolean; interactive?: boolean } = {}) {
       const id = crypto.randomUUID();
       started.push(id);
       return { id, started: processes.start({ id, command, cwd: options.cwd ?? directory, ...options }) };
@@ -49,7 +80,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       const tmuxDirectory = join(directory, "tmux");
       place = await open(tmuxDirectory);
       tmuxServer = await startPrivateTmux(place.run, tmuxDirectory);
-      processes = createTerminalProcesses({ run: place.run, root: join(directory, "processes") });
+      processes = createTerminalProcesses({ run: place.run, start: place.start, root: join(directory, "processes") });
       // Opening a place may build it first.
     }, 120_000);
 
@@ -107,7 +138,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
     test("reports a running process, in the tmux session named after it", async () => {
       const { id, started } = start("sleep 30");
       await started;
-      expect(await processes.state(id)).toEqual({ state: "running" });
+      expect(await processes.state(id)).toEqual({ state: "running", interactive: false });
       expect((await tmux("has-session", "-t", `=${terminalProcessSession(id)}`)).exitCode).toBe(0);
     });
 
@@ -247,6 +278,49 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       await processes.start({ id, command: "sleep 30", cwd: directory });
       expect(await processes.state(id)).toEqual({ state: "lost" });
       expect(await rejection(processes.waitForExit(id))).toBe(`Terminal process ${id} is lost`);
+    });
+
+    test("a viewer watches a process at its own size, without typing, until it ends", async () => {
+      const proceed = `proceed-${crypto.randomUUID()}`;
+      const { id, started } = start(`echo watching; tmux wait-for ${proceed}; echo finished`);
+      await started;
+      const watcher = viewer();
+      const connection = processes.connect(id, { cols: 80, rows: 24 });
+      await connection.open!(watcher.socket);
+      await watcher.sees("watching");
+      const session = `=${terminalProcessSession(id)}`;
+      expect((await tmux("list-clients", "-t", session, "-F", "#{client_readonly}")).stdout.trim()).toBe("1");
+      expect((await tmux("display-message", "-p", "-t", `${session}:`, "#{window_width}x#{window_height}")).stdout.trim()).toBe("120x30");
+      await tmux("wait-for", "-S", proceed);
+      expect(await watcher.closed).toEqual({ code: terminalEndedCloseCode, reason: "ended" });
+      expect(watcher.output()).toContain("finished");
+      connection.close!(watcher.socket);
+    });
+
+    test("a viewer types into an interactive process, which takes the viewer's size", async () => {
+      const { id, started } = start("read -r line; echo \"got $line\"", { interactive: true });
+      await started;
+      const typist = viewer();
+      const connection = processes.connect(id, { cols: 100, rows: 20 });
+      await connection.open!(typist.socket);
+      await typist.attached;
+      expect((await tmux("display-message", "-p", "-t", `=${terminalProcessSession(id)}:`, "#{window_width}x#{window_height}")).stdout.trim()).toBe("100x20");
+      connection.message!(typist.socket, "hello\r");
+      await typist.sees("got hello");
+      expect(await typist.closed).toEqual({ code: terminalEndedCloseCode, reason: "ended" });
+      connection.close!(typist.socket);
+    });
+
+    test("connecting to a process that isn't running ends at once", async () => {
+      const { id, started } = start("echo done");
+      await started;
+      await processes.waitForExit(id);
+      for (const target of [id, crypto.randomUUID()]) {
+        const latecomer = viewer();
+        await processes.connect(target, { cols: 80, rows: 24 }).open!(latecomer.socket);
+        expect(await latecomer.closed).toEqual({ code: terminalEndedCloseCode, reason: "ended" });
+        expect(latecomer.output()).toBe("");
+      }
     });
 
     test("an unknown process is missing", async () => {

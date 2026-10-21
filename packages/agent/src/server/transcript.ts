@@ -55,7 +55,7 @@ const toolViewDetailsSchema = Type.Object({
   exitCode: Type.Optional(Type.Number()),
   patch: Type.Optional(Type.String()),
   displayAnsi: Type.Optional(Type.String()),
-  tmuxSession: Type.Optional(Type.String()),
+  terminalProcessId: Type.Optional(Type.String()),
   workspaceId: Type.Optional(Type.String()),
 });
 
@@ -79,7 +79,8 @@ export interface ToolView {
   status: "streaming" | "running" | "ok" | "error";
   resultText?: string;
   resultImages?: SessionImageRef[];
-  tmuxSession?: string;
+  /** The terminal process a running bash call can be watched in. */
+  terminalProcessId?: string;
   canAbort?: boolean;
   durationMs?: number;
   details?: ToolViewDetails;

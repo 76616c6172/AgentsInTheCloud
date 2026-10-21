@@ -14,6 +14,7 @@ import { parseDiffFromFile, processPatch, type FileDiffMetadata } from "@pierre/
 import { diffStats, type DiffOperation } from "./diff.ts";
 import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay, highlightedBashCommandHtml } from "./embedded-code.ts";
 import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
+import { terminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
 import { isBashTool, formatCost, formatDuration, formatTokens, toolOutcomeLabel, type ScriptFileView, type ToolView } from "./transcript.ts";
 import { agentPath, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, fullscreenAttributes, transcriptRowContent } from "./render-markup.ts";
@@ -249,7 +250,7 @@ function renderBashDetail(ctx: AgentRenderContext, key: string, tool: ToolView, 
   if (tool.status === "streaming") return `<div class="agent-tool-detail">${commandHtml}</div>`;
   if (tool.status === "running") {
     // The viewer owns its generated DOM and the awaiting-output visibility state.
-    const terminal = tool.tmuxSession ? `<section id="${domId(ids.item(ctx, key), "terminal", ctx.workspaceId, tool.tmuxSession)}" data-turbo-permanent class="agent-tool-region agent-bash-output agent-terminal-awaiting-output"><div class="agent-region-header">Live terminal</div><div class="agent-terminal-viewport"><div class="agent-tool-term observable-terminal-host" data-controller="agent-term" data-agent-term-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-term-session-value="${escapeHtml(tool.tmuxSession)}"></div></div></section>` : "";
+    const terminal = tool.terminalProcessId ? `<section id="${domId(ids.item(ctx, key), "terminal", ctx.workspaceId, tool.terminalProcessId)}" data-turbo-permanent class="agent-tool-region agent-bash-output agent-terminal-awaiting-output"><div class="agent-region-header">Live terminal</div><div class="agent-terminal-viewport"><div class="agent-tool-term observable-terminal-host" data-controller="agent-term" data-agent-term-url-value="${escapeHtml(terminalProcessSocketPath(ctx.workspaceId, tool.terminalProcessId))}"></div></div></section>` : "";
     return `<div class="agent-tool-detail agent-bash-detail">${commandHtml}${terminal}</div>`;
   }
   return `<div class="agent-tool-detail agent-bash-detail">${commandHtml}${renderBashResultViews(ctx, key, tool, count)}</div>`;
