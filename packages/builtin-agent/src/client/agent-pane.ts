@@ -34,7 +34,7 @@ export function agentConnectionShouldRun(logicallyVisible: boolean, documentVisi
 export function createAgentPaneController(Controller: StimulusControllerConstructor) {
   return class AgentPaneController extends Controller implements AgentPaneControllerInstance {
     static values = { workspaceId: String, agentId: String, moduleChannel: String };
-    static targets = ["transcript", "transcriptContent", "transcriptEnd", "input", "form", "sendStop"];
+    static targets = ["transcript", "transcriptContent", "transcriptEnd", "input", "form", "sendStop", "queuedSteer"];
     declare readonly element: HTMLElement;
     declare readonly application: StimulusApplication;
     declare readonly workspaceIdValue: string;
@@ -54,7 +54,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     private hasBeenReady = false;
     private composerMutationObserver?: MutationObserver;
     private connected = false;
-    private submittedComposer?: { text: string; attachmentIds: string[]; requestId: string };
+    private submittedComposer?: { text: string; attachmentIds: string[]; requestId: string; busy: boolean };
     private steerWhenAdmitted = false;
     private sentSubmissionId?: string;
     private readonly identifySubmission = (event: FormDataEvent): void => {
@@ -114,6 +114,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         text: submittedText,
         attachmentIds: body.getAll("attachment").map(String),
         requestId: String(body.get("requestId")),
+        busy: this.busy,
       };
       this.scrollToTranscriptEnd();
     };
@@ -396,16 +397,22 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       }
       this.element.dispatchEvent(new Event("agent-composer:sent"));
       const submissionId = event.detail.fetchResponse?.response.headers.get("x-agents-in-the-cloud-submission-id") ?? undefined;
-      this.sentSubmissionId = steer ? undefined : submissionId;
+      // Only input sent while the agent works is queued, and its row may already be shown.
+      const queued = submission?.busy && submissionId && !this.transcriptTarget.querySelector(`[data-agent-queued-steer="${CSS.escape(submissionId)}"]`) ? submissionId : undefined;
+      this.sentSubmissionId = steer ? undefined : queued;
       if (steer && submissionId) void this.steerQueuedInput(submissionId);
     }
 
+    /** Until the follow-up just sent appears, the newest one on screen is an older one. */
     private steerNewestFollowUp(): void {
       const sent = this.sentSubmissionId;
       this.sentSubmissionId = undefined;
-      // Until the follow-up just sent appears, the newest one on screen is an older one.
-      if (sent && !this.transcriptTarget.querySelector(`[data-agent-queued-steer="${CSS.escape(sent)}"]`)) void this.steerQueuedInput(sent);
+      if (sent) void this.steerQueuedInput(sent);
       else [...this.transcriptTarget.querySelectorAll<HTMLButtonElement>("button[data-agent-queued-steer]")].at(-1)?.click();
+    }
+
+    queuedSteerTargetConnected(button: HTMLButtonElement): void {
+      if (button.dataset.agentQueuedSteer === this.sentSubmissionId) this.sentSubmissionId = undefined;
     }
 
     private async steerQueuedInput(submissionId: string): Promise<void> {
