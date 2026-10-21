@@ -10,6 +10,9 @@ interface TranscriptGeometry {
   latestTop: number;
 }
 
+/** Transcript content dispatches this, bubbling, when the reader expands it in place. */
+export const transcriptExpandEvent = "agent-transcript:expand";
+
 /** Show the end of the answer, scrolling back only as far as its prompt requires.
  * A prompt taller than the viewport opens at its beginning instead. */
 export function latestExchangeTop(transcript: HTMLElement, content: HTMLElement, bottomTop: number): number {
@@ -65,6 +68,8 @@ export class TranscriptNavigation {
     transcript.addEventListener("touchcancel", this.touchEnded, { passive: true });
     transcript.addEventListener("keydown", this.keydown);
     transcript.addEventListener("pointerdown", this.pointerDown);
+    transcript.addEventListener("click", this.clicked);
+    transcript.addEventListener(transcriptExpandEvent, this.expanded);
     transcript.addEventListener("scrollbar:drag-start", this.scrollbarDrag);
     window.visualViewport?.addEventListener("resize", this.layoutChanged);
     document.addEventListener(layoutBeforeEvent, this.layoutBefore);
@@ -375,6 +380,22 @@ export class TranscriptNavigation {
 
   private readonly scrollbarDrag = (): void => this.pause();
 
+  // Expanding content in place, like truncated thinking, is reading it.
+  private readonly expanded = (): void => this.pause();
+
+  // Opening a disclosure means reading it: keep it where it is rather than
+  // following its newly revealed content to the end. Controls inside a summary
+  // and cancelled clicks don't open it.
+  private readonly clicked = (event: MouseEvent): void => {
+    if (event.defaultPrevented || !(event.target instanceof Element)) return;
+    const summary = event.target.closest("summary");
+    const details = summary?.parentElement;
+    if (!(details instanceof HTMLDetailsElement) || details.open || !this.content.contains(details)) return;
+    const control = event.target.closest("a, button, input, select, textarea");
+    if (control && summary!.contains(control)) return;
+    this.pause();
+  };
+
   private readonly pointerDown = (event: PointerEvent): void => {
     if (event.pointerType !== "mouse" || event.button !== 0) return;
     if (event.target !== this.transcript && event.target !== this.content && event.target !== this.content.parentElement) return;
@@ -398,6 +419,8 @@ export class TranscriptNavigation {
     this.transcript.removeEventListener("touchcancel", this.touchEnded);
     this.transcript.removeEventListener("keydown", this.keydown);
     this.transcript.removeEventListener("pointerdown", this.pointerDown);
+    this.transcript.removeEventListener("click", this.clicked);
+    this.transcript.removeEventListener(transcriptExpandEvent, this.expanded);
     this.transcript.removeEventListener("scrollbar:drag-start", this.scrollbarDrag);
     window.visualViewport?.removeEventListener("resize", this.layoutChanged);
     document.removeEventListener(layoutBeforeEvent, this.layoutBefore);
