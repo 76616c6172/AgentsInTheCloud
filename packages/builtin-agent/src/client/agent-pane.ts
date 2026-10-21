@@ -349,6 +349,8 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     async sendPrompt(event: CustomEvent<AgentComposerSendPromptDetail>): Promise<void> {
       const body = new FormData();
       body.set("text", event.detail.text);
+      // Like a typed prompt: while the agent works, it waits for the turn to end.
+      body.set("mode", "send");
       body.set("requestId", crypto.randomUUID());
       body.set("attachmentDraft", String(new FormData(this.formTarget).get("attachmentDraft")));
       const response = await fetch(this.formTarget.action, { method: "POST", body, headers: { Accept: "text/vnd.turbo-stream.html" } });
