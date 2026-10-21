@@ -8,7 +8,7 @@ import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
 import { agentPath, backgroundActivityPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, detailTableHtml, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow, transcriptTargetLink } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";
-import { formatDuration, formatTokens, unfencedJson, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
+import { formatDuration, formatTokens, unfencedJson, type QueuedInput, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
 
 interface AgentToolDefinitionView {
   name: string;
@@ -47,18 +47,22 @@ export function renderModelContextDetailFrame(ctx: AgentRenderContext, modelCont
 
 function renderUserMessage(ctx: AgentRenderContext, user: Extract<TranscriptItem, { type: "user" }>): string {
   const images = user.images.length ? `<div class="agent-user-attachments">${user.images.map((image) => `<img${fullscreenAttributes("attachment", "media")} src="${escapeHtml(sessionImageUrl(ctx, image))}" alt="attachment" loading="lazy">`).join("")}</div>` : "";
-  const label = user.queued?.mode === "followUp" ? "Follow-up · after this turn"
+  const label = user.queued?.stranded ? "Not sent · the turn ended early"
+    : user.queued?.mode === "followUp" ? "Follow-up · after this turn"
     : user.queued ? "Steering · after this step"
     : user.pending ? "Queued" : user.steering ? "Steering" : "";
   const actions = user.queued && !ctx.readOnly ? renderQueuedInputActions(ctx, user.key, user.queued) : "";
   return transcriptRow(`<div class="agent-user" data-agent-user-text="${escapeHtml(user.text)}"><div class="agent-user-bubble markdown">${label ? `<div class="agent-user-label"><span>${label}</span>${actions}</div>` : ""}${markdown(ctx, user.text)}${images}</div></div>`);
 }
 
-/** A follow-up can be promoted to steering; ⌘/Ctrl+Enter in an empty composer promotes the newest one. */
-function renderQueuedInputActions(ctx: AgentRenderContext, key: string, queued: { submissionId: string; mode: "steer" | "followUp" }): string {
+/**
+ * A follow-up can be promoted to steering, and input a failed turn left behind can be sent now;
+ * ⌘/Ctrl+Enter in an empty composer does that to the newest one.
+ */
+function renderQueuedInputActions(ctx: AgentRenderContext, key: string, queued: QueuedInput): string {
   const path = (action: string) => escapeHtml(agentPath(ctx, `/queued-inputs/${encodeURIComponent(queued.submissionId)}/${action}`));
-  const steer = queued.mode === "followUp"
-    ? `<form method="post" action="${path("steer")}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Steer" }, attributesHtml: 'data-agent-queued-steer aria-keyshortcuts="Meta+Enter Control+Enter"' })}</form>` : "";
+  const steer = queued.mode === "followUp" || queued.stranded
+    ? `<form method="post" action="${path("steer")}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: queued.stranded ? "Send now" : "Steer" }, attributesHtml: 'data-agent-queued-steer aria-keyshortcuts="Meta+Enter Control+Enter"' })}</form>` : "";
   const cancel = `<form method="post" action="${path("cancel")}">${destructiveConfirmationHtml({
     id: domId(ids.item(ctx, key), "cancel"),
     trigger: { type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Remove queued message" } },

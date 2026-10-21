@@ -8,6 +8,7 @@ import { recordDurableSubscriptionActivity } from "./durable-accounting.ts";
 import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
 import { prepareWorkspaceRuntime } from "@agents-in-the-cloud/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
+import { Value } from "typebox/value";
 import { contentText, getSupportedThinkingLevels, type SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, ProviderDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
 import { createDurableHarnessOptions, prepareDurableAgent } from "./durable-assembly.ts";
@@ -478,14 +479,30 @@ export async function openDurableAgentRuntime(
           return input ? await harness.abortSubmission(input.id, context, conversation.id) === "aborted" : false;
         });
       },
-      /** Promote a queued follow-up to steering in place, keeping its submission and queue position. */
+      /**
+       * Promote a queued follow-up to steering in place, keeping its submission and queue position. A turn that ends
+       * in an error leaves its queue behind on an idle agent; there, the input is sent again now, which starts a run.
+       */
       steerQueuedInput(submissionId: string) {
-        return command(() => harness.commit(async tx => {
-          const input = (await tx.doc(InboxDoc, conversation.id)).items.find(item => String(item.id) === submissionId);
-          if (input?.mode !== "followUp") return false;
-          input.mode = "steer";
+        return command(async () => {
+          const outcome = await harness.commit(async tx => {
+            const input = (await tx.doc(InboxDoc, conversation.id)).items.find(item => String(item.id) === submissionId);
+            if (!input || input.mode === "write") return { kind: "gone" } as const;
+            // Drafts are only readable inside their commit.
+            if (!(await tx.doc(LiveDoc, conversation.id)).run) return { kind: "stranded", input: Value.Clone({ id: input.id, content: input.content, entry: input.entry }) } as const;
+            if (input.mode !== "followUp") return { kind: "gone" } as const;
+            input.mode = "steer";
+            return { kind: "steered" } as const;
+          }, context);
+          if (outcome.kind !== "stranded") return outcome.kind === "steered";
+          const stranded = outcome.input;
+          await load.validateModel((await conversation.agent(context)).model);
+          await readyForExecution();
+          assertAdmission();
+          if (await harness.abortSubmission(stranded.id, context, conversation.id) !== "aborted") return false;
+          await conversation.submit({ type: "input", requestId: `steer-${submissionId}`, content: stranded.content, entry: stranded.entry, whenBusy: "steer" }, context);
           return true;
-        }, context));
+        });
       },
       /** Cancel one live tool and its owned work, without withdrawing the turn or queued input. */
       abortTool(callId: string, note?: string) {

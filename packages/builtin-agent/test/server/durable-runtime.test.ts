@@ -1128,3 +1128,39 @@ test("cancelling one queued input leaves the active turn and other steering inta
   expect(await agent.cancelQueuedInput(String(kept.id))).toBe(false);
   expect(JSON.stringify((await agent.context(context)).messages)).not.toContain("Remove me");
 });
+
+test("a follow-up left behind by a turn that failed is shown as not sent, and Steer sends it", async () => {
+  const { runtime, faux, registry } = await setup();
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  registry.install(defineExtension({ name: "blocking-step-fail", tools: [defineTool({
+    name: "block", description: "Wait", parameters: Type.Object({}),
+    async execute() {
+      started.resolve();
+      await release.promise;
+      return { output: [{ type: "text", text: "Step done" }] };
+    },
+  })] }));
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("block", {})], { stopReason: "toolUse" }),
+    fauxAssistantMessage("", { stopReason: "error", errorMessage: "Bad request: invalid" }),
+    fauxAssistantMessage("Would answer the follow-up"),
+  ]);
+  const agent = await runtime.agent(record);
+  const original = await agent.submit({ requestId: "original", text: "Start" });
+  await started.promise;
+  const followUp = await agent.submit({ requestId: "later", text: "Later please", whenBusy: "followUp" });
+  release.resolve();
+  expect((await original.wait(context)).status).toBe("unanswered");
+  const watch = await agent.watch(context);
+  const items = projectDurableTranscript(watch.value);
+  await watch.stop();
+  expect(items.filter(item => item.type === "user" && item.queued).map(item => item.type === "user" && item.queued)).toEqual([{ submissionId: String(followUp.id), mode: "followUp", stranded: true }]);
+  expect(await agent.steerQueuedInput(String(followUp.id))).toBe(true);
+  expect((await followUp.status(context)).status).toBe("unanswered");
+  const resent = await agent.submit({ requestId: `steer-${followUp.id}`, text: "Must not send twice" });
+  expect((await resent.wait(context)).status).toBe("done");
+  expect(faux.state.callCount).toBe(3);
+  expect(JSON.stringify((await agent.context(context)).messages)).toContain("Later please");
+  expect(JSON.stringify((await agent.context(context)).messages)).not.toContain("Must not send twice");
+});

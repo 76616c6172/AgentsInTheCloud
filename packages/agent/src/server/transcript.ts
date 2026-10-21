@@ -121,8 +121,11 @@ export type WorkingTranscriptItem = TranscriptItemBase & {
   items: TranscriptItem[];
 };
 
+/** Input waiting in the inbox. `stranded` when no run will pick it up, as after a turn that ended in an error. */
+export type QueuedInput = { submissionId: string; mode: "steer" | "followUp"; stranded: boolean };
+
 export type TranscriptItem =
-  | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; pending?: boolean; queued?: { submissionId: string; mode: "steer" | "followUp" } })
+  | (TranscriptItemBase & { type: "user"; text: string; images: SessionImageRef[]; steering?: boolean; pending?: boolean; queued?: QueuedInput })
   | (TranscriptItemBase & { type: "inherited-context"; source: string; messageCount: number; items: TranscriptItem[] })
   | WorkingTranscriptItem
   | (TranscriptItemBase & { type: "thinking"; text: string; live?: boolean })
