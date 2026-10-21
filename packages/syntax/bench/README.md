@@ -44,7 +44,7 @@ bun packages/syntax/bench/child.ts syntax constructor.js 0
 | bash | Embedded heredoc detection and highlighting via `embeddedBashCommand` |
 | review | Pierre `DiffHunksRenderer` with `changesDiffOptions` |
 | tool-diff | Pierre `DiffHunksRenderer` with `toolDiffOptions` |
-| editor | CodeMirror language selection, full syntax parsing and `highlightTree`, without a DOM |
+| editor | Pierre `FileRenderer` with the file editor's highlighter options, without a DOM |
 
 Every path uses all five captured fixtures. Full cases run three times in a
 fresh process: first use and two repeats. Stream cases use CSS and view.js with
@@ -57,7 +57,7 @@ server lifecycle tests separately exercise actual delta coalescing.
 There are no UI, markup, or screenshot assertions. Function spies count calls
 while always executing the real syntax implementation. No production interface
 or behavior is changed for testing. The counters cover the shared server
-highlighter; Pierre and CodeMirror are separate implementations and report zero
+highlighter; Pierre is a separate implementation and reports zero
 server-highlight calls, not zero tokenization work.
 
 Counts describe public highlighter requests and characters submitted, not internal
@@ -88,7 +88,7 @@ loop blocking. These tests execute server-side under Bun, not inside a browser.
 Server highlighting and Pierre both use Highlights, a WebAssembly lexer that
 handles incomplete prefixes and needs no warm-up. It is fast enough that
 highlighted fragments are not cached; whole Markdown diffs still are. The file
-editor uses CodeMirror's Lezer parsers.
+editor renders through Pierre too.
 
 Tool arguments accumulate immediately, but rendering is coalesced to one flush
 per 50 ms while subscribed, slowing to 500 ms once accumulated arguments reach
