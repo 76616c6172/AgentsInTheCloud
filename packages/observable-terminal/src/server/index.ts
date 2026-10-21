@@ -21,6 +21,15 @@ export {
 export {
   runHostObservableCommand,
 } from "./host-command.ts";
+export {
+  createTerminalProcesses,
+  terminalProcessSession,
+  type RunTerminalProcessCommand,
+  type TerminalProcessOutput,
+  type TerminalProcesses,
+  type TerminalProcessStart,
+  type TerminalProcessState,
+} from "./terminal-process.ts";
 export { createObservableTerminalSocket, terminalSocketDimensions } from "./socket.ts";
 export { renderTerminalConnectionStatus } from "./status.ts";
 

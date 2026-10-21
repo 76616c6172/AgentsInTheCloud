@@ -22,6 +22,7 @@ export type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPla
 export { checkFileInWorkspace, readFileInWorkspace, runInWorkspace, startInWorkspace, writeFileInWorkspace } from "./helper.ts";
 export { WorkspaceHelperError, WorkspaceHelperStatus } from "@agents-in-the-cloud/workspace-helper";
 export { exitStatus as workspaceExitStatus } from "@agents-in-the-cloud/workspace-helper";
+export { workspaceTerminalProcesses } from "./terminal-processes.ts";
 export { createWorkspaceMetadataState, type WorkspaceMetadataState } from "./metadata-state.ts";
 export { ensureHostInotifyLimit } from "./host-inotify.ts";
 export { registerSeededPiAuth } from "./seed-config.ts";
