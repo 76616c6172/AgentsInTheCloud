@@ -6,6 +6,7 @@ import { agentComposerPrimaryAction, agentComposerTextStorageKey, PromptHistoryN
 import { TranscriptNavigation } from "@agents-in-the-cloud/agent/client/transcript-navigation";
 import { transcriptTargetSelector } from "./turn-controller.ts";
 
+const steerResponseSchema = Type.Object({ input: Type.Object({ steered: Type.Boolean() }) });
 const admissionSchema = Type.Object({ payload: Type.String(), requestId: Type.String({ pattern: "^[a-zA-Z0-9_-]{1,128}$" }) });
 
 type TurboSubmitEndEvent = CustomEvent<{ success: boolean; fetchResponse?: { response: Response } }>;
@@ -407,18 +408,23 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     private steerNewestFollowUp(): void {
       const sent = this.sentSubmissionId;
       this.sentSubmissionId = undefined;
-      if (sent) void this.steerQueuedInput(sent);
-      else [...this.transcriptTarget.querySelectorAll<HTMLButtonElement>("button[data-agent-queued-steer]")].at(-1)?.click();
+      if (sent) void this.steerQueuedInput(sent).then(steered => { if (!steered) this.clickNewestSteer(); });
+      else this.clickNewestSteer();
+    }
+
+    private clickNewestSteer(): void {
+      [...this.transcriptTarget.querySelectorAll<HTMLButtonElement>("button[data-agent-queued-steer]")].at(-1)?.click();
     }
 
     queuedSteerTargetConnected(button: HTMLButtonElement): void {
       if (button.dataset.agentQueuedSteer === this.sentSubmissionId) this.sentSubmissionId = undefined;
     }
 
-    private async steerQueuedInput(submissionId: string): Promise<void> {
-      const response = await fetch(new URL(`queued-inputs/${encodeURIComponent(submissionId)}/steer`, this.formTarget.action), { method: "POST", headers: { Accept: "text/vnd.turbo-stream.html" } });
+    /** Whether it was still a queued follow-up; the live view shows the change. */
+    private async steerQueuedInput(submissionId: string): Promise<boolean> {
+      const response = await fetch(new URL(`queued-inputs/${encodeURIComponent(submissionId)}/steer`, this.formTarget.action), { method: "POST", headers: { Accept: "application/json" } });
       if (!response.ok) throw new Error(`Could not steer the follow-up: HTTP ${response.status}`);
-      window.Turbo!.renderStreamMessage(await response.text());
+      return Value.Parse(steerResponseSchema, await response.json()).input.steered;
     }
   };
 }
