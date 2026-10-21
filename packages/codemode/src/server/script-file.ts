@@ -15,22 +15,29 @@ const ScriptFileDoc = defineDoc<{ file?: ScriptFileView }>({
 /** The script file a code mode call ran, by the call's ID, for the transcript; the task's document is gone once it ends. */
 export const codemodeScriptFileEntry = defineEntry<{ callId: string } & ScriptFileView>("agents-in-the-cloud.codemode-script-file");
 
-export const scriptFileDescription = "To run a script file instead, make the code a single line `// @path: <file>`, optionally after an `// @options:` line. The file holds a script like any other; edit it and call again to iterate. Each call runs the file as it was when the call started.";
+export const scriptFileDescription = "To run a script file instead, make the code a line `// @path: <file>`, optionally after an `// @options:` line. To give the script input, follow the path line with a JSON value; the script gets it as `input`. The file holds a script like any other; edit it and call again to iterate. Each call runs the file as it was when the call started.";
 
 const optionsLine = /^[ \t]*\/\/ @options:[^\r\n]*\r?\n/;
-const pathLine = /^[ \t]*\/\/ @path:[ \t]*([^\r\n]*?)\s*$/;
+const pathLine = /^[ \t]*\/\/ @path:[ \t]*([^\r\n]*?)[ \t]*(?:\r?\n|$)/;
 
 /**
- * A script that names a file instead, as `// @path: <file>`, optionally after an options line: the options line and
- * the file's path, or why the script can't name a file that way. A `// @path:` line that is not the whole script
- * is a mistake, as it would otherwise run as a comment.
+ * A script that names a file instead, as `// @path: <file>`, optionally after an options line and followed by the
+ * script's input as JSON: the options line, the file's path and the input, or why the script can't name a file that
+ * way. Anything after a `// @path:` line that is not JSON is a mistake, as the path line would otherwise run as a
+ * comment.
  */
-function scriptFileReference(code: string): { options: string; path: string } | { error: string } | undefined {
+function scriptFileReference(code: string): { options: string; path: string; input: string | undefined } | { error: string } | undefined {
   const options = code.match(optionsLine)?.[0] ?? "";
   const reference = code.slice(options.length).match(pathLine);
-  if (!reference) return /^[ \t]*\/\/ @path:/m.test(code) ? { error: "A `// @path:` line must be the whole script, after at most an `// @options:` line." } : undefined;
+  if (!reference) return /^[ \t]*\/\/ @path:/m.test(code) ? { error: "A `// @path:` line must start the script, after at most an `// @options:` line." } : undefined;
   if (!reference[1]) return { error: "`// @path:` needs the path of a script file." };
-  return { options, path: reference[1] };
+  const rest = code.slice(options.length + reference[0].length).trim();
+  if (!rest) return { options, path: reference[1], input: undefined };
+  try {
+    return { options, path: reference[1], input: JSON.stringify(JSON.parse(rest)) };
+  } catch (error) {
+    return { error: `After the \`// @path:\` line, the script can only have its input, as JSON: ${String(error)}` };
+  }
 }
 
 /** Reads a script file: its text, or why it can't. */
@@ -71,8 +78,10 @@ export async function resolveScript(readFile: ReadScriptFile, code: string, api:
     }, context);
     file = read;
   }
-  if (reference.options && optionsLine.test(file.code)) {
+  const fileOptions = file.code.match(optionsLine)?.[0] ?? "";
+  if (reference.options && fileOptions) {
     return { error: errorResult(`${file.path} has its own \`// @options:\` line. Put options in the file or in the call, not both.`) };
   }
-  return { code: `${reference.options}${file.code}` };
+  const input = reference.input === undefined ? "" : `const input = ${reference.input};\n`;
+  return { code: `${reference.options || fileOptions}${input}${file.code.slice(fileOptions.length)}` };
 }

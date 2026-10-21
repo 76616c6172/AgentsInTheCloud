@@ -135,9 +135,24 @@ test("a script can name a file to run, which a call runs as it was when the call
   expect(tool.resultText).toContain("first version");
 });
 
+test("a script file call can give the script input as JSON, which it gets as `input`", async () => {
+  const { faux, agent, path } = await setup();
+  const file = join(path, "script.js");
+  await writeFile(file, '// @options: {"timeout_ms": 60000}\nreturn await tools.echo({ text: `${input.scope} (${input.pushbacks.length})` });\n');
+  const request = { scope: "x".repeat(600), pushbacks: ["one", "two"] };
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("codemode", { code: `// @path: ${file}\n${JSON.stringify(request, null, 2)}\n` })], { stopReason: "toolUse" }),
+    fauxAssistantMessage("Done"),
+  ]);
+  expect((await (await agent.submit({ requestId: "script", text: "Run it" })).wait(context)).status).toBe("done");
+  const [echo] = (await scriptTool(agent))!.nested!;
+  expect(echo).toMatchObject({ status: "ok", resultText: `${request.scope} (2)` });
+});
+
 test.each([
   ["a missing file", (file: string) => `// @path: ${file}.missing`, "Can't read script file"],
-  ["code after the path", (file: string) => `// @path: ${file}\nreturn 1;`, "must be the whole script"],
+  ["code after the path", (file: string) => `// @path: ${file}\nreturn 1;`, "can only have its input, as JSON"],
+  ["a path line after code", (file: string) => `return 1;\n// @path: ${file}`, "must start the script"],
   ["a path line without a path", () => "// @path:", "needs the path of a script file"],
   ["options in the call and the file", (file: string) => `// @options: {"timeout_ms": 1000}\n// @path: ${file}`, "Put options in the file or in the call, not both"],
 ])("a script file call fails for %s", async (_name, code, error) => {

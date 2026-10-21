@@ -9,7 +9,7 @@ Changes to review: $ARGUMENTS
 
 ## Run a round
 
-Read `.agents-in-the-cloud/scripts/review.js` first, so you know what the reviewer is told and what it returns. For each round, write the script's input to `/tmp/review-request.json`, then call `codemode` with the single line `// @path: .agents-in-the-cloud/scripts/review.js`. The reviewer is a one-shot `tools.agent` call, not a subagent: the input is all it gets from you.
+Read `.agents-in-the-cloud/scripts/review.js` first, so you know what the reviewer is told and what it returns. For each round, call `codemode` with the line `// @path: .agents-in-the-cloud/scripts/review.js`, followed by the script's input as JSON. The reviewer is a one-shot `tools.agent` call, not a subagent: the input is all it gets from you.
 
 ## Address the findings
 

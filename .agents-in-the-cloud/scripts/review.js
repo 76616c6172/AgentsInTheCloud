@@ -1,6 +1,6 @@
 // One review round for /review: a one-shot tools.agent reviewer.
 //
-// Reads its input from /tmp/review-request.json:
+// Its input, the JSON after the call's `// @path:` line:
 // {
 //   "scope": "the changes to review, as git commands or commit ranges",
 //   "pushbacks": ["<finding>: <why it's not being fixed>"],                        // from earlier rounds
@@ -10,9 +10,8 @@
 // Returns the reviewer's answer, shaped by `schema` below. The reviewer sees only this prompt: not the plan, not the
 // conversation.
 
-const request = JSON.parse((await tools.bash({ command: "cat /tmp/review-request.json" })).output);
-const pushbacks = request.pushbacks ?? [];
-const fixes = request.fixes ?? [];
+const pushbacks = input.pushbacks ?? [];
+const fixes = input.fixes ?? [];
 
 const finding = {
   type: "object",
@@ -66,7 +65,7 @@ const schema = {
 
 const prompt = `You're reviewing code changes in the git repository in your working directory.
 
-The changes: ${request.scope}
+The changes: ${input.scope}
 
 Review them for correctness, and for missed opportunities to do something simpler. Sort your findings into blocker, major and minor.
 
