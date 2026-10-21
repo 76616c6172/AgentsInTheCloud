@@ -36,7 +36,7 @@ export interface TerminalProcessOutput {
 }
 
 export type TerminalProcessState =
-  | { state: "running"; session: string }
+  | { state: "running" }
   | {
     state: "exited";
     /** Null when the command never ran: it was stopped before it started, or its deadline had passed. */
@@ -60,7 +60,7 @@ export interface TerminalProcesses {
    */
   start(options: TerminalProcessStart): Promise<void>;
   state(id: string): Promise<TerminalProcessState>;
-  /** Polls until the process exits; the ambient command signal cancels waiting, not the process. */
+  /** Waits until the process exits; the ambient command signal cancels waiting, not the process. */
   waitForExit(id: string): Promise<Extract<TerminalProcessState, { state: "exited" }>>;
   /**
    * Interrupts the command, killing it if it ignores that, and records it as
@@ -83,8 +83,19 @@ export function terminalProcessSession(id: string): string {
   return `aitc-process-${id}`;
 }
 
+/**
+ * Waits for the session's finish, or `seconds` at most; callers check again
+ * either way. tmux keeps waiters that were killed, and a signal to one of those
+ * is lost, so instead of timing out a waiter, a tmux timer signals it.
+ */
+const awaitFinishFunction = `await_finish() {
+  tmux run-shell -b -d "$2" "tmux wait-for -S $1"
+  tmux wait-for "$1"
+}
+`;
+
 // The scripts below live in each process's directory. They are POSIX sh, and
-// rely only on tmux, flock, pgrep and timeout besides. Nothing waits by sleeping:
+// rely only on tmux, flock and pgrep besides. Nothing waits by sleeping:
 // tmux reports when a pane is dead (only once it has read all of the pane's
 // output), runs the deadline timer, and signals waiters through `wait-for`.
 
@@ -93,11 +104,11 @@ export function terminalProcessSession(id: string): string {
  * pane outlives the command. Members still running after a grace period, because
  * they ignore TERM, are killed.
  */
-const interruptScript = `interrupt() {
-  dir=$1
+const interruptScript = `${awaitFinishFunction}interrupt() {
+  dir=$1 session=$2
   leader=$(cat "$dir/pid")
   kill -TERM "-$leader" 2>/dev/null || return 0
-  if [ ! -f "$dir/exit" ]; then timeout 2 tmux wait-for "$(cat "$dir/channel")"; fi
+  if [ ! -f "$dir/exit" ]; then await_finish "$session" 2; fi
   if [ -f "$dir/exit" ]; then return 0; fi
   for member in $(pgrep -g "$leader"); do
     if [ "$member" != "$leader" ]; then kill -KILL "$member" 2>/dev/null; fi
@@ -106,11 +117,11 @@ const interruptScript = `interrupt() {
 `;
 
 /** Run by tmux's timer at the deadline. */
-const expireScript = `dir=$1
+const expireScript = `dir=$1 session=$2
 if [ ! -d "$dir" ] || [ -f "$dir/exit" ]; then exit 0; fi
 touch "$dir/timed-out"
 . "$dir/interrupt"
-interrupt "$dir"
+interrupt "$dir" "$session"
 `;
 
 /**
@@ -120,11 +131,10 @@ interrupt "$dir"
  * through a stop, while the command still receives them with their default
  * behavior. Its exit status is the command's.
  */
-const wrapperScript = `dir=$1
-channel=$(cat "$dir/channel")
+const wrapperScript = `dir=$1 session=$2
 trap : INT TERM
-tmux wait-for "$channel-ready"
-tmux wait-for -S "$channel-running"
+tmux wait-for "$session-ready"
+tmux wait-for -S "$session-running"
 bash -- "$dir/command"
 `;
 
@@ -132,7 +142,7 @@ bash -- "$dir/command"
  * Run by tmux's pane-died hook: the pane is dead, and tmux has read all of its
  * output. Records the result, then wakes everyone waiting for it.
  */
-const finishScript = `dir=$1 pane=$2 status=\${3#s} signal=\${4#g}
+const finishScript = `dir=$1 session=$2 pane=$3 status=\${4#s} signal=\${5#g}
 if [ ! -d "$dir" ]; then exit 0; fi
 if [ -n "$signal" ] && [ "$signal" != 0 ]; then code=$((128 + signal)); else code=$status; fi
 tmux capture-pane -p -e -J -S - -t "$pane" > "$dir/output"
@@ -140,7 +150,7 @@ if [ -f "$dir/keep-text" ]; then tmux capture-pane -p -J -S - -t "$pane" > "$dir
 printf '%s\\n' "$code" > "$dir/exit.tmp"
 mv "$dir/exit.tmp" "$dir/exit"
 tmux kill-pane -t "$pane"
-tmux wait-for -S "$(cat "$dir/channel")"
+tmux wait-for -S "$session"
 `;
 
 // Starting, stopping and releasing hold a lock on the root, so a stop can't
@@ -168,7 +178,6 @@ ${lockRoot}if ! mkdir "$dir" 2>/dev/null; then
   exit 3
 fi
 printf '%s\\n' "$digest" > "$dir/request"
-printf '%s\\n' "$session" > "$dir/channel"
 cat > "$dir/command"
 if [ "$keep" = 1 ]; then touch "$dir/keep-text"; fi
 remaining=
@@ -199,7 +208,7 @@ if ! pid=$(tmux -N new-session -d -P -F '#{pane_pid}' -s "$session" -x "$cols" -
 fi
 printf '%s\\n' "$pid" > "$dir/pid"
 if [ -n "$remaining" ]; then
-  tmux -N run-shell -b -d "$((remaining / 1000)).$(printf '%03d' "$((remaining % 1000))")" "sh $dir/expire $dir >/dev/null 2>&1"
+  tmux -N run-shell -b -d "$((remaining / 1000)).$(printf '%03d' "$((remaining % 1000))")" "sh $dir/expire $dir $session >/dev/null 2>&1"
 fi
 tmux -N wait-for -S "$session-ready"
 # Holding the lock until the command runs, so a stop always finds it running.
@@ -221,12 +230,11 @@ echo lost
 /**
  * Returns once the process has exited, or after a while regardless. A finish
  * that signals between checking for the exit and waiting is remembered for one
- * waiter only, so concurrent waiters rely on the timeout to look again.
+ * waiter only, so the others rely on the timer to look again.
  */
 const waitScript = `dir=$1 session=$2
-if [ -f "$dir/exit" ] || ! tmux -N has-session -t "=$session" 2>/dev/null; then exit 0; fi
-timeout 60 tmux -N wait-for "$session"
-exit 0
+${awaitFinishFunction}if [ -f "$dir/exit" ] || ! tmux -N has-session -t "=$session" 2>/dev/null; then exit 0; fi
+await_finish "$session" 60
 `;
 
 const stopScript = `root=$1 dir=$2 session=$3
@@ -240,7 +248,7 @@ touch "$dir/aborted"
 flock -u 9
 if ! tmux -N has-session -t "=$session" 2>/dev/null; then exit 0; fi
 . "$dir/interrupt"
-interrupt "$dir"
+interrupt "$dir" "$session"
 `;
 
 // Killing the session first destroys its pane without running the pane-died hook.
@@ -287,7 +295,7 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
     const stdout = await sh(stateScript, [directory(id), session]);
     const newline = stdout.indexOf("\n");
     const header = newline < 0 ? stdout : stdout.slice(0, newline);
-    if (header === "running") return { state: "running", session };
+    if (header === "running") return { state: "running" };
     if (header === "missing" || header === "lost") return { state: header };
     const exited = /^exited (\d+|none) ([01]) ([01])$/.exec(header);
     if (!exited) throw new AgentsInTheCloudCoreError("terminal_process_failed", `Unexpected terminal process state: ${header}`);
@@ -303,14 +311,15 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
   return {
     async start(start) {
       const dir = directory(start.id);
+      const session = terminalProcessSession(start.id);
       const cols = start.cols ?? observableTerminalCols;
       const rows = start.rows ?? observableTerminalRows;
       const env = Object.entries({ ...observableTerminalEnvironment, ...start.env }).flatMap(([key, value]) => ["-e", `${key}=${value}`]);
-      const pane = `exec sh ${dir}/run ${dir}`;
+      const pane = `exec sh ${dir}/run ${dir} ${session}`;
       // The prefixes keep each argument in place when tmux expands it to nothing.
-      const hook = `run-shell -b "sh ${dir}/finish ${dir} #{hook_pane} s#{pane_dead_status} g#{pane_dead_signal} >/dev/null 2>&1"`;
+      const hook = `run-shell -b "sh ${dir}/finish ${dir} ${session} #{hook_pane} s#{pane_dead_status} g#{pane_dead_signal} >/dev/null 2>&1"`;
       await sh(startScript, [
-        options.root, dir, terminalProcessSession(start.id), requestDigest(start, cols, rows), start.cwd,
+        options.root, dir, session, requestDigest(start, cols, rows), start.cwd,
         String(cols), String(rows), String(observableTerminalHistoryLimit), start.deadline === undefined ? "" : String(start.deadline),
         start.keepText ? "1" : "0", pane, hook, ...env,
       ], start.command);

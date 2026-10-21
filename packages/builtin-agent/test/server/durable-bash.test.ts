@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { shellQuote } from "@agents-in-the-cloud/core";
-import type { TerminalProcesses } from "@agents-in-the-cloud/observable-terminal/server";
+import { terminalProcessSession, type TerminalProcesses } from "@agents-in-the-cloud/observable-terminal/server";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "@earendil-works/pi-ai";
 import { createRegistry } from "@earendil-works/pi-durable";
@@ -11,27 +11,27 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { createDurableBashExtension } from "../../src/server/durable-bash.ts";
 import { openDurableWorkspace, type DurableWorkspace } from "../../src/server/durable-workspace.ts";
-import { command, localTerminalProcesses, startTmux, stopTmux } from "./fixtures/terminal-processes.ts";
+import { runLocally, startPrivateTmux, terminalProcessesIn } from "../../../observable-terminal/test/support/local-terminal-processes.ts";
 
 // Terminal processes test the command lifecycle itself. These test what the
 // Durable bash tool adds: starting at most once across recovery, Stop, and
 // turning a finished process into a tool result.
 const context = BACKGROUND_CONTEXT;
-const fixtures: string[] = [];
+const fixtures: Array<{ path: string; tmux: { stop(): Promise<void> } }> = [];
 const workspaces: DurableWorkspace[] = [];
 afterEach(async () => {
   await Promise.all(workspaces.splice(0).map((workspace) => workspace.close()));
-  for (const path of fixtures.splice(0)) {
-    await stopTmux(path);
+  for (const { path, tmux } of fixtures.splice(0)) {
+    await tmux.stop();
     await rm(path, { recursive: true, force: true });
   }
 });
 
 async function fixture() {
   const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-bash-"));
-  fixtures.push(path);
-  await startTmux(path);
-  return { path, processes: localTerminalProcesses(path) };
+  const tmuxDirectory = join(path, "tmux");
+  fixtures.push({ path, tmux: await startPrivateTmux(runLocally(tmuxDirectory), tmuxDirectory) });
+  return { path, tmuxDirectory, processes: terminalProcessesIn(path) };
 }
 
 /** The processes, reporting each start once it has happened. */
@@ -108,12 +108,14 @@ test("the tool's timeout is the command's deadline", async () => {
 test("a command whose terminal disappears is reported as uncertain, not run again", async () => {
   const f = await fixture();
   const count = join(f.path, "count");
+  const tmux = (...args: string[]) => runLocally(f.tmuxDirectory)({ argv: ["tmux", ...args], user: "agents-in-the-cloud" }, {});
   const processes: TerminalProcesses = { ...f.processes, async start(options) {
     await f.processes.start(options);
-    for (let i = 0; i < 100 && !await Bun.file(count).exists(); i++) await Bun.sleep(10);
-    await command(["tmux", "kill-session", "-t", `=aitc-process-${options.id}`], f.path);
+    // The command says when it has counted itself; then its terminal goes.
+    await tmux("wait-for", "counted");
+    await tmux("kill-session", "-t", `=${terminalProcessSession(options.id)}`);
   } };
-  const h = await harness(f.path, processes, `echo once >> ${shellQuote(count)}; sleep 10`);
+  const h = await harness(f.path, processes, `echo once >> ${shellQuote(count)}; tmux wait-for -S counted; sleep 10`);
   const submission = await h.conversation.submit({ type: "input", content: "Run", requestId: "one" }, context);
   expect((await submission.wait(context)).status).toBe("done");
   const [result] = await toolResults(h.workspace);
@@ -198,7 +200,7 @@ test("aborting a bash tool stops its command but lets the agent finish the turn"
   const tool = inspection.tasks.find(({ record }) => record.kind === "pi.tool")!;
   await h.workspace.harness.abortTask(tool.record.id, context);
   expect((await submission.wait(context)).status).toBe("done");
+  // Released, which kills whatever of the command was left, so it never gets to the touch.
   expect(await f.processes.state(id)).toEqual({ state: "missing" });
-  await Bun.sleep(3100);
   expect(await Bun.file(join(f.path, "after-abort")).exists()).toBe(false);
 });

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildListSessionsCommand, buildObservableSessionCommand, normalizeCarriageReturns, observableTerminalCols, observableTerminalRows, stripObservablePaneFraming, stripTerminalControls } from "../../src/server/index.ts";
+import { buildListSessionsCommand, buildObservableSessionCommand, normalizeCarriageReturns, observableTerminalCols, observableTerminalRows, stripTerminalControls, terminalProcessSession } from "../../src/server/index.ts";
 import { buildAttachStart } from "../../src/server/attach.ts";
 
 describe("observable terminal normalization", () => {
@@ -8,12 +8,6 @@ describe("observable terminal normalization", () => {
     const normalized = normalizeCarriageReturns(raw);
     expect(normalized).toBe("Cloning into 'repo'...\nremote: Counting objects: 100% (94/94)\n");
     expect(normalized).not.toContain("1% (1/94)remote:");
-  });
-
-  test("removes full and partial dead-pane markers", () => {
-    expect(stripObservablePaneFraming("ok\nPane is dead\n")).toBe("ok");
-    expect(stripObservablePaneFraming("ok\n\u001b[2mPane is dead\u001b[0m\r\n")).toBe("ok");
-    expect(stripObservablePaneFraming("ok\nPane is dea")).toBe("ok");
   });
 
   test("strips terminal control sequences without leaking their final bytes", () => {
@@ -72,9 +66,9 @@ describe("observable terminal normalization", () => {
   });
 });
 
-test("receipt UUID sessions attach read-only to an existing server using a window target", async () => {
+test("terminal process sessions attach read-only to an existing server using a window target", async () => {
   const socketName = `agents-in-the-cloud-attach-${crypto.randomUUID()}`;
-  const session = `agents-in-the-cloud-agent-${crypto.randomUUID()}`;
+  const session = terminalProcessSession(crypto.randomUUID());
   const run = async (args: string[]) => {
     const process = Bun.spawn(["tmux", "-L", socketName, ...args], { stdout: "pipe", stderr: "pipe" });
     return { code: await process.exited, output: await new Response(process.stdout).text(), error: await new Response(process.stderr).text() };

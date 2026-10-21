@@ -1,21 +1,14 @@
 import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTerminalProcesses, terminalProcessSession, type RunTerminalProcessCommand, type TerminalProcesses, type TerminalProcessState } from "../../src/server/terminal-process.ts";
+import { startPrivateTmux } from "../support/local-terminal-processes.ts";
 
 /** Where the processes run. Every command it runs must reach the tmux server in `tmuxDirectory`. */
 export interface TerminalProcessPlace {
   run: RunTerminalProcessCommand;
   close(): Promise<void>;
-}
-
-/**
- * Commands for the place's own tmux server, never the one the tests themselves may run in.
- * tmux silently falls back to /tmp when TMUX_TMPDIR does not exist, so it must.
- */
-export function isolatedTmuxEnvironment(tmuxDirectory: string) {
-  return { ...process.env, TMUX: undefined, TMUX_PANE: undefined, TMUX_TMPDIR: tmuxDirectory };
 }
 
 /**
@@ -35,10 +28,9 @@ async function rejection(promise: Promise<unknown>): Promise<string> {
 export function describeTerminalProcesses(name: string, open: (tmuxDirectory: string) => Promise<TerminalProcessPlace>): void {
   describe(name, () => {
     let directory = "";
-    let tmuxDirectory = "";
     let place: TerminalProcessPlace | undefined;
+    let tmuxServer: { stop(): Promise<void> } | undefined;
     let processes: TerminalProcesses;
-    let isolated = false;
     const started: string[] = [];
 
     async function tmux(...args: string[]): Promise<{ exitCode: number; stdout: string }> {
@@ -54,19 +46,10 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
 
     beforeAll(async () => {
       directory = await mkdtemp(join(tmpdir(), "terminal-process-"));
-      tmuxDirectory = join(directory, "tmux");
-      await mkdir(tmuxDirectory);
+      const tmuxDirectory = join(directory, "tmux");
       place = await open(tmuxDirectory);
+      tmuxServer = await startPrivateTmux(place.run, tmuxDirectory);
       processes = createTerminalProcesses({ run: place.run, root: join(directory, "processes") });
-      // Like a workspace's supervised server: terminal processes never start one.
-      const keepalive = `keepalive-${crypto.randomUUID()}`;
-      expect((await tmux("new-session", "-d", "-s", keepalive)).exitCode).toBe(0);
-      const socket = (await tmux("display-message", "-p", "-t", `=${keepalive}`, "#{socket_path}")).stdout.trim();
-      if (!socket.startsWith(`${tmuxDirectory}/`)) {
-        await tmux("kill-session", "-t", `=${keepalive}`);
-        throw new Error(`Tests must use their own tmux server, not ${socket}`);
-      }
-      isolated = true;
       // Opening a place may build it first.
     }, 120_000);
 
@@ -75,8 +58,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
     });
 
     afterAll(async () => {
-      // Locally, so the server goes even when the place failed. Both run tmux as this user.
-      if (isolated) await Bun.spawn(["tmux", "kill-server"], { env: isolatedTmuxEnvironment(tmuxDirectory), stderr: "ignore" }).exited;
+      await tmuxServer?.stop();
       await place?.close();
       await rm(directory, { recursive: true, force: true });
     });
@@ -122,10 +104,11 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       expect((await processes.waitForExit(id)).output.text).toBe("progress 3%");
     });
 
-    test("reports a running process with its tmux session", async () => {
+    test("reports a running process, in the tmux session named after it", async () => {
       const { id, started } = start("sleep 30");
       await started;
-      expect(await processes.state(id)).toEqual({ state: "running", session: terminalProcessSession(id) });
+      expect(await processes.state(id)).toEqual({ state: "running" });
+      expect((await tmux("has-session", "-t", `=${terminalProcessSession(id)}`)).exitCode).toBe(0);
     });
 
     test("starting again with the same input does not run the command twice", async () => {

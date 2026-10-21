@@ -2,11 +2,8 @@ import type { WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
 import { startInWorkspace } from "@agents-in-the-cloud/workspace";
 import {
   createObservableTerminalSocket,
-  normalizeCarriageReturns,
   observableTerminalCols,
   observableTerminalRows,
-  stripObservablePaneFraming,
-  stripTerminalControls,
 } from "@agents-in-the-cloud/observable-terminal/server";
 import {
   DEFAULT_MAX_BYTES,
@@ -55,10 +52,6 @@ interface LimitedModelLines {
   linesTruncated: number;
 }
 
-function plainModelOutput(text: string): string {
-  return stripTerminalControls(text).trimEnd();
-}
-
 function limitModelLines(text: string): LimitedModelLines {
   let linesTruncated = 0;
   const lines = text.split("\n").map((line) => {
@@ -69,8 +62,9 @@ function limitModelLines(text: string): LimitedModelLines {
   return { text: lines.join("\n"), linesTruncated };
 }
 
-export function formatBashOutput(modelPane: string, displayPane: string, fullOutputPath: string) {
-  const modelLines = limitModelLines(plainModelOutput(stripObservablePaneFraming(modelPane)));
+/** Fits a terminal process's plain `text` for the model, and its `ansi` output for display. */
+export function formatBashOutput(text: string, ansi: string, fullOutputPath: string) {
+  const modelLines = limitModelLines(text);
   const modelLimited = truncateTail(modelLines.text, { maxLines: DEFAULT_MAX_LINES - modelTrailerLines, maxBytes: DEFAULT_MAX_BYTES - modelTrailerBytes });
   let output = modelLimited.content;
   const modelTruncated = modelLimited.truncated || modelLines.linesTruncated > 0;
@@ -83,8 +77,8 @@ export function formatBashOutput(modelPane: string, displayPane: string, fullOut
     output += `\n\n${truncationNotice}`;
   }
 
-  const displayLimited = truncateTail(stripObservablePaneFraming(displayPane), { maxBytes: maxDisplayAnsiBytes, maxLines: Number.MAX_SAFE_INTEGER });
-  let displayAnsi = normalizeCarriageReturns(displayLimited.content).trimEnd();
+  const displayLimited = truncateTail(ansi, { maxBytes: maxDisplayAnsiBytes, maxLines: Number.MAX_SAFE_INTEGER });
+  let displayAnsi = displayLimited.content;
   if (displayLimited.truncated) displayAnsi = `… output truncated to last ${maxDisplayAnsiBytes} bytes\n${displayAnsi}`;
   if (truncationNotice) displayAnsi += `\n\n${truncationNotice}`;
 

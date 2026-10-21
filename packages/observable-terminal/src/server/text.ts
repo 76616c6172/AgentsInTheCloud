@@ -79,15 +79,3 @@ export function stripTerminalControls(text: string): string {
   }
   return output;
 }
-
-export function stripObservablePaneFraming(text: string): string {
-  let output = text.replace(/[ \t\r\n]*$/, "");
-  for (;;) {
-    const lastNewline = Math.max(output.lastIndexOf("\n"), output.lastIndexOf("\r"));
-    const line = lastNewline >= 0 ? output.slice(lastNewline + 1) : output;
-    const plainLine = stripTerminalControls(line).trim();
-    if (!/^Pane is dea(?:d)?$/.test(plainLine)) return output;
-    output = lastNewline >= 0 ? output.slice(0, lastNewline) : "";
-    output = output.replace(/[ \t\r\n]*$/, "");
-  }
-}

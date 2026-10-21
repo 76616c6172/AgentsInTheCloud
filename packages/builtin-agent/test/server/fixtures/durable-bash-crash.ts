@@ -5,11 +5,11 @@ import { createModels, fauxAssistantMessage, fauxProvider, fauxToolCall } from "
 import { createRegistry } from "@earendil-works/pi-durable";
 import { createDurableBashExtension } from "../../../src/server/durable-bash.ts";
 import { openDurableWorkspace } from "../../../src/server/durable-workspace.ts";
-import { localTerminalProcesses } from "./terminal-processes.ts";
+import { terminalProcessesIn } from "../../../../observable-terminal/test/support/local-terminal-processes.ts";
 
 /** Hangs around the first start, for the test to SIGKILL: before the command starts, or after. */
 const [path, moment] = process.argv.slice(2);
-const processes = localTerminalProcesses(path!);
+const processes = terminalProcessesIn(path!);
 const models = createModels();
 const faux = fauxProvider({ tokensPerSecond: 100_000 });
 models.setProvider(faux.provider);

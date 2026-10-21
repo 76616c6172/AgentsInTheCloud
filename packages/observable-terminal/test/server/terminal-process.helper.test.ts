@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,11 +13,16 @@ describeTerminalProcesses("terminal processes through the workspace helper", asy
   await buildGoProgram(fileURLToPath(new URL("../../../workspace-helper/helper", import.meta.url)), binary, `linux/${process.arch === "arm64" ? "arm64" : "amd64"}`);
   const socket = join(directory, "helper.sock");
   const state = join(directory, "state");
-  const helper = Bun.spawn(["sudo", "-n", binary, "--listen", socket, "--state", state], { stdout: "inherit", stderr: "inherit" });
-  for (let attempt = 0; !existsSync(socket); attempt++) {
-    if (attempt > 200) throw new Error("the helper did not start listening");
-    await Bun.sleep(25);
+  const helper = Bun.spawn(["sudo", "-n", binary, "--listen", socket, "--state", state], { stdout: "inherit", stderr: "pipe" });
+  // The helper logs once it listens. Reading on afterwards keeps its later log lines from hitting a closed pipe.
+  const stderr = helper.stderr.pipeThrough(new TextDecoderStream()).getReader();
+  let log = "";
+  while (!log.includes("listening on")) {
+    const { done, value } = await stderr.read();
+    if (done) throw new Error(`The helper did not start: ${log}`);
+    log += value;
   }
+  void (async () => { while (!(await stderr.read()).done); })();
   return {
     async run(start, options) {
       const result = await runWorkspaceProcess(socket, { ...start, env: { ...start.env, TMUX_TMPDIR: tmuxDirectory } }, options);

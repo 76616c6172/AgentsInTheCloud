@@ -5,7 +5,6 @@ export {
 } from "./constants.ts";
 export {
   normalizeCarriageReturns,
-  stripObservablePaneFraming,
   stripTerminalControls,
   tailTerminalText,
 } from "./text.ts";
@@ -24,10 +23,7 @@ export {
 export {
   createTerminalProcesses,
   terminalProcessSession,
-  type RunTerminalProcessCommand,
-  type TerminalProcessOutput,
   type TerminalProcesses,
-  type TerminalProcessStart,
   type TerminalProcessState,
 } from "./terminal-process.ts";
 export { createObservableTerminalSocket, terminalSocketDimensions } from "./socket.ts";
