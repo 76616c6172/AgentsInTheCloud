@@ -15,7 +15,7 @@ function input(value: string, cursor = value.length): AgentCompletionInput {
   };
 }
 
-describe("Agent pane residency", () => {
+describe("Agent pane visibility", () => {
   test("runs live connections only while logically visible in a visible document", () => {
     expect(agentConnectionShouldRun(true, "visible")).toBe(true);
     expect(agentConnectionShouldRun(false, "visible")).toBe(false);

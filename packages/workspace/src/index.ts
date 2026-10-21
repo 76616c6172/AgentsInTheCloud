@@ -289,7 +289,7 @@ const workspaceSetupScript = ".agents-in-the-cloud/setup.sh";
 export const workspaceSetupProvisioningHook: WorkspaceServerProvisioningHook = {
   id: "workspace.setup",
   label: "Run repository setup",
-  recovery: "continue",
+  failurePolicy: "continue",
   async run({ workspaceId: id, events }) {
     if (!(await Bun.file(join(workspaceWorkHostPath(id), workspaceSetupScript)).exists())) {
       await events?.emit("workspace_provision_progress", { workspaceId: id, detail: `No ${workspaceSetupScript}` });
@@ -471,8 +471,8 @@ export async function createWorkspace(options: { id: string; events: AgentsInThe
       const log = await ensureWorkspaceStarted(id);
       run.report({ output: log });
     }, "retry");
-    await run.step("workspace.readiness", "Prepare workspace", async () => {
-      await checkWorkspaceReadiness(id, (detail) => run.report({ detail }), (progress) => run.report(progress));
+    await run.step("workspace.preparation", "Prepare workspace", async () => {
+      await prepareWorkspaceRuntime(id, (detail) => run.report({ detail }), (progress) => run.report(progress));
     }, "retry-or-continue");
   } catch (error) {
     // Cancellation hands ownership to deletion, which reviews files before removing them.
@@ -654,8 +654,8 @@ export async function setWorkspaceParked(id: string, parked: boolean): Promise<n
   return null;
 }
 
-/** Repeated on resume and app recovery; the persisted list never rereads template settings. */
-export async function checkWorkspaceReadiness(id: string, report: (detail: string) => void = () => {}, activity: (progress: WorkspaceProvisionProgress) => void = () => {}): Promise<void> {
+/** Repeated on resume and app start; the persisted list never rereads template settings. */
+export async function prepareWorkspaceRuntime(id: string, report: (detail: string) => void = () => {}, activity: (progress: WorkspaceProvisionProgress) => void = () => {}): Promise<void> {
   report("Checking workspace gateway");
   await checkWorkspaceGateway(id);
   for (const socket of ["ingress", "egress"]) {

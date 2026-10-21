@@ -16,7 +16,7 @@ import {
 } from "@agents-in-the-cloud/proxy-ingress/server";
 import { agentsInTheCloudName, errorMessage, type WorkspaceAppBackend, type WorkspaceAppRef, type WorkspaceServerAppResolver, type WorkspaceServerProvisioningHook, type WorkspaceServerSocketHandler, type WorkspaceServerSocketSession } from "@agents-in-the-cloud/shared";
 import { response, textResponse } from "@agents-in-the-cloud/shared/http";
-import { checkWorkspaceReadiness, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@agents-in-the-cloud/workspace";
+import { prepareWorkspaceRuntime, createWorkspace, ensureWorkspaceStarted, deleteWorkspace, ensureHostInotifyLimit, isWorkspaceRunning, listWorkspaces, resolveWorkspace, stopWorkspaceContainer, setWorkspaceParked, workspaceImageOutdated, workspacePortBackend, workspaceSetupProvisioningHook } from "@agents-in-the-cloud/workspace";
 import { ensureDefaultWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 import type { ServerWebSocket } from "bun";
 import { join } from "node:path";
@@ -29,7 +29,7 @@ import { parseAssetManifest } from "./asset-manifest.ts";
 import { createCableServer, type CableSocketData } from "./cable.ts";
 import { legacyStaticFiles } from "./static-files.ts";
 import { workspaceModules } from "./workspace-modules.generated.ts";
-import { prepareWorkspaceForUse, recoverWorkspaces } from "./workspace-recovery.ts";
+import { prepareWorkspaceForUse, reprovisionWorkspaces } from "./workspace-preparation.ts";
 import { createFileWorkspaceActivityStore, createFileWorkspaceAttentionStore, createFileWorkspaceDeletionStore, createWorkspaceRegistry } from "./workspace-registry.ts";
 
 const requestedPort = Number(process.env.PORT ?? 3000);
@@ -62,8 +62,8 @@ let app: WebApp;
 const workspaceStartupOperations = {
   ensureStarted: ensureWorkspaceStarted,
   stop: stopWorkspaceContainer,
-  checkReadiness: checkWorkspaceReadiness,
-  runtimeReady: (workspaceId: string) => agentsInTheCloudEvents.emit("workspace_runtime_ready", { workspaceId }),
+  prepareRuntime: prepareWorkspaceRuntime,
+  runtimePrepared: (workspaceId: string) => agentsInTheCloudEvents.emit("workspace_runtime_ready", { workspaceId }),
   imageOutdated: (id: string) => workspaceImageOutdated(id, undefined, agentsInTheCloudEvents),
   get provisioning() { return app.provisioning; },
 };
@@ -78,7 +78,7 @@ app = createWebApp({
     await createWorkspace({ id, events: agentsInTheCloudEvents, init: options.init, context: options.context, run: options.run });
     for (const hook of provisioningHooks) {
       const work = () => hook.run({ workspaceId: id, creationContext: options.context, events: agentsInTheCloudEvents });
-      await options.run.step(hook.id, hook.label, work, hook.recovery);
+      await options.run.step(hook.id, hook.label, work, hook.failurePolicy);
     }
     await options.run.step("workspace.integrations", "Run workspace startup integrations", () => agentsInTheCloudEvents.emit("workspace_created", { workspaceId: id, init: options.init, context: options.context }));
     await rememberAgentType(options.context?.agent?.agentTypeId ?? "builtin", agentsInTheCloudEvents);
@@ -366,7 +366,7 @@ void agentsInTheCloudEvents.emit("agents_in_the_cloud_host_started", {
 
 console.log(`${agentsInTheCloudName} is available at ${displayUrl(hostname, serverPort)}`);
 
-void recoverWorkspaces(registry, workspaceStartupOperations).catch((error) => console.error("Workspace recovery failed", error));
+void reprovisionWorkspaces(registry, workspaceStartupOperations).catch((error) => console.error("Workspace reprovisioning failed", error));
 
 function resumeWorkspace(id: string): void {
   const entry = registry.get(id);

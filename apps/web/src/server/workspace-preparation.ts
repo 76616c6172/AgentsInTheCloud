@@ -3,46 +3,46 @@ import { errorMessage } from "@agents-in-the-cloud/shared";
 import type { WorkspaceProvisioning, WorkspaceProvisionRun } from "@agents-in-the-cloud/workspace";
 import type { WorkspaceRegistry } from "./workspace-registry.ts";
 
-interface WorkspaceReadinessOperations {
-  checkReadiness(id: string, report: (detail: string) => void): Promise<void>;
+interface WorkspacePreparationOperations {
+  prepareRuntime(id: string, report: (detail: string) => void): Promise<void>;
   provisioning: WorkspaceProvisioning;
-  runtimeReady?(id: string): Promise<void>;
+  runtimePrepared?(id: string): Promise<void>;
 }
 
-async function prepare(id: string, registry: WorkspaceRegistry, operations: WorkspaceReadinessOperations, run: WorkspaceProvisionRun): Promise<void> {
+async function prepare(id: string, registry: WorkspaceRegistry, operations: WorkspacePreparationOperations, run: WorkspaceProvisionRun): Promise<void> {
   const entry = registry.get(id);
   const current = () => registry.get(id) === entry && !entry?.phase.deletion;
-  await run.step("workspace.startup", "Prepare workspace", async () => {
+  await run.step("workspace.preparation", "Prepare workspace", async () => {
     if (!current()) return;
     try {
-      await operations.checkReadiness(id, (detail) => run.report({ detail }));
-      if (current()) registry.setIssue(id, "readiness");
+      await operations.prepareRuntime(id, (detail) => run.report({ detail }));
+      if (current()) registry.setWarning(id, "preparation");
     } catch (error) {
       if (!current()) return;
       const message = `${errorMessage(error)} Required images or gateways may be unavailable.`;
       console.error(`workspace preparation failed ${id}`, error);
-      registry.setIssue(id, "readiness", message);
+      registry.setWarning(id, "preparation", message);
       throw error;
     }
   }, "retry-or-continue");
-  if (current()) await operations.runtimeReady?.(id);
+  if (current()) await operations.runtimePrepared?.(id);
 }
 
-/** Readiness failures retain the container and pause until retry or explicit bypass. */
-export function prepareWorkspaceForUse(id: string, registry: WorkspaceRegistry, operations: WorkspaceReadinessOperations): Promise<void> {
+/** Preparation failures retain the container and pause until retry or explicit bypass. */
+export function prepareWorkspaceForUse(id: string, registry: WorkspaceRegistry, operations: WorkspacePreparationOperations): Promise<void> {
   return operations.provisioning.run(id, (run) => prepare(id, registry, operations, run));
 }
 
-interface RecoveryOperations extends WorkspaceReadinessOperations {
+interface ReprovisionOperations extends WorkspacePreparationOperations {
   ensureStarted(id: string): Promise<string | void>;
   stop(id: string): Promise<null | void>;
   imageOutdated(id: string): Promise<boolean>;
 }
 
 /** Run after HTTP startup. Each workspace completes its own startup independently. */
-export async function recoverWorkspaces(
+export async function reprovisionWorkspaces(
   registry: WorkspaceRegistry,
-  operations: RecoveryOperations,
+  operations: ReprovisionOperations,
 ): Promise<void> {
   await Promise.all(registry.list().flatMap((entry) => {
     if (entry.phase.deletion) return [];
@@ -68,11 +68,11 @@ export async function recoverWorkspaces(
         const outdated = await withCommandSignal(AbortSignal.timeout(60_000), () => operations.imageOutdated(id));
         if (current()) {
           registry.setImageOutdated(id, outdated);
-          registry.setIssue(id, "image");
+          registry.setWarning(id, "image");
         }
       } catch (error) {
         console.error(`could not inspect workspace image ${id}`, error);
-        if (current()) registry.setIssue(id, "image", "Could not check whether this workspace image is up to date.");
+        if (current()) registry.setWarning(id, "image", "Could not check whether this workspace image is up to date.");
       }
     };
     return [restore(), inspectImage()];

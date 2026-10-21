@@ -6,7 +6,7 @@ import { sendTurnNotification } from "./web-push.ts";
 import { durableTimingEntry } from "./durable-timing.ts";
 import { recordDurableSubscriptionActivity } from "./durable-accounting.ts";
 import { AgentsInTheCloudCoreError } from "@agents-in-the-cloud/core";
-import { checkWorkspaceReadiness } from "@agents-in-the-cloud/workspace";
+import { prepareWorkspaceRuntime } from "@agents-in-the-cloud/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { contentText, getSupportedThinkingLevels, type SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, ProviderDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
@@ -32,7 +32,7 @@ const dependencies = {
   harness: createDurableHarnessOptions,
   prepare: prepareDurableAgent,
   expand: expandWorkspaceSkillCommand,
-  ready: checkWorkspaceReadiness,
+  ready: prepareWorkspaceRuntime,
   async validateModel(ref: AgentChange["model"]) {
     const selected = ref && { provider: ref.provider, id: ref.modelId };
     const model = selected && (await enabledModelOptionViews(selected)).find(item => item.provider === selected.provider && item.id === selected.id);

@@ -58,7 +58,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       this.element.addEventListener("changes-edit:guard", this.guardRequested, { signal });
       document.addEventListener("submit", this.beforeSubmit, { capture: true, signal });
       document.addEventListener("turbo:before-visit", this.beforeVisit, { signal });
-      document.addEventListener("workspace-residency:before-select", this.beforeWorkspaceSelection, { signal });
+      document.addEventListener("workspace-selection:before-select", this.beforeWorkspaceSelection, { signal });
       this.element.addEventListener("keydown", this.shortcut, { capture: true, signal });
       window.addEventListener("beforeunload", this.beforeUnload, { signal });
     }
@@ -323,7 +323,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
     private readonly beforeWorkspaceSelection = (event: Event): void => {
       if (!this.model) return;
       event.preventDefault();
-      // SAFETY: Workspace residency owns this continuation event.
+      // SAFETY: Workspace selection owns this continuation event.
       const resume = (event as CustomEvent<{ resume(): Promise<void> }>).detail.resume;
       this.guard(() => { void resume(); });
     };

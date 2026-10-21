@@ -114,7 +114,7 @@ type WorkspaceWorkViewAvailability =
   | { phase: "opening"; detail?: string }
   | { phase: "live" }
   | { phase: "reconnecting"; detail?: string }
-  | { phase: "unavailable"; detail: string; recoveryHtml?: string };
+  | { phase: "unavailable"; detail: string };
 
 export function workspaceWorkViewLabelDomId(workspaceId: string, key: string): string {
   return domId("work_view_label", workspaceId, key);
@@ -264,12 +264,12 @@ export type WorkspaceServerAppResolver = (
   requestUrl: URL,
 ) => Promise<WorkspaceAppBackend | undefined> | WorkspaceAppBackend | undefined;
 
-export type WorkspaceProvisionRecovery = "continue" | "retry" | "retry-or-continue";
+export type WorkspaceProvisionFailurePolicy = "continue" | "retry" | "retry-or-continue";
 
 export interface WorkspaceServerProvisioningHook {
   id: string;
   label: string;
-  recovery?: WorkspaceProvisionRecovery;
+  failurePolicy?: WorkspaceProvisionFailurePolicy;
   run(context: { workspaceId: string; creationContext?: WorkspaceCreationContext; events?: AgentsInTheCloudEventBus }): Promise<void> | void;
 }
 
@@ -399,8 +399,8 @@ export function composerSubmitKey(event: Pick<KeyboardEvent, "key" | "metaKey" |
 }
 
 export function isWorkspacePaneVisible(element: Element): boolean {
-  const resident = element.closest(".workspace-detail-resident");
-  if (resident && !resident.classList.contains("visible")) return false;
+  const mount = element.closest(".workspace-detail-mount");
+  if (mount && !mount.classList.contains("visible")) return false;
   const presentationPane = element.closest<HTMLElement>("[data-workspace-pane-role][data-workspace-pane-id]");
   if (presentationPane) {
     if (!presentationPane.classList.contains("is-active")) return false;

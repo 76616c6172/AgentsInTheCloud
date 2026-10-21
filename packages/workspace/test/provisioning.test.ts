@@ -134,7 +134,7 @@ describe("workspace provisioning execution", () => {
     expect(provisioning.snapshot("one")?.steps.map((step) => step.id)).toEqual(["resume"]);
   });
 
-  test("recovery can be answered immediately by a change subscriber", async () => {
+  test("a failed step can be answered immediately by a change subscriber", async () => {
     const provisioning = createWorkspaceProvisioning({ onChange(id) {
       if (provisioning.snapshot(id)?.waiting) provisioning.resume(id, "continue");
     } });
@@ -162,7 +162,7 @@ describe("workspace provisioning execution", () => {
   });
 
   test("project setup permits explicit continuation, not automatic retry", () => {
-    expect(workspaceSetupProvisioningHook.recovery).toBe("continue");
+    expect(workspaceSetupProvisioningHook.failurePolicy).toBe("continue");
   });
 });
 

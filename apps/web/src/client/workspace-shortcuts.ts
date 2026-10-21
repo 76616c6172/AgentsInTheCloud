@@ -6,7 +6,7 @@ import { Controller } from "@hotwired/stimulus";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { submitFormWithFirstButton } from "./form-submission.ts";
 import { clientHooks, type PaletteResult } from "./workspace-client-hooks.ts";
-import { registerWorkspaceControllers, residencyController, workspaceNavigationController } from "./workspace-controller-registry.ts";
+import { registerWorkspaceControllers, workspaceSelectionController, workspaceNavigationController } from "./workspace-controller-registry.ts";
 
 type WorkspaceCommandRegistration = Omit<WorkspaceClientCommand, "run">;
 
@@ -203,7 +203,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     const workspaceId = this.visibleWorkspaceId();
     if (!workspaceId) return null;
     const action = `/workspaces/${CSS.escape(workspaceId)}/delete`;
-    return document.querySelector<HTMLFormElement>(`.workspace-detail-resident.visible form.fixed-shell-delete-workspace[action="${action}"]`);
+    return document.querySelector<HTMLFormElement>(`.workspace-detail-mount.visible form.fixed-shell-delete-workspace[action="${action}"]`);
   }
 
   private deleteVisibleWorkspace(force = false): void {
@@ -225,7 +225,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   }
 
   private visibleWorkspacePresentation(): HTMLElement | null {
-    return document.querySelector(".workspace-detail-resident.visible .fixed-workspace-presentation");
+    return document.querySelector(".workspace-detail-mount.visible .fixed-workspace-presentation");
   }
 
   private workspaceCommands(): WorkspaceCommandRegistration[] {
@@ -485,10 +485,10 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   }
 
   private workspaceDestinationPaletteItems(fuzzyScore: (candidate: string) => number): WorkspacePaletteItem[] {
-    const resident = document.querySelector<HTMLElement>(".workspace-detail-resident.visible[data-workspace-id]");
-    if (!resident) return [];
-    const workspaceId = resident.dataset.workspaceId!;
-    return [...resident.querySelectorAll<HTMLButtonElement>("[data-work-view-key], [data-agent-id]")].map((destination) => {
+    const mount = document.querySelector<HTMLElement>(".workspace-detail-mount.visible[data-workspace-id]");
+    if (!mount) return [];
+    const workspaceId = mount.dataset.workspaceId!;
+    return [...mount.querySelectorAll<HTMLButtonElement>("[data-work-view-key], [data-agent-id]")].map((destination) => {
       const key = destination.dataset.workViewKey ?? destination.dataset.agentId!;
       const label = destination.textContent?.trim() || key;
       const visible = destination.getAttribute("aria-selected") === "true";
@@ -523,11 +523,11 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
 
   private visibleWorkspaceId(): string | undefined {
     return document.querySelector<HTMLElement>("[data-workspace-entry-id][aria-current=\"page\"][data-workspace-entry-id]")?.dataset.workspaceEntryId
-      ?? residencyController()?.visibleWorkspaceId();
+      ?? workspaceSelectionController()?.visibleWorkspaceId();
   }
 
   async openAttentionWorkspace(): Promise<void> {
-    const workspaceId = residencyController()?.oldestAttentionWorkspaceId();
+    const workspaceId = workspaceSelectionController()?.oldestAttentionWorkspaceId();
     if (workspaceId) await workspaceNavigationController()?.selectWorkspaceById(workspaceId);
   }
 

@@ -125,8 +125,8 @@ done
 
 Existing workspaces are discovered before the server starts listening. Each active
 workspace then runs its startup checklist in the background with phase `provisioningPhase`.
-Readiness checks the ingress and egress gateways, parent sockets, and the workspace's
-saved image preload list. Failure retains the container for repair and presents
+Workspace preparation checks the ingress and egress gateways and parent sockets, and installs the workspace's
+saved Preloaded images. Failure retains the container for repair and presents
 **Retry** and **Continue anyway**. Use
 `POST /workspaces/:id/provisioning/continue?action=retry` to retry runtime preparation,
 or omit the query parameter to explicitly bypass the failure. Bypassing makes the
@@ -134,9 +134,9 @@ workspace enter `runningPhase` while retaining its preparation warning. Until st
 the workspace shows its checklist instead of its Agents or Work views. AgentsInTheCloud and
 other workspaces remain available throughout.
 
-The list and detail responses include optional `issues` entries with `kind` and
-`message`. Image inspection runs independently at AgentsInTheCloud startup. Readiness checks
-run again when a workspace resumes or AgentsInTheCloud restarts; bypassing a failure does not
+The list and detail responses include optional `warnings` entries with `kind` and
+`message`; running workspace details also include each warning's `title`, `state`, and `action`. Image inspection runs independently at AgentsInTheCloud startup. Workspace preparation
+runs again when a workspace resumes or AgentsInTheCloud restarts; bypassing a failure does not
 permanently disable checks. Existing workspaces keep their saved preload references
 when template settings change.
 

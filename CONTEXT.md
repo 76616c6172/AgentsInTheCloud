@@ -5,11 +5,11 @@ AgentsInTheCloud is a workspace interface for collaborating with coding agents w
 ## Language
 
 **Onboarding**:
-The guided flow for getting started with AgentsInTheCloud by connecting GitHub and Model providers. Onboarding is app-level, distinct from preparing an individual Workspace.
+The guided flow for getting started with AgentsInTheCloud by connecting a Git hosting provider and Model providers. Onboarding is app-level, distinct from preparing an individual Workspace.
 _Avoid_: Initial setup (as the feature name), Workspace setup
 
 **Settings**:
-The app-level surface for AgentsInTheCloud preferences and shared configuration, such as Connection mode, theme, Commit identity, GitHub connection, and Model providers. Settings is distinct from Workspace template configuration and an individual Agent’s choices.
+The app-level surface for AgentsInTheCloud preferences and shared configuration, such as Connection mode, theme, Commit identity, Git hosting connections, and Model providers. Settings is distinct from Workspace template configuration and an individual Agent’s choices.
 _Avoid_: Preferences, app settings, global settings (as feature names), workspace settings (for this surface)
 
 **Developer tools**:
@@ -32,17 +32,21 @@ _Avoid_: External URL, Instance URL (as the feature label)
 The computer where AgentsInTheCloud is installed, which may differ from the device running the user's browser.
 _Avoid_: This computer (when the installation computer is meant), System container (as the computer's identity)
 
-**GitHub connection**:
-The app-wide connection that lets AgentsInTheCloud and Agents access GitHub repositories using a GitHub token. It is shared across Workspaces, not configured separately for each Workspace. It is distinct from Commit identity, which determines the author name and email on commits.
-_Avoid_: GitHub setup (as the feature name), Workspace GitHub connection
+**Git hosting provider**:
+A service hosting Git repositories that AgentsInTheCloud can connect to: GitHub, GitLab, or Bitbucket.
+_Avoid_: Forge, Git provider, GitHub (when any provider is meant)
+
+**Git hosting connection**:
+The app-wide connection to one Git hosting provider that lets AgentsInTheCloud and Agents access its repositories using a Git hosting token. It is shared across Workspaces, not configured separately for each Workspace. It is distinct from Commit identity, which determines the author name and email on commits.
+_Avoid_: GitHub connection (when any provider is meant), GitHub setup (as the feature name), Workspace GitHub connection
 
 **Commit identity**:
-The app-level author name and email used to configure commits in new Workspaces. It is distinct from the GitHub connection and its access credential; choosing a Commit identity does not authenticate with GitHub.
+The app-level author name and email used to configure commits in new Workspaces. It is distinct from Git hosting connections and their tokens; choosing a Commit identity does not authenticate with any Git hosting provider.
 _Avoid_: Git identity, GitHub identity (for commit authorship)
 
-**GitHub token**:
-The credential used by the GitHub connection. AgentsInTheCloud keeps the token outside Agent sandboxes and supplies repository access without exposing the token to Agents.
-_Avoid_: Workspace GitHub token
+**Git hosting token**:
+The credential used by a Git hosting connection. AgentsInTheCloud keeps the token outside Agent sandboxes and supplies repository access without exposing the token to Agents.
+_Avoid_: GitHub token (when any provider is meant), Workspace GitHub token
 
 **Host**:
 The feature for inspecting AgentsInTheCloud System diagnostics and using privileged terminals outside individual Workspaces. Host access targets the System environment, not necessarily the physical machine running Docker.
@@ -91,6 +95,10 @@ _Avoid_: Project secret, environment variable (when the protected credential ent
 **Environment Variables**:
 The Workspace template page for managing environment variables added to new Workspace containers. Passwords and API keys belong in Secrets; changes do not affect existing containers.
 _Avoid_: Environment (as the page name)
+
+**Preloaded images**:
+Container images a Workspace template has pulled into new Workspaces ahead of use, so Agents don't wait to download them. They require Docker support and are unrelated to a Workspace's Preload state.
+_Avoid_: Preload (without “images”), cached images
 
 **Template icon**:
 The marker that identifies a workspace's template in the Workspace pane. By default it is a **swatch**: a colored square derived from the template id.
@@ -157,7 +165,11 @@ The composer used before a Workspace exists to provide its Agent’s initial pro
 _Avoid_: Launch form, launch prompt, new-workspace composer
 
 **Inline content**:
-HTML-based explanatory content shown as part of an Agent’s answer using AgentsInTheCloud’s supplied styling and controls. Inline content is distinct from independently styled, standalone outputs.
+HTML-based explanatory content shown as part of an Agent’s answer using AgentsInTheCloud’s supplied styling and controls. Inline content is distinct from Artifact previews, which keep their own styling.
+
+**Artifact preview**:
+A Workspace file, such as an image, video, or self-styled HTML page, or a webpage, shown within an Agent’s answer with its own styling rather than AgentsInTheCloud’s.
+_Avoid_: Embed, attachment (for an Artifact preview)
 
 **Dictation**:
 The feature for turning microphone speech into editable text in an AgentPaneComposer or LaunchComposer. Dictation inserts text into the draft without sending it; it is not a voice conversation with an Agent.
@@ -288,13 +300,18 @@ _Avoid_: Owned session
 The single active part of a Workspace's lifecycle: Provisioning phase, Running phase, or Deleting phase. A failure or a pending decision is a state within its phase, not another phase.
 
 **Provisioning phase**:
-The phase that prepares a Workspace for use. It is busy while progressing, not busy while waiting for a user decision or after failure. A decision or failure requests attention for the Workspace.
+The phase that prepares a Workspace for use. It runs when a Workspace is created, when it is unparked, and for every unparked Workspace whenever AgentsInTheCloud starts. A failed step may be retried or skipped with “Continue anyway”, depending on the step; skipping enters the Running phase with a Workspace warning. It is busy while progressing, not busy while waiting for a user decision or after failure. A decision or failure requests attention for the Workspace.
+_Avoid_: Readiness, recovery (for this phase or its steps)
 
 **Running phase**:
 The phase in which a Workspace's Agents and Work views are available. It is busy if any Agent is busy. When an Agent or Work view starts requesting attention, this phase requests attention for the Workspace.
 
 **Deleting phase**:
 The phase that reviews and removes a Workspace. It is busy while progressing, not busy while waiting for a user decision or after failure. A decision or failure requests attention for the Workspace.
+
+**Workspace warning**:
+A dismissible notice about a problem affecting a Workspace, such as a skipped preparation failure, an outdated image, changed template settings, or a failed automatic name. Dismissing it hides that particular problem; it reappears if the problem changes.
+_Avoid_: Issue, alert
 
 **Busy**:
 An independent yes/no state of an Agent or Workspace phase. A Workspace is busy exactly when its active phase is busy. Work views do not contribute busy state.
@@ -307,10 +324,15 @@ _Avoid_: Unread, Agent ready
 An event asking the user to inspect a destination. A phase's request sets its Workspace's requesting-attention state only while that Workspace is not visible. Workspace visibility clears only Workspace attention, not the attention of hidden Agents or Work views. Attention does not itself change the visible destination.
 
 **Workspace selection**:
-Opening a Workspace makes its oldest requesting-attention Agent visible and, on desktop, its oldest requesting-attention Work view visible. An Agent presentation also makes its presented Work view visible on desktop; on mobile it only requests attention.
+Opening a Workspace makes its oldest requesting-attention Agent visible and, on desktop, its oldest requesting-attention Work view visible. When an Agent presents a Work view, that view becomes visible on desktop; on mobile it only requests attention.
+
+**Present**:
+An Agent showing the user a specific Work view, such as a Browser, Desktop, or Terminal view, so they can look at or interact with it. Presenting follows Workspace selection: it reveals the view on desktop and requests attention on mobile.
+_Avoid_: Open, show (for an Agent's action)
 
 **Preload state**:
-A browser-local state indicating whether a Workspace is preloaded, preloading, or neither. It does not affect busy or requesting-attention state. Workspace attention indicators are dimmed until preloading finishes.
+A browser-local state indicating whether a Workspace is preloaded or not preloaded. A Workspace still being prepared for preloading is not preloaded. Preload state does not affect busy or requesting-attention state; Workspace attention indicators are dimmed until the Workspace is preloaded.
+_Avoid_: Resident workspace, residency
 
 **Files**:
 The feature for navigating Workspace files and viewing or editing a selected file. Files combines file navigation and editing rather than creating a separate Work view for each file.
