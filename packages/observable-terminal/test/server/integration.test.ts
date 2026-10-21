@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { $ } from "bun";
-import { shellQuote } from "@agents-in-the-cloud/core";
-import { attachHostObservableTerminal, buildKillSessionCommand, buildObservableSessionCommand, normalizeCarriageReturns, observableTerminalCols, observableTerminalRows } from "../../src/server/index.ts";
-import { buildCapturePaneCommand } from "../../src/server/tmux.ts";
+import { attachHostObservableTerminal, buildKillSessionCommand, buildObservableSessionCommand } from "../../src/server/index.ts";
+import { observableTerminalCols, observableTerminalRows } from "../../src/server/constants.ts";
 
 const sessions: string[] = [];
 
@@ -16,41 +15,18 @@ describe.skip("observable terminal integration", () => {
     for (const session of sessions.splice(0)) await sh(buildKillSessionCommand(session)).catch(() => undefined);
   });
 
-  test("fixed-size sessions keep carriage-return progress readable", async () => {
-    const session = `agents-in-the-cloud-observable-test-${Date.now()}`;
-    sessions.push(session);
-    const fixture = `import sys, time\nprint("Cloning into 'repo'...")\nfor i in range(1, 101):\n    sys.stderr.write(f"remote: Counting objects: {i:3}% ({i}/100)\\r")\n    sys.stderr.flush()\n    time.sleep(0.005)\nsys.stderr.write("remote: Counting objects: 100% (100/100), done.\\n")`;
-    await sh(buildObservableSessionCommand({ session, cwd: process.cwd(), command: `python3 -c ${shellQuote(fixture)}`, fixedSize: true, remainOnExit: true }));
-    await sh(`for i in $(seq 1 200); do tmux capture-pane -p -t ${session} | grep -q '100% (100/100)' && exit 0; sleep 0.025; done; exit 1`);
-    const screen = await sh(buildCapturePaneCommand({ session }));
-    const normalized = normalizeCarriageReturns(screen);
-
-    expect(normalized).toContain("Cloning into 'repo'...");
-    expect(normalized).toMatch(/remote: Counting objects:\s+100%/);
-    expect(normalized).not.toMatch(/Counting objects:.*Counting objects:/);
-    expect(normalized).not.toMatch(/\(1\/100\).*remote: Counting objects:/);
-  });
-
-  test("fixed-size sessions report stable dimensions", async () => {
-    const session = `agents-in-the-cloud-observable-test-${Date.now()}`;
-    sessions.push(session);
-    await sh(buildObservableSessionCommand({ session, cwd: process.cwd(), command: "sleep 5", fixedSize: true, remainOnExit: true }));
-    const size = (await sh(`tmux display-message -p -t ${session} '#{pane_width}x#{pane_height}'`)).trim();
-    expect(size).toBe(`${observableTerminalCols}x${observableTerminalRows}`);
-  });
-
   test("host readonly attach works when parent TERM is dumb", async () => {
     const originalTerm = process.env.TERM;
     const session = `agents-in-the-cloud-observable-test-${Date.now()}`;
     sessions.push(session);
     process.env.TERM = "dumb";
     try {
-      await sh(buildObservableSessionCommand({ session, cwd: process.cwd(), command: "printf 'docker build progress\\n'; sleep 1", fixedSize: true, remainOnExit: true }));
+      await sh(buildObservableSessionCommand({ session, cwd: process.cwd(), command: "printf 'docker build progress\\n'; sleep 1", remainOnExit: true }));
       await new Promise<void>((resolve, reject) => {
         const decoder = new TextDecoder();
         let output = "";
         const timer = setTimeout(() => reject(new Error(output || "timed out waiting for attach output")), 3_000);
-        attachHostObservableTerminal({ session, cols: observableTerminalCols, rows: observableTerminalRows, readonly: true, fixedSize: true }, {
+        attachHostObservableTerminal({ session, cols: observableTerminalCols, rows: observableTerminalRows, readonly: true }, {
           onData: (chunk) => {
             output += decoder.decode(chunk, { stream: true });
             if (output.includes("docker build progress")) {

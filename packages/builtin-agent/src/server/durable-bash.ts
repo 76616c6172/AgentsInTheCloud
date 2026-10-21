@@ -3,7 +3,7 @@ import { defineDoc, defineExtension, defineTask, defineTool, type TaskId } from 
 import type { TerminalProcesses } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspaceRoot, workspaceTerminalProcesses } from "@agents-in-the-cloud/workspace";
 import { Type, type Static } from "typebox";
-import { bashToolDefinition, forcedColorEnvironment, formatBashOutput } from "@agents-in-the-cloud/agent/server/bash-tmux";
+import { bashToolDefinition, forcedColorEnvironment, formatBashOutput } from "@agents-in-the-cloud/agent/server/bash-tool";
 
 type BashRequest = {
   /** Also the terminal process id. */

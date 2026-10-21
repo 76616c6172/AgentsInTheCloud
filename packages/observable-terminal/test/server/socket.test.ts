@@ -45,7 +45,7 @@ test("interactive sockets route input, size and progress, and detach once", () =
 `));
 
 test("read-only sockets ignore input and control messages", () => scenario(`
-  const connection = createObservableTerminalSocket({ ...options, readonly: true, fixedSize: true }, { onProgress: event => progress.push(event) });
+  const connection = createObservableTerminalSocket({ ...options, readonly: true }, { onProgress: event => progress.push(event) });
   connection.open(socket);
   for (const text of ["interrupt", JSON.stringify({ type: "resize", cols: 1, rows: 1 }), JSON.stringify({ type: "progress", state: 1 })]) connection.message(socket, text);
   expect(writes).toEqual([]);
@@ -54,15 +54,6 @@ test("read-only sockets ignore input and control messages", () => scenario(`
   callbacks.onData(new TextEncoder().encode("final output"));
   callbacks.onExit(0);
   expect(output).toEqual(["final output", "closed"]);
-`));
-
-test("fixed-size interactive sockets accept input without resizing", () => scenario(`
-  const connection = createObservableTerminalSocket({ ...options, fixedSize: true });
-  connection.open(socket);
-  connection.message(socket, "input");
-  connection.message(socket, JSON.stringify({ type: "resize", cols: 1, rows: 1 }));
-  expect(writes).toEqual(["input"]);
-  expect(sizes).toEqual([]);
 `));
 
 test("attachment failure delivers its diagnostic before closing", () => scenario(`

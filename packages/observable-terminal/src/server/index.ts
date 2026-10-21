@@ -1,11 +1,5 @@
 export { observableTerminalStaticFiles } from "./static.ts";
 export {
-  observableTerminalCols,
-  observableTerminalRows,
-} from "./constants.ts";
-export {
-  normalizeCarriageReturns,
-  stripTerminalControls,
   tailTerminalOutput,
   tailTerminalText,
   terminalOutputDisplayBytes,

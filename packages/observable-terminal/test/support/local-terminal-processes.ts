@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import type { RunTerminalProcessCommand } from "../../src/server/terminal-process.ts";
 
-export { localTerminalProcesses as terminalProcessesIn, runLocally, startLocally } from "../../src/server/local-terminal-processes.ts";
+export { clearLocalTerminalProcesses, localTerminalProcesses as terminalProcessesIn, runLocally, startLocally } from "../../src/server/local-terminal-processes.ts";
 
 /**
  * Starts a tmux server in `tmuxDirectory` through `run`, like a workspace's

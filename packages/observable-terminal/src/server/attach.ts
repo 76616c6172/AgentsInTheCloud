@@ -22,8 +22,6 @@ export interface HostObservableTerminalAttachOptions {
   cols: number;
   rows: number;
   readonly?: boolean;
-  fixedSize?: boolean;
-  env?: Record<string, string>;
 }
 
 export interface ObservableTerminalAttachOptions extends HostObservableTerminalAttachOptions {
@@ -47,9 +45,6 @@ function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] 
       "bind-key", "-T", "copy-mode", "S-NPage", "send-keys -X page-down", ";",
     );
   }
-  if (options.fixedSize) {
-    args.push("set-option", "-t", `${options.session}:`, "window-size", "manual", ";", "resize-window", "-t", `${options.session}:`, "-x", String(options.cols), "-y", String(options.rows), ";");
-  }
   // Tell tmux that the Gespenst client accepts OSC 8. Pi probes this client
   // feature before emitting file:// hyperlinks; RGB alone is not enough.
   if (!options.readonly) {
@@ -68,13 +63,13 @@ export function buildAttachStart(options: Omit<ObservableTerminalAttachOptions, 
     argv: ["tmux", ...tmuxAttachArgs(options)],
     user: options.user ?? "agents-in-the-cloud",
     workdir: options.workdir,
-    env: { ...observableTerminalEnvironment, ...options.env },
+    env: observableTerminalEnvironment,
     terminal: { cols: options.cols, rows: options.rows },
   };
 }
 
 export function attachHostObservableTerminal(options: HostObservableTerminalAttachOptions, events: ObservableTerminalEvents): ObservableTerminalConnection {
-  const env = { ...process.env, ...observableTerminalEnvironment, ...options.env, TMUX: undefined, TMUX_PANE: undefined };
+  const env = { ...process.env, ...observableTerminalEnvironment, TMUX: undefined, TMUX_PANE: undefined };
   const terminal = new Bun.Terminal({
     name: "xterm-256color",
     cols: options.cols,

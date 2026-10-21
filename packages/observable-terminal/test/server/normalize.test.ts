@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { buildListSessionsCommand, buildObservableSessionCommand, normalizeCarriageReturns, observableTerminalCols, observableTerminalRows, stripTerminalControls, terminalProcessSession } from "../../src/server/index.ts";
+import { buildListSessionsCommand, buildObservableSessionCommand, terminalProcessSession } from "../../src/server/index.ts";
+import { normalizeCarriageReturns, stripTerminalControls } from "../../src/server/text.ts";
 import { buildAttachStart } from "../../src/server/attach.ts";
 
 describe("observable terminal normalization", () => {
@@ -41,48 +42,17 @@ describe("observable terminal normalization", () => {
     expect(start.argv).toEqual(["tmux", "attach-session", "-r", "-t", "s"]);
   });
 
-  test("builds fixed-size observable sessions", () => {
-    const command = buildObservableSessionCommand({ session: "s", cwd: "/work", command: "/bin/bash", fixedSize: true });
-    expect(command).not.toContain("set-option -g");
-    expect(command).toContain(`-x ${observableTerminalCols} -y ${observableTerminalRows}`);
-    expect(command).toContain("window-size manual");
-    expect(command).toContain(`resize-window -t 's' -x ${observableTerminalCols} -y ${observableTerminalRows}`);
-    expect(command).toContain("status off");
-  });
-
   test("hides tmux dead-pane footer when panes remain on exit", () => {
     const command = buildObservableSessionCommand({ session: "s", cwd: "/work", command: "/bin/bash", remainOnExit: true });
     expect(command).toContain("remain-on-exit on");
     expect(command).toContain("remain-on-exit-format ''");
   });
 
-  test("builds readonly fixed-size attach arguments", () => {
-    const start = buildAttachStart({ session: "s", cols: 120, rows: 30, readonly: true, fixedSize: true });
-    expect(start.argv).toContain("resize-window");
-    expect(start.argv).toContain("attach-session");
-    expect(start.argv).toContain("-r");
+  test("terminal process viewers attach read-only to the existing server", () => {
+    const session = terminalProcessSession(crypto.randomUUID());
+    const start = buildAttachStart({ session, cols: 120, rows: 30, readonly: true, requireExistingServer: true });
+    expect(start.argv).toEqual(["tmux", "-N", "attach-session", "-r", "-t", session]);
     expect(start.terminal).toEqual({ cols: 120, rows: 30 });
     expect(start.stdin).toBeUndefined();
   });
-});
-
-test("terminal process sessions attach read-only to an existing server using a window target", async () => {
-  const socketName = `agents-in-the-cloud-attach-${crypto.randomUUID()}`;
-  const session = terminalProcessSession(crypto.randomUUID());
-  const run = async (args: string[]) => {
-    const process = Bun.spawn(["tmux", "-L", socketName, ...args], { stdout: "pipe", stderr: "pipe" });
-    return { code: await process.exited, output: await new Response(process.stdout).text(), error: await new Response(process.stderr).text() };
-  };
-  expect((await run(["new-session", "-d", "-s", session, "sleep 30"])).code).toBe(0);
-  try {
-    const bridge = { args: buildAttachStart({ session, cols: 120, rows: 30, readonly: true, fixedSize: true, requireExistingServer: true }).argv.slice(1) };
-    expect(bridge.args[0]).toBe("-N");
-    expect(bridge.args).not.toContain("-L");
-    // Execute the actual attach prelude against tmux. The old bare session
-    // target fails here with 'no such window' despite an existing session.
-    const prelude = bridge.args.slice(1, bridge.args.indexOf("attach-session") - 1);
-    expect(await run(prelude)).toMatchObject({ code: 0, error: "" });
-    expect((await run(["display-message", "-p", "-t", `${session}:`, "#{window_width}x#{window_height}"])).output.trim()).toBe("120x30");
-    expect(bridge.args.slice(-4)).toEqual(["attach-session", "-r", "-t", session]);
-  } finally { await run(["kill-server"]); }
 });

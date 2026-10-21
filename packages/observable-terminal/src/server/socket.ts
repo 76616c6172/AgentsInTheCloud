@@ -57,7 +57,7 @@ export function createObservableTerminalSocket(options: ObservableTerminalAttach
       const text = input instanceof Uint8Array ? decoder.decode(input) : input;
       const control = parseObservableTerminalMessage(text);
       if (control?.type === "resize") {
-        if (!options.fixedSize) terminal?.resize(control.cols, control.rows);
+        terminal?.resize(control.cols, control.rows);
       } else if (control?.type === "progress") events.onProgress?.(control);
       else terminal?.write(text);
     },

@@ -11,27 +11,27 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { createDurableBashExtension } from "../../src/server/durable-bash.ts";
 import { openDurableWorkspace, type DurableWorkspace } from "../../src/server/durable-workspace.ts";
-import { runLocally, startPrivateTmux, terminalProcessesIn } from "../../../observable-terminal/test/support/local-terminal-processes.ts";
+import { clearLocalTerminalProcesses, runLocally, terminalProcessesIn } from "../../../observable-terminal/test/support/local-terminal-processes.ts";
 
 // Terminal processes test the command lifecycle itself. These test what the
 // Durable bash tool adds: starting at most once across recovery, Stop, and
 // turning a finished process into a tool result.
 const context = BACKGROUND_CONTEXT;
-const fixtures: Array<{ path: string; tmux: { stop(): Promise<void> } }> = [];
+const fixtures: string[] = [];
 const workspaces: DurableWorkspace[] = [];
 afterEach(async () => {
   await Promise.all(workspaces.splice(0).map((workspace) => workspace.close()));
-  for (const { path, tmux } of fixtures.splice(0)) {
-    await tmux.stop();
+  for (const path of fixtures.splice(0)) {
+    await clearLocalTerminalProcesses(path);
     await rm(path, { recursive: true, force: true });
   }
 });
 
+/** Terminal processes on this machine, on a tmux server of their own. */
 async function fixture() {
   const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-bash-"));
-  const tmuxDirectory = join(path, "tmux");
-  fixtures.push({ path, tmux: await startPrivateTmux(runLocally(tmuxDirectory), tmuxDirectory) });
-  return { path, tmuxDirectory, processes: terminalProcessesIn(path) };
+  fixtures.push(path);
+  return { path, tmuxDirectory: join(path, "tmux"), processes: terminalProcessesIn(path) };
 }
 
 /** The processes, reporting each start once it has happened. */

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { formatBashOutput } from "../../src/server/bash-tmux.ts";
+import { formatBashOutput } from "../../src/server/bash-tool.ts";
 
 test("passes output within the limits through unchanged", () => {
   const plainLines = Array.from({ length: 100 }, (_, index) => `  line ${index + 1}`);
