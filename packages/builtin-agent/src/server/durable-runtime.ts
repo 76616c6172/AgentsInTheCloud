@@ -479,18 +479,19 @@ export async function openDurableAgentRuntime(
         });
       },
       /**
-       * Promote a queued input to steering in place, keeping its submission and queue position. A turn that ends in an
-       * error leaves its queue behind on an idle agent; there, this also resumes the queue from its start.
+       * Promote a queued follow-up to steering in place, keeping its submission and queue position. A turn that ends in
+       * an error leaves its queue behind on an idle agent; there, this resumes the queue from its start instead.
        */
       steerQueuedInput(submissionId: string) {
         return command(async () => {
           const outcome = await harness.commit(async tx => {
             const input = (await tx.doc(InboxDoc, conversation.id)).items.find(item => String(item.id) === submissionId);
             if (!input || input.mode === "write") return "gone";
-            const idle = !(await tx.doc(LiveDoc, conversation.id)).run;
-            if (!idle && input.mode !== "followUp") return "gone";
+            // Steering on an idle agent would place this input ahead of older follow-ups.
+            if (!(await tx.doc(LiveDoc, conversation.id)).run) return "stranded";
+            if (input.mode !== "followUp") return "gone";
             input.mode = "steer";
-            return idle ? "stranded" : "steered";
+            return "steered";
           }, context);
           if (outcome === "gone") return false;
           if (outcome === "stranded") {

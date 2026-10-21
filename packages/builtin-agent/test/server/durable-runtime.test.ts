@@ -1166,11 +1166,11 @@ test("a follow-up left behind by a turn that failed is shown as not sent, and St
   expect(JSON.stringify((await agent.context(context)).messages)).toContain("Later please");
 });
 
-test("sending a follow-up a failed turn left behind resumes the queue in the order it was written", async () => {
+test("sending the newest of three follow-ups a failed turn left behind keeps them in the order they were written", async () => {
   const { runtime, faux, registry } = await setup();
   const started = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
-  registry.install(defineExtension({ name: "blocking-step-order", tools: [defineTool({
+  registry.install(defineExtension({ name: "blocking-step-order-three", tools: [defineTool({
     name: "block", description: "Wait", parameters: Type.Object({}),
     async execute() {
       started.resolve();
@@ -1183,21 +1183,21 @@ test("sending a follow-up a failed turn left behind resumes the queue in the ord
     fauxAssistantMessage("", { stopReason: "error", errorMessage: "Bad request: invalid" }),
     fauxAssistantMessage("Answer"),
     fauxAssistantMessage("Answer"),
+    fauxAssistantMessage("Answer"),
   ]);
   const agent = await runtime.agent(record);
   const original = await agent.submit({ requestId: "original", text: "Start" });
   await started.promise;
   const first = await agent.submit({ requestId: "first", text: "First follow-up", whenBusy: "followUp" });
   const second = await agent.submit({ requestId: "second", text: "Second follow-up", whenBusy: "followUp" });
+  const third = await agent.submit({ requestId: "third", text: "Third follow-up", whenBusy: "followUp" });
   release.resolve();
   expect((await original.wait(context)).status).toBe("unanswered");
-  expect(await agent.steerQueuedInput(String(first.id))).toBe(true);
-  expect((await first.wait(context)).status).toBe("done");
-  expect((await second.wait(context)).status).toBe("done");
+  // Cmd+Enter in an empty composer sends the newest one shown.
+  expect(await agent.steerQueuedInput(String(third.id))).toBe(true);
+  for (const submission of [first, second, third]) expect((await submission.wait(context)).status).toBe("done");
   const users = (await agent.context(context)).messages.filter(message => message.role === "user").map(message => JSON.stringify(message.content));
-  const firstAt = users.findIndex(text => text.includes("First follow-up"));
-  const secondAt = users.findIndex(text => text.includes("Second follow-up"));
-  expect(firstAt).toBeGreaterThanOrEqual(0);
-  expect(secondAt).toBeGreaterThanOrEqual(0);
-  expect(firstAt).toBeLessThan(secondAt);
+  const at = ["First follow-up", "Second follow-up", "Third follow-up"].map(text => users.findIndex(user => user.includes(text)));
+  expect(at.every(index => index >= 0)).toBe(true);
+  expect(at).toEqual([...at].sort((a, b) => a - b));
 });
