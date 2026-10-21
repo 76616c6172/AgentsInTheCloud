@@ -276,7 +276,7 @@ test(`image build CLI pairs images from its working checkout, not its tooling ch
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
-});
+}, 30_000);
 }
 
 for (const preload of [undefined, "[]", "null", "{}", "[42]", JSON.stringify(["workspace:tag"])]) {

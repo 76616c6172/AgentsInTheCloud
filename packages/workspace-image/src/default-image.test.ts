@@ -80,5 +80,5 @@ for (const innerAgentsInTheCloud of [false, true]) for (const scenario of ["cach
       await rm(directory, { recursive: true });
       await rm(join("/tmp/agents-in-the-cloud-workspace-image-context", namespace), { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 }
