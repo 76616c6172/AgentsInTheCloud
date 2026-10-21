@@ -10,6 +10,8 @@ import { workspaceRoot } from "@agents-in-the-cloud/workspace";
 import { createDurableWorkspaceTools } from "./durable-tools.ts";
 import { createDurableBashExtension } from "./durable-bash.ts";
 import { createWorkspaceCodemodeExtension } from "./durable-codemode.ts";
+import { createCodemodeTemplates } from "./durable-codemode-templates.ts";
+import { listPromptTemplates } from "@agents-in-the-cloud/agent/server/prompt-templates";
 import { durableJournalInstructions } from "./durable-storage.ts";
 import { formatProjectInstructions, loadWorkspaceAgentsFiles } from "@agents-in-the-cloud/agent/server/workspace-agents-files";
 import { loadWorkspaceSkills } from "@agents-in-the-cloud/agent/server/skills";
@@ -38,12 +40,17 @@ export async function createDurableHarnessOptions(workspaceId: string, options: 
   if (delegation) registry.install(delegation.extension);
   registry.install(durableSubscriptionActivity(models));
   registry.install(durableTiming(writeTiming));
+  const templates = createCodemodeTemplates(() => listPromptTemplates(workspaceId), harness);
+  registry.install(templates.extension);
   return {
-    models: delegation?.models ?? models,
+    models: templates.models(delegation?.models ?? models),
     registry,
     settings: { compaction: { enabled: true, keepRecentTokens: 6000 } },
   };
 }
+
+/** Only the builtin Agent runs code mode templates, so only its prompt points at their guide. */
+const codemodeTemplatesInstructions = "Code mode templates are Prompt templates that run a code mode script as your own call, without asking the model. When the user asks about them or wants one, read /opt/agents-in-the-cloud/docs/codemode-templates.md, which adds to the Prompt templates section of agents-in-the-cloud.md.";
 
 const resourceLoaders = {
   agents: loadWorkspaceAgentsFiles,
@@ -76,6 +83,7 @@ export async function prepareDurableAgent(
     : (await load.thinking(selectedModel ? { provider: selectedModel.provider, id: selectedModel.modelId } : undefined)).selected;
   const instructions = [
     agentsInTheCloudSystemPrompt,
+    codemodeTemplatesInstructions,
     durableJournalInstructions(workspaceId, agentId),
     ...appended,
     ...agents.map(formatProjectInstructions),

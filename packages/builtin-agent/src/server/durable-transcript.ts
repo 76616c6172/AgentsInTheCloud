@@ -8,6 +8,7 @@ import { AgentDoc, CompactionEntry, InboxDoc, LiveDoc, ResetEntry, ToolResultEnt
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { isJsonObject } from "@agents-in-the-cloud/core";
+import { codemodeTemplateRunEndEntry } from "./durable-codemode-templates.ts";
 import { callEndDetails, codemodeCallEntry, type CallEnd, type CallStart, type CodemodeCallRecord } from "./durable-codemode.ts";
 import { buildTranscript, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type SessionImageRef, type ToolView, type TranscriptItem, type TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
 
@@ -89,6 +90,8 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   }
   let turn: string | undefined;
   let pendingBoundary = true;
+  // Code mode template calls that ended their run, as recorded when they finished.
+  const runEndingCalls = new Set<string>();
 
   function appendMessage(message: Message, key: string, imageEntryId: string, offset: number, partial = false, aborted = false) {
     if (message.role === "system") return;
@@ -116,6 +119,10 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
       let details = isToolViewDetails(message.details) ? message.details : undefined;
       if (aborted) details = isJsonObject(details) ? { ...details, aborted: true } : { aborted: true };
       records.push({ kind: "toolResult", callId: message.toolCallId, text: contentText(message.content), images: images(message.content, imageEntryId, offset), timestamp: message.timestamp, isError: message.isError, details });
+      if (turn && runEndingCalls.has(message.toolCallId) && !aborted) {
+        turnEnds.set(turn, { timestamp: message.timestamp, completed: true });
+        pendingBoundary = true;
+      }
     }
   }
 
@@ -124,6 +131,10 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   for (const entry of view.entries) {
     if (codemodeCallEntry.is(entry)) {
       recordCodemodeCall(entry.data);
+      continue;
+    }
+    if (codemodeTemplateRunEndEntry.is(entry)) {
+      runEndingCalls.add(entry.data.callId);
       continue;
     }
     if (durableStopEntry.is(entry)) {

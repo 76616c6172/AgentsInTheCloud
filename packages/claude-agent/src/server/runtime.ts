@@ -8,7 +8,7 @@ import { createPiModelRuntime, parseModelRef, setAgentModelPreference } from "@a
 import { publishWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
 import { readPromptSuggestionsEnabled } from "@agents-in-the-cloud/agent/server/prompt-suggestions";
 import { createNativeAgents } from "@agents-in-the-cloud/native-agent/server";
-import { listPromptTemplates } from "@agents-in-the-cloud/agent/server/prompt-templates";
+import { listPromptOnlyTemplates } from "@agents-in-the-cloud/agent/server/prompt-templates";
 import { renderSlashCommandCatalog } from "@agents-in-the-cloud/agent/server/slash-commands";
 import { claudeAgentCommands, claudeNativeCommands, uuidPattern, type ClaudeCommand, type ClaudeCommandResult } from "./commands.ts";
 import { claudeSessionDirectory, hasClaudeSession, listClaudeSessions, readClaudeRows, type ClaudeBlock } from "./rows.ts";
@@ -103,7 +103,7 @@ export class ClaudeRuntime {
     this.presentation.invalidate();
   }
   async refreshCompletionCatalog() {
-    const templates = await listPromptTemplates(this.workspaceId);
+    const templates = await listPromptOnlyTemplates(this.workspaceId);
     this.templateNames = new Set(templates.map(template => template.name));
     this.completionCatalog = renderSlashCommandCatalog(templates, [], "cli", [...claudeAgentCommands, ...claudeNativeCommands(this.commands, this.templateNames)]);
     this.presentation.invalidate();

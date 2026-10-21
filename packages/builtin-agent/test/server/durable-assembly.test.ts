@@ -48,6 +48,7 @@ test("prepares workspace instructions and skill discovery without loading skill 
   expect(agent.cwd).toBe("/work");
   expect(agent.thinkingLevel).toBe("medium");
   expect(agent.instructions).toContain("online coding tool called AgentsInTheCloud");
+  expect(agent.instructions).toContain("/opt/agents-in-the-cloud/docs/codemode-templates.md");
   expect(agent.instructions).toContain("/agents-in-the-cloud/session-share/builtin-durable/assembly-workspace");
   expect(agent.instructions).toContain('AgentsInTheCloud Agent ID is "tab"');
   expect(agent.instructions).toContain("matching seq and ordinal");

@@ -15,6 +15,7 @@ export { type AgentRouteHandler, requireAgentPresentation } from "./route-suppor
 export { maybeNameWorkspaceFromPrompt } from "./agent-title-suggestion.ts";
 export { nativeAgentLaunch } from "./launch.ts";
 export { WorkspaceAgents, type DurableAgentRecord } from "./durable-workspace.ts";
+export { withStreamSimple } from "./durable-models.ts";
 export { WorkspaceAdmission, WorkspaceStops, DurableTaskAdmissions, commitDurableStop, markGatedDurableWork, settleStoppedDurableWork } from "./durable-lifecycle.ts";
 export { durableWorkspaceOwner } from "./runtime.ts";
 export { hasAvailableBuiltinAgentModel } from "./model-state.ts";
