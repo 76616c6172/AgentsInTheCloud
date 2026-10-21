@@ -4,9 +4,9 @@ export function agentComposerTextStorageKey(workspaceId: string, agentId: string
   return `agents-in-the-cloud.agentComposerText:${JSON.stringify([workspaceId, agentId])}`;
 }
 
-export function agentComposerPrimaryAction(busy: boolean, text: string, attachmentCount: number, hasStoppableWork = busy): "abort" | "send" | "steer" {
+export function agentComposerPrimaryAction(busy: boolean, text: string, attachmentCount: number, hasStoppableWork = busy, busyMode: "steer" | "followUp" = "steer"): "abort" | "send" | "steer" | "followUp" {
   if (hasStoppableWork && !text.trim() && attachmentCount === 0) return "abort";
-  return busy ? "steer" : "send";
+  return busy ? busyMode : "send";
 }
 
 /** A prompt suggestion takes the composer's placeholder, unless staged attachments ask for something else. */

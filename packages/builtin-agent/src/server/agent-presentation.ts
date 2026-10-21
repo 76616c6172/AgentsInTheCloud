@@ -41,7 +41,7 @@ export class AgentPresentation {
   private readonly chrome = createLivePresentation(() => this.chromeRegions(), 50);
   private chromeRegions(): LiveRegion[] {
     return [
-      { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork) },
+      { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork, "followUp") },
       { target: ids.stats(this), html: renderAgentPaneComposerFooter(this, this.stats()), morph: false },
       { target: ids.completionCatalog(this), html: this.catalog },
       { target: ids.promptSuggestion(this), html: escapeHtml(this.controller.promptSuggestion ?? "") },

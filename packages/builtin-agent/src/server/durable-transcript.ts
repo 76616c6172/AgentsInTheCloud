@@ -250,7 +250,7 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   for (const input of inbox.items) {
     if (input.mode === "write") continue;
     const key = `queued-${input.id}`;
-    items.push({ type: "user", key, text: contentText(input.content), images: images(input.content, key), pending: true, queuedSubmissionId: input.mode === "steer" ? String(input.id) : undefined, steering: input.mode === "steer" && Boolean(live.run) });
+    items.push({ type: "user", key, text: contentText(input.content), images: images(input.content, key), pending: true, queued: { submissionId: String(input.id), mode: input.mode }, steering: input.mode === "steer" && Boolean(live.run) });
   }
   return contribution ? applyTranscriptContributions(items, contribution) : items;
 }

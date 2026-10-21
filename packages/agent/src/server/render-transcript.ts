@@ -1,9 +1,10 @@
 import { disclosureHtml, type DisclosureSummary } from "@agents-in-the-cloud/design-system/disclosure";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
+import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { renderStreamingMarkdownSnapshot } from "@agents-in-the-cloud/markdown";
 import type { ModelRef } from "@agents-in-the-cloud/llm/server";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
 import { agentPath, backgroundActivityPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, detailTableHtml, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow, transcriptTargetLink } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";
@@ -46,10 +47,25 @@ export function renderModelContextDetailFrame(ctx: AgentRenderContext, modelCont
 
 function renderUserMessage(ctx: AgentRenderContext, user: Extract<TranscriptItem, { type: "user" }>): string {
   const images = user.images.length ? `<div class="agent-user-attachments">${user.images.map((image) => `<img${fullscreenAttributes("attachment", "media")} src="${escapeHtml(sessionImageUrl(ctx, image))}" alt="attachment" loading="lazy">`).join("")}</div>` : "";
-  const label = user.pending ? "Queued · awaiting consumption" : user.steering ? "Steering" : "";
-  const cancel = user.queuedSubmissionId && !ctx.readOnly
-    ? `<form method="post" action="${escapeHtml(agentPath(ctx, `/queued-inputs/${encodeURIComponent(user.queuedSubmissionId)}/cancel`))}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Cancel queued message" } })}</form>` : "";
-  return transcriptRow(`<div class="agent-user" data-agent-user-text="${escapeHtml(user.text)}"><div class="agent-user-bubble markdown">${label ? `<div class="agent-user-label">${label}${cancel}</div>` : ""}${markdown(ctx, user.text)}${images}</div></div>`);
+  const label = user.queued?.mode === "followUp" ? "Follow-up · after this turn"
+    : user.queued ? "Steering · after this step"
+    : user.pending ? "Queued" : user.steering ? "Steering" : "";
+  const actions = user.queued && !ctx.readOnly ? renderQueuedInputActions(ctx, user.key, user.queued) : "";
+  return transcriptRow(`<div class="agent-user" data-agent-user-text="${escapeHtml(user.text)}"><div class="agent-user-bubble markdown">${label ? `<div class="agent-user-label"><span>${label}</span>${actions}</div>` : ""}${markdown(ctx, user.text)}${images}</div></div>`);
+}
+
+/** A follow-up can be promoted to steering; ⌘/Ctrl+Enter in an empty composer promotes the newest one. */
+function renderQueuedInputActions(ctx: AgentRenderContext, key: string, queued: { submissionId: string; mode: "steer" | "followUp" }): string {
+  const path = (action: string) => escapeHtml(agentPath(ctx, `/queued-inputs/${encodeURIComponent(queued.submissionId)}/${action}`));
+  const steer = queued.mode === "followUp"
+    ? `<form method="post" action="${path("steer")}">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Steer" }, attributesHtml: 'data-agent-queued-steer aria-keyshortcuts="Meta+Enter Control+Enter"' })}</form>` : "";
+  const cancel = `<form method="post" action="${path("cancel")}">${destructiveConfirmationHtml({
+    id: domId(ids.item(ctx, key), "cancel"),
+    trigger: { type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Remove queued message" } },
+    confirmCaption: "Remove message",
+    cancelCaption: "Keep",
+  })}</form>`;
+  return `<span class="agent-user-queued-actions">${steer}${cancel}</span>`;
 }
 
 function renderStreamingTextBody(ctx: AgentRenderContext, key: string, text: string, className: string): string {

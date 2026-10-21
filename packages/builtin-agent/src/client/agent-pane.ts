@@ -129,7 +129,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["data-agent-busy", "data-agent-stoppable", "data-agent-abort-form-id"],
+        attributeFilter: ["data-agent-busy", "data-agent-busy-mode", "data-agent-stoppable", "data-agent-abort-form-id"],
       });
       const promptDraft = localStorage.getItem(this.composerTextStorageKey);
       if (promptDraft !== null) this.inputTarget.value = promptDraft;
@@ -292,8 +292,11 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       if (composerSubmitKey(event)) {
         event.preventDefault();
         if (this.inputTarget.value.trim() || this.formTarget.querySelector(".agent-chip")) {
-          const submitter = this.formTarget.querySelector<HTMLButtonElement>('button[value="send"], button[value="steer"]');
+          const submitter = this.formTarget.querySelector<HTMLButtonElement>('button[name="mode"]');
           this.formTarget.requestSubmit(submitter ?? undefined);
+        } else {
+          // Sending twice steers: the second press, in the now empty composer, promotes the newest follow-up.
+          [...this.transcriptTarget.querySelectorAll<HTMLButtonElement>("button[data-agent-queued-steer]")].at(-1)?.click();
         }
       }
     }
@@ -326,7 +329,8 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       const button = this.sendStopTarget;
       const busy = button.dataset.agentBusy === "true";
       if (this.connected) this.navigation.setStreaming(busy);
-      const action = agentComposerPrimaryAction(busy, this.inputTarget.value, this.formTarget.querySelectorAll('input[name="attachment"]').length, button.dataset.agentStoppable === "true");
+      const busyMode = button.dataset.agentBusyMode === "followUp" ? "followUp" : "steer";
+      const action = agentComposerPrimaryAction(busy, this.inputTarget.value, this.formTarget.querySelectorAll('input[name="attachment"]').length, button.dataset.agentStoppable === "true", busyMode);
       if (action === "abort") {
         setActivityButtonState(button, "active");
         button.type = "submit";

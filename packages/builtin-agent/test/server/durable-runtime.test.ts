@@ -1064,6 +1064,41 @@ test.each([undefined, "   ", "  Try a narrower search instead.  "])("aborting on
   expect(await agent.abortTool(stopping.id)).toBe(false);
 });
 
+test("a follow-up promoted to steering joins the running turn after its current step", async () => {
+  const { runtime, faux, registry } = await setup();
+  const started = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  registry.install(defineExtension({ name: "blocking-step", tools: [defineTool({
+    name: "block", description: "Wait", parameters: Type.Object({}),
+    async execute() {
+      started.resolve();
+      await release.promise;
+      return { output: [{ type: "text", text: "Step done" }] };
+    },
+  })] }));
+  faux.setResponses([
+    fauxAssistantMessage([fauxToolCall("block", {})], { stopReason: "toolUse" }),
+    request => {
+      const users = request.messages.filter(message => message.role === "user");
+      expect(JSON.stringify(users.at(-1))).toContain("Promote me");
+      return fauxAssistantMessage("Steered answer");
+    },
+  ]);
+  const agent = await runtime.agent(record);
+  const original = await agent.submit({ requestId: "original", text: "Start" });
+  await started.promise;
+  const promoted = await agent.submit({ requestId: "promoted", text: "Promote me", whenBusy: "followUp" });
+  const removed = await agent.submit({ requestId: "removed", text: "Remove me", whenBusy: "followUp" });
+  expect(await agent.steerQueuedInput(String(promoted.id))).toBe(true);
+  expect(await agent.steerQueuedInput(String(promoted.id))).toBe(false);
+  expect(await agent.cancelQueuedInput(String(removed.id))).toBe(true);
+  release.resolve();
+  expect((await original.wait(context)).status).toBe("done");
+  expect((await promoted.wait(context)).status).toBe("done");
+  expect(faux.state.callCount).toBe(2);
+  expect(JSON.stringify((await agent.context(context)).messages)).not.toContain("Remove me");
+});
+
 test("cancelling one queued input leaves the active turn and other steering intact", async () => {
   const { runtime, faux } = await setup();
   const entered = Promise.withResolvers<void>();

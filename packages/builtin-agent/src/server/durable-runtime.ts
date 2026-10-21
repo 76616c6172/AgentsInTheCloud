@@ -474,9 +474,18 @@ export async function openDurableAgentRuntime(
       cancelQueuedInput(submissionId: string) {
         return command(async () => {
           const inbox = await harness.snapshot(InboxDoc, conversation.id, context);
-          const input = inbox?.items.find(item => String(item.id) === submissionId && item.mode === "steer");
+          const input = inbox?.items.find(item => String(item.id) === submissionId && item.mode !== "write");
           return input ? await harness.abortSubmission(input.id, context, conversation.id) === "aborted" : false;
         });
+      },
+      /** Promote a queued follow-up to steering in place, keeping its submission and queue position. */
+      steerQueuedInput(submissionId: string) {
+        return command(() => harness.commit(async tx => {
+          const input = (await tx.doc(InboxDoc, conversation.id)).items.find(item => String(item.id) === submissionId);
+          if (input?.mode !== "followUp") return false;
+          input.mode = "steer";
+          return true;
+        }, context));
       },
       /** Cancel one live tool and its owned work, without withdrawing the turn or queued input. */
       abortTool(callId: string, note?: string) {
