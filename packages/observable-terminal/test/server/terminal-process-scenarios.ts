@@ -52,14 +52,6 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       return { id, started: processes.start({ id, command, cwd: options.cwd ?? directory, ...options }) };
     }
 
-    async function until(condition: () => Promise<boolean>): Promise<void> {
-      for (let attempt = 0; attempt < 200; attempt++) {
-        if (await condition()) return;
-        await Bun.sleep(25);
-      }
-      throw new Error("timed out");
-    }
-
     beforeAll(async () => {
       directory = await mkdtemp(join(tmpdir(), "terminal-process-"));
       tmuxDirectory = join(directory, "tmux");
@@ -98,6 +90,16 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       expect(lines[0]).toBe("1");
       expect(lines.at(-1)).toBe("500");
       expect(lines).toHaveLength(500);
+    });
+
+    test("records all output of a command that exits right after a burst of it", async () => {
+      const { id, started } = start("seq 1 50000; exit 4");
+      await started;
+      const result = await processes.waitForExit(id);
+      expect(result.exitCode).toBe(4);
+      const lines = result.output.text.split("\n");
+      expect(lines).toHaveLength(50000);
+      expect(lines.at(-1)).toBe("50000");
     });
 
     test("runs on a terminal of the requested size, in its directory and environment", async () => {
@@ -185,8 +187,9 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       const stopped = { state: "exited", exitCode: null, aborted: true, timedOut: false, output: { ansi: "", text: "" } } satisfies TerminalProcessState;
       expect(await processes.state(id)).toEqual(stopped);
       await processes.start({ id, command: `touch ${marker}`, cwd: directory });
-      await Bun.sleep(300);
       expect(await processes.state(id)).toEqual(stopped);
+      // Nothing was launched that could still run it.
+      expect((await tmux("has-session", "-t", `=${terminalProcessSession(id)}`)).exitCode).not.toBe(0);
       expect(await Bun.file(marker).exists()).toBe(false);
     });
 
@@ -213,14 +216,12 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       expect(await Bun.file(marker).exists()).toBe(false);
     });
 
-    test("a command that finishes before its deadline leaves nothing behind", async () => {
+    test("a command that finishes before its deadline is not timed out", async () => {
       const { id, started } = start("echo quick", { deadline: Date.now() + 30_000 });
       await started;
       const result = await processes.waitForExit(id);
       expect(result).toMatchObject({ exitCode: 0, aborted: false, timedOut: false });
       expect(result.output.text).toBe("quick");
-      const watchdogs = await place!.run({ argv: ["pgrep", "-f", `${id}/watchdog`], user: "agents-in-the-cloud", workdir: "/" }, {});
-      expect(watchdogs.exitCode).toBe(1);
     });
 
     test("kept plain text holds the whole output and outlives release", async () => {
@@ -236,13 +237,15 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
 
     test("releasing a running process kills it and forgets it", async () => {
       const marker = join(directory, `${crypto.randomUUID()}.marker`);
-      const { id, started } = start(`sleep 0.5; touch ${marker}`);
+      // A duration no other process's command line contains.
+      const nap = `sleep 30.${crypto.getRandomValues(new Uint32Array(1))[0]}`;
+      const { id, started } = start(`${nap}; touch ${marker}`);
       await started;
       await processes.release(id);
       expect(await processes.state(id)).toEqual({ state: "missing" });
       expect((await tmux("has-session", "-t", `=${terminalProcessSession(id)}`)).exitCode).not.toBe(0);
-      await Bun.sleep(1000);
-      expect(await Bun.file(marker).exists()).toBe(false);
+      // No process is left that could still get to the touch.
+      expect((await place!.run({ argv: ["pgrep", "-x", "-f", nap], user: "agents-in-the-cloud", workdir: "/" }, {})).exitCode).toBe(1);
     });
 
     test("releasing a finished process forgets its result", async () => {
@@ -257,7 +260,7 @@ export function describeTerminalProcesses(name: string, open: (tmuxDirectory: st
       const { id, started } = start("sleep 30");
       await started;
       await tmux("kill-session", "-t", `=${terminalProcessSession(id)}`);
-      await until(async () => (await processes.state(id)).state === "lost");
+      expect(await processes.state(id)).toEqual({ state: "lost" });
       await processes.start({ id, command: "sleep 30", cwd: directory });
       expect(await processes.state(id)).toEqual({ state: "lost" });
       expect(await rejection(processes.waitForExit(id))).toBe(`Terminal process ${id} is lost`);
