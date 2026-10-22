@@ -62,3 +62,13 @@ test("clearing forgets every process and stops those still running", async () =>
   expect(await processes.state(id)).toEqual({ state: "missing" });
   expect((await tmux("has-session", "-t", `=aitc-process-${id}`)).exitCode).not.toBe(0);
 });
+
+test("a run cancelled while the tmux server is still starting doesn't break later runs", async () => {
+  const { directory, processes } = await place();
+  const cancel = new AbortController();
+  cancel.abort(new Error("Preparation cancelled"));
+  // The very first command, the one that starts the server, runs under a cancelled signal.
+  await expect(withCommandSignal(cancel.signal, () => runTerminalProcess(processes, { command: "echo first", cwd: directory }, () => {}))).rejects.toThrow("Preparation cancelled");
+  const result = await runTerminalProcess(processes, { command: "echo second", cwd: directory }, () => {});
+  expect(result.output.text).toBe("second");
+});

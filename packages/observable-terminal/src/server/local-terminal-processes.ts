@@ -1,6 +1,6 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { agentsInTheCloudDataPath, commandSignal, getAgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
+import { agentsInTheCloudDataPath, commandSignal, getAgentsInTheCloudRuntimeContext, withCommandSignal } from "@agents-in-the-cloud/core";
 import type { StartWorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
 import { createTerminalProcesses, type RunTerminalProcessCommand, type TerminalProcesses } from "./terminal-process.ts";
 
@@ -77,11 +77,12 @@ export function localTerminalProcesses(directory: string): TerminalProcesses {
   const start = startLocally(tmuxDirectory);
   let server: Promise<void> | undefined;
   // Terminal processes never start a server themselves, the way a workspace's is supervised.
-  const ensureServer = () => server ??= (async () => {
+  // Every caller shares the start, so no caller's signal may cancel it.
+  const ensureServer = () => server ??= withCommandSignal(new AbortController().signal, async () => {
     await mkdir(tmuxDirectory, { recursive: true });
     const started = await run({ argv: ["tmux", "start-server", ";", "set-option", "-g", "exit-empty", "off"], user: "agents-in-the-cloud" }, {});
     if (started.exitCode !== 0) throw new Error(`Could not start the terminal processes' tmux server: ${started.stderr.trim()}`);
-  })();
+  });
   return createTerminalProcesses({
     root: join(directory, "processes"),
     run: async (command, options) => { await ensureServer(); return run(command, options); },
