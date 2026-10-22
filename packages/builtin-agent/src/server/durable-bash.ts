@@ -34,7 +34,7 @@ const bashStructuredOutputSchema = Type.Object({
 type BashInput = { request: BashRequest; timeout: number };
 type BashCheckpoint = { phase: "execute" };
 const BashChild = defineDoc<{ id: TaskId<BashResult> | null }>({
-  kind: "agents-in-the-cloud.bash-child", version: 1, scope: "task", initial: () => ({ id: null }),
+  kind: "agents-in-the-cloud.bash-child", version: 1, scope: "task", initial: () => ({ id: null }), checkpointWhen: () => false,
 });
 
 /** Install the tool AND its owned task together. The task's abort protocol owns Stop. */

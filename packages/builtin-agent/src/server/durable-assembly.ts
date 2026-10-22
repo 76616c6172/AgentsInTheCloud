@@ -27,7 +27,10 @@ export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick
 }
 
 /** No AgentSession, delegation coordinator, or host-local filesystem environment. */
-export async function createDurableHarnessOptions(workspaceId: string, options: WorkspaceAgentToolOptions, writeTiming: WriteDurableTiming, harness: () => Harness): Promise<HarnessOptions> {
+/** Our Harness always gets one `Models`, never a function returning the current one. */
+export type DurableHarnessOptions = HarnessOptions & { models: Models };
+
+export async function createDurableHarnessOptions(workspaceId: string, options: WorkspaceAgentToolOptions, writeTiming: WriteDurableTiming, harness: () => Harness): Promise<DurableHarnessOptions> {
   const models = await createPiModelRuntime();
   const registry = createDurableWorkspaceRegistry(workspaceId, models, options);
   const delegation = agentDelegation?.create(models, harness);

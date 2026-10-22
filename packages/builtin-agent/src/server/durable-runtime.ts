@@ -10,7 +10,7 @@ import { prepareWorkspaceRuntime } from "@agents-in-the-cloud/workspace";
 import { BACKGROUND_CONTEXT } from "@earendil-works/chord/context";
 import { contentText, getSupportedThinkingLevels, type SimpleStreamOptions } from "@earendil-works/pi-ai";
 import { UserEntry, LiveDoc, InboxDoc, AgentDoc, UsageDoc, ProviderDoc, defineDoc, type Cursor, type EntryId, type EntryRecord, type EntryDraft, type AgentChange, type Conversation, type ConversationId, type ConversationView, type HarnessOptions, type LiveState } from "@earendil-works/pi-durable";
-import { createDurableHarnessOptions, prepareDurableAgent } from "./durable-assembly.ts";
+import { createDurableHarnessOptions, prepareDurableAgent, type DurableHarnessOptions } from "./durable-assembly.ts";
 import { durableQueueResumeEntry, durableStopScope, commitDurableStop, markGatedDurableWork, settleStoppedDurableWork, WorkspaceAdmission, WorkspaceStops } from "./durable-lifecycle.ts";
 import { durableImageEndpoint } from "./durable-images.ts";
 import { submitDurableInput, type DurableInput } from "./durable-input.ts";
@@ -23,7 +23,7 @@ import { acceptablePromptSuggestion, addModelUsage, promptSuggestionDue, promptS
 
 const context = BACKGROUND_CONTEXT;
 const DurableHistoryLabels = defineDoc<{ labels: Record<string, string[]> }>({
-  kind: "agents-in-the-cloud.history-labels", version: 1, scope: "session", initial: () => ({ labels: {} }),
+  kind: "agents-in-the-cloud.history-labels", version: 1, scope: "session", initial: () => ({ labels: {} }), checkpointWhen: () => false,
 });
 type AgentIdentity = Omit<DurableAgentRecord, "durableId">;
 type SettingsChange = Pick<AgentChange, "model"> & { thinkingLevel?: string };
@@ -52,7 +52,7 @@ export async function openDurableAgentRuntime(
   options: WorkspaceAgentToolOptions = {},
   load: typeof dependencies = dependencies,
 ) {
-  const harnessOptions: HarnessOptions = await load.harness(workspaceId, options, async (id, entry, context) => {
+  const harnessOptions: DurableHarnessOptions = await load.harness(workspaceId, options, async (id, entry, context) => {
     await workspace.harness.commit(async tx => { await tx.appendEntry(durableTimingEntry, id, entry); }, context);
   }, () => workspace.harness);
   const workspace = await openDurableWorkspace(directory, workspaceId, harnessOptions);

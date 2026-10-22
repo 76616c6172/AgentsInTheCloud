@@ -11,17 +11,18 @@ export const WorkspaceAdmission = defineDoc<{
   version: 1,
   scope: "session",
   initial: () => ({ deleted: false, closed: [] }),
+  checkpointWhen: () => false,
 });
 
 /** Exact work at the Stop boundary, not a permanent conversation admission gate. */
 export const WorkspaceStops = defineDoc<{ tasks: Record<string, TaskId[]> }>({
-  kind: "agents-in-the-cloud.stops", version: 1, scope: "session", initial: () => ({ tasks: {} }),
+  kind: "agents-in-the-cloud.stops", version: 1, scope: "session", initial: () => ({ tasks: {} }), checkpointWhen: () => false,
 });
 
 /** A background dispatcher can admit native input after its own task was captured
  * by Stop. Retain that relationship so cleanup fences the resulting run too. */
 export const DurableTaskAdmissions = defineDoc<{ requests: Record<string, { conversationId: ConversationId; requestId: string }> }>({
-  kind: "agents-in-the-cloud.task-admissions", version: 1, scope: "session", initial: () => ({ requests: {} }),
+  kind: "agents-in-the-cloud.task-admissions", version: 1, scope: "session", initial: () => ({ requests: {} }), checkpointWhen: () => false,
 });
 
 /**
