@@ -63,7 +63,7 @@ test("clearing forgets every process and stops those still running", async () =>
   expect((await tmux("has-session", "-t", `=aitc-process-${id}`)).exitCode).not.toBe(0);
 });
 
-test("a run cancelled while the tmux server is still starting doesn't break later runs", async () => {
+test("a run already cancelled when it starts the tmux server doesn't break later runs", async () => {
   const { directory, processes } = await place();
   const cancel = new AbortController();
   cancel.abort(new Error("Preparation cancelled"));
