@@ -1,7 +1,9 @@
 import type { Context } from "@earendil-works/chord";
+import { awaitWithContext } from "@earendil-works/chord/context";
 import { defineDoc, defineExtension, defineTask, defineTool, type TaskId } from "@earendil-works/pi-durable";
 import type { TerminalProcesses } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspaceRoot, workspaceTerminalProcesses } from "@agents-in-the-cloud/workspace";
+import { withCommandSignal } from "@agents-in-the-cloud/core";
 import { Type, type Static } from "typebox";
 import { bashToolDefinition, forcedColorEnvironment, formatBashOutput } from "@agents-in-the-cloud/agent/server/bash-tool";
 
@@ -37,13 +39,13 @@ const BashChild = defineDoc<{ id: TaskId<BashResult> | null }>({
 
 /** Install the tool AND its owned task together. The task's abort protocol owns Stop. */
 export function createDurableBashExtension(workspaceId: string, processes: TerminalProcesses = workspaceTerminalProcesses(workspaceId)) {
-  /** Waits durably until the process is no longer running, and turns it into the operation's outcome. */
-  async function settle(id: string, runtime: { now(): number; sleep(until: number, context: Context): Promise<void> }, context: Context): Promise<BashResult> {
-    let state = await processes.state(id);
-    while (state.state === "running") {
-      await runtime.sleep(runtime.now() + 250, context);
-      state = await processes.state(id);
-    }
+  /**
+   * Waits for tmux to report the process ended, and turns that into the operation's outcome.
+   * A restart reruns the phase, which reattaches to the same terminal process.
+   */
+  async function settle(id: string, context: Context): Promise<BashResult> {
+    const ended = context.abortSignal ? withCommandSignal(context.abortSignal, () => processes.waitForEnd(id)) : processes.waitForEnd(id);
+    const state = await awaitWithContext(ended, context);
     if (state.state === "missing") return { status: "uncertain", message: "The command's terminal process is missing, so the command was not run again." };
     if (state.state === "lost") return { status: "uncertain", message: "The command's terminal disappeared before it recorded a result. The command was not run again." };
     return {
@@ -66,7 +68,7 @@ export function createDurableBashExtension(workspaceId: string, processes: Termi
         if (first === invocation) {
           await processes.start({ id: request.id, command: request.command, cwd: request.cwd, env: request.env, deadline: request.deadline, keepText: true });
         }
-        const result = await settle(request.id, runtime, context);
+        const result = await settle(request.id, context);
         await runtime.commit(() => ({ status: "terminal", outcome: { status: "completed", result } }), context);
         // Committed, so the workspace no longer needs to keep it.
         await processes.release(request.id);
@@ -77,7 +79,7 @@ export function createDurableBashExtension(workspaceId: string, processes: Termi
       // A durable abort mark does: Stop is retried after restart until acknowledged.
       const { id } = task.input.request;
       await processes.stop(id);
-      const result = await settle(id, runtime, context);
+      const result = await settle(id, context);
       await runtime.commit(() => ({ status: "terminal", outcome: { status: "aborted", result, reason: result.status === "uncertain" ? result.message : "Stopped by user" } }), context);
       await processes.release(id);
     },
