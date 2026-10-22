@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withCommandSignal } from "@agents-in-the-cloud/core";
 import { clearLocalTerminalProcesses, localTerminalProcesses, runLocally } from "../../src/server/local-terminal-processes.ts";
-import { runTerminalProcess } from "../../src/server/terminal-process.ts";
+import { runTerminalProcess, terminalProcessSession } from "../../src/server/terminal-process.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -79,7 +79,9 @@ test("cancelling a wait for a local process stops waiting promptly, leaving the 
   await processes.start({ id, command: "sleep 30", cwd: directory });
   const cancel = new AbortController();
   const waited = withCommandSignal(cancel.signal, () => processes.waitForEnd(id));
-  await Bun.sleep(500);
+  // Cancel only once the wait is blocked in tmux, whose client holds the pipes.
+  const waiter = ["pgrep", "-f", `wait-for ${terminalProcessSession(id)}$`];
+  while (Bun.spawnSync(waiter).exitCode !== 0) await Bun.sleep(50);
   const cancelled = Date.now();
   cancel.abort(new Error("Run cancelled"));
   await expect(waited).rejects.toThrow("Run cancelled");
