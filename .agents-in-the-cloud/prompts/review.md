@@ -17,7 +17,7 @@ Read `.agents-in-the-cloud/scripts/review.js` first, so you know what the review
 
 You have context the reviewer didn't, so you decide every finding, minors included: fix it or push back. A repro that didn't hit the bug is weaker evidence.
 
-- One commit per fix, titled `Review: <what was fixed>`. The message explains the bug and the fix, not the review finding. Keep the reviewer's repro test if it's a good regression test; otherwise remove it in that commit.
+- One commit per fix, titled `Review <severity>: <what was fixed>`, where severity is the finding's level (`blocker`, `major` or `minor`). The message explains the bug and the fix, not the review finding. Keep the reviewer's repro test if it's a good regression test; otherwise remove it in that commit.
 - For each pushback, tell the user the finding in one line and why you're not fixing it.
 - Only tell the user about a fix when it diverged from the plan or what we agreed, changed behaviour or UI they'd notice, needed substantial gymnastics, or added serialized state or upgrade concerns. Mention the other fixes in one line with their commits.
 - Always pass on what the reviewer said about serialized state and upgrade risk.
