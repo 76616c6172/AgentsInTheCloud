@@ -1201,3 +1201,55 @@ test("sending the newest of three follow-ups a failed turn left behind keeps the
   expect(at.every(index => index >= 0)).toBe(true);
   expect(at).toEqual([...at].sort((a, b) => a - b));
 });
+
+test("work parked after repeated crashes shows as parked until it is retried", async () => {
+  const { utimes } = await import("node:fs/promises");
+  const path = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-durable-parked-"));
+  paths.push(path);
+  const journal = join(path, "journal");
+  const child = Bun.spawn([process.execPath, join(import.meta.dir, "fixtures/durable-runtime-crash.ts"), journal], { stdout: "pipe", stderr: "pipe" });
+  const reader = child.stdout.getReader();
+  let output = "";
+  while (!output.includes("crash now")) {
+    const chunk = await reader.read();
+    if (chunk.done) throw new Error(await new Response(child.stderr).text());
+    output += new TextDecoder().decode(chunk.value);
+  }
+  child.kill("SIGKILL");
+  await child.exited;
+  const expired = new Date(Date.now() - 60_000);
+  await utimes(`${journal}.lock`, expired, expired);
+
+  const models = createModels();
+  const faux = fauxProvider({ tokensPerSecond: 100_000 });
+  models.setProvider(faux.provider);
+  faux.setResponses([fauxAssistantMessage("Recovered")]);
+  const registry = createRegistry();
+  let executions = 0;
+  registry.install(defineExtension({ name: "crash-probe", tools: [defineTool({
+    name: "probe", description: "Recovers", parameters: Type.Object({}), replay: "safe",
+    async execute() { executions++; return { output: [{ type: "text", text: "Recovered tool" }] }; },
+  })] }));
+  const runtime = await openDurableAgentRuntime(journal, "native-workspace", {}, {
+    // One crash is enough to park here; the app keeps pi's default.
+    harness: async () => ({ models, registry, settings: { restartLimit: 1 } }),
+    prepare: async (): Promise<AgentChange> => { throw new Error("Must not reprepare"); },
+    expand: async (_workspace: string, text: string) => text,
+    validateModel: async () => {},
+    ready: async () => {},
+  });
+  runtimes.push(runtime);
+  const agent = await runtime.agent(record);
+  await runtime.resume();
+  expect(agent.hasParkedWork).toBe(true);
+  expect(agent.hasStoppableWork).toBe(true);
+  expect(executions).toBe(0);
+
+  const unparked = new Promise<void>(resolve => { const stop = agent.subscribeWork(() => { if (!agent.hasParkedWork) { stop(); resolve(); } }); });
+  expect(await agent.retryParkedWork()).toBe(true);
+  await unparked;
+  const submission = await agent.submit({ requestId: "crash", text: "Run the probe" });
+  expect((await submission.wait(context)).status).toBe("done");
+  expect(executions).toBe(1);
+  expect(await agent.retryParkedWork()).toBe(false);
+}, 30_000);
