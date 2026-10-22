@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { refreshWorkspaceHelper, workspaceParentSocketDirectory } from "../src/helper.ts";
 
-test("a running workspace restarts the app-mounted helper before readiness checks", async () => {
+test("a running workspace restarts the app-mounted helper before workspace preparation", async () => {
   const data = await mkdtemp(join(tmpdir(), "workspace-helper-refresh-"));
   const previous = process.env.ATELIER_DATA_DIR;
   process.env.ATELIER_DATA_DIR = data;

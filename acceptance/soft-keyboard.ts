@@ -24,7 +24,9 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Report, type ScenarioRecorder } from "./lib/report.ts";
 import { Simulator, WebKitPage } from "./lib/simulator.ts";
-import { stage, tmuxSizes, type Stage } from "./lib/stage.ts";
+import { stage, tmuxSizes, workspaceExec, type Stage } from "./lib/stage.ts";
+import { listWorkspaceTerminals } from "../packages/workspace-terminal/src/server/workspace-terminals.ts";
+import { terminalViewKey } from "../packages/workspace-terminal/src/shared.ts";
 import { analyseTransition, check, close, oneStepChecks, settled, type Box, type Frame, type Trace } from "./lib/trace.ts";
 import { analyseKeyboardVideo } from "./lib/video.ts";
 
@@ -420,9 +422,9 @@ await scenario("ios-D2-D17-send", "D2/D17: sending on mobile closes the composer
 await navigate(terminalPath, ".terminal-view .observable-terminal-host");
 
 async function terminalLines(): Promise<string[]> {
-  const session = Object.keys(await tmuxSizes(setup.workspaceId)).find((name) => !name.startsWith("pi-"))!;
-  const process = Bun.spawn(["docker", "exec", "-u", "agents-in-the-cloud", `agents-in-the-cloud-${setup.workspaceId}`, "tmux", "capture-pane", "-p", "-t", session], { stdout: "pipe" });
-  return (await new Response(process.stdout).text()).split("\n").filter((line) => line.trim());
+  const terminal = (await listWorkspaceTerminals(setup.workspaceId)).find(item => terminalViewKey(item.id) === setup.terminalKey)!;
+  const output = await workspaceExec(setup.workspaceId, ["tmux", "capture-pane", "-p", "-t", terminal.tmuxSession]);
+  return output.split("\n").filter((line) => line.trim());
 }
 
 await scenario("ios-D15-D16-terminal-tab", "D15/D16: in a focused Terminal view the key row sits right above the keyboard, and Enter goes to the terminal without dismissing anything.", async (recorder) => {

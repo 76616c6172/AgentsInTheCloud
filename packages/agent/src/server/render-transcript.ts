@@ -4,10 +4,10 @@ import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { renderStreamingMarkdownSnapshot } from "@agents-in-the-cloud/markdown";
 import type { ModelRef } from "@agents-in-the-cloud/llm/server";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { agentPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
+import { agentPath, backgroundActivityPath, commentaryContext, ids, sessionImageUrl, transcriptItemPath, type AgentRenderContext } from "./render-context.ts";
 import { codeBlockHtml, detailFullscreen, detailTableHtml, fullscreenAttributes, markdown, renderMarkdownRow, transcriptRowContent, transcriptRow, transcriptTargetLink } from "./render-markup.ts";
 import { renderToolCard, renderToolDetail } from "./render-tool.ts";
-import { formatDuration, formatTokens, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
+import { formatDuration, formatTokens, unfencedJson, type TranscriptItem, type WorkingTranscriptItem } from "./transcript.ts";
 
 interface AgentToolDefinitionView {
   name: string;
@@ -68,6 +68,7 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
     body = renderLazyTranscriptEntry(ctx, item.key, label);
   } else if (item.type === "user") body = renderUserMessage(ctx, item);
   else if (item.type === "thinking") body = renderThinkingItem(ctx, item);
+  else if (item.type === "text" && item.final && ctx.jsonFinalAnswers) body = renderJsonFinalAnswer(ctx, item.text, Boolean(item.live));
   else if (item.type === "text") {
     const className = item.final ? "markdown agent-final" : "markdown agent-itext-md";
     body = item.live
@@ -84,8 +85,23 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
   return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}${item.type === "tool" ? ` data-tool-call-id="${escapeHtml(item.tool.callId)}"` : ""}>${body}</div>`;
 }
 
+/** A JSON final answer, formatted once it parses. A streaming answer shows as written; one that isn't JSON, as markdown. */
+function renderJsonFinalAnswer(ctx: AgentRenderContext, text: string, live: boolean): string {
+  let code = unfencedJson(text);
+  if (!live) {
+    try { code = JSON.stringify(JSON.parse(code), null, 2); }
+    catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      return renderMarkdownRow(ctx, text, "markdown agent-final");
+    }
+  }
+  return transcriptRow(`<div class="agent-final">${codeBlockHtml(code, "answer.json", "agent-tool-code agent-final-json")}</div>`);
+}
+
 function renderMessage(ctx: AgentRenderContext, message: Extract<TranscriptItem, { type: "message" }>): string {
   const details = Object.entries(message.details).map(([label, text]) => ({ label, html: escapeHtml(text) }));
+  // A read-only pane has no activity pages to open.
+  if (message.senderActivityKey && !ctx.readOnly) details.unshift({ label: "Sender", html: `<a href="${escapeHtml(backgroundActivityPath(ctx, message.senderActivityKey))}" class="agent-trace-link" data-action="agent-background#open">${escapeHtml(message.sender)}</a>` });
   if (message.dispatchedByToolCallId) details.push({ label: "Started by", html: transcriptTargetLink(ctx, message.dispatchedByToolCallId, "Tool call") });
   const body = `${message.bodyMarkdown ? `<div class="markdown agent-message-body">${markdown(ctx, message.bodyMarkdown)}</div>` : ""}${details.length ? detailTableHtml(details) : ""}`;
   return transcriptRow(`<div class="agent-message">${disclosureHtml({ summary: transcriptRowContent({ kind: "text", text: `Incoming Message: ${message.sender} · ${message.title}` }), bodyHtml: body })}</div>`);

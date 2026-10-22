@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay } from "../../src/server/embedded-code.ts";
+import { embeddedBashCommand, formatBashCommandForDisplay, formatCodemodeScriptForDisplay, formatWorkflowScriptForDisplay } from "../../src/server/embedded-code.ts";
 
 const renderEmbedded = (command: string): string => embeddedBashCommand(command)!.html;
 const renderedText = (html: string): string => html.replace(/<[^>]+>/g, "").replaceAll("&gt;", ">").replaceAll("&lt;", "<").replaceAll("&amp;", "&").replaceAll("&quot;", '"').replaceAll("&#39;", "'");
@@ -163,7 +163,7 @@ rg ready /tmp/status |
     expect(renderedText(html)).toContain("done: boolean = true");
   });
 
-  test("highlights static ripgrep patterns as embedded regular expressions", () => {
+  test("marks static ripgrep patterns as embedded regular expressions", () => {
     const samples = [
       `rg -n 'TODO|FIXME|HACK' packages apps --glob '!*.generated.ts'`,
       `rg -n 'export\\s+(async\\s+)?function\\s+(?<name>[A-Za-z_]\\w*)' --glob '*.ts'`,
@@ -174,10 +174,7 @@ rg ready /tmp/status |
       expect(embeddedBashCommand(command)?.differs, command).toBe(false);
     }
 
-    const structural = renderEmbedded(samples[1]!);
-    expect(renderedText(structural)).toContain("name");
-    expect(structural).toContain('class="syntax-keyword"');
-    expect(renderEmbedded(samples[0]!)).toContain('class="syntax-keyword">|</span>');
+    expect(renderedText(renderEmbedded(samples[1]!))).toContain("name");
   });
 
   test("recognizes positional and explicit ripgrep patterns without highlighting option arguments", () => {
@@ -319,5 +316,32 @@ describe("code mode scripts", () => {
     expect(formatCodemodeScriptForDisplay("const x = ;")).toBeUndefined();
     expect(formatCodemodeScriptForDisplay("for (const a of b) {")).toBeUndefined();
     expect(formatCodemodeScriptForDisplay("return 1;")).toBeUndefined();
+  });
+});
+
+describe("workflow scripts", () => {
+  test("format like a code mode script, keeping meta exported", () => {
+    const script = [
+      "export const meta = { name: 'review', description: 'Review the diff', phases: [{ title: 'Find' }] }",
+      "phase('Find')",
+      "const found = await parallel(['bugs', 'perf'].map(d => () => agent(`Find ${d}`, { label: d })))",
+      "return found",
+    ].join("\n");
+    expect(formatWorkflowScriptForDisplay(script)).toBe([
+      "export const meta = {",
+      '  name: "review",',
+      '  description: "Review the diff",',
+      '  phases: [{ title: "Find" }],',
+      "};",
+      'phase("Find");',
+      "const found = await parallel(",
+      '  ["bugs", "perf"].map((d) => () => agent(`Find ${d}`, { label: d })),',
+      ");",
+      "return found;",
+    ].join("\n"));
+  });
+
+  test("leave scripts that do not parse alone", () => {
+    expect(formatWorkflowScriptForDisplay("export const meta = {")).toBeUndefined();
   });
 });

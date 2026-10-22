@@ -7,7 +7,7 @@ interface WorkspaceNavigationControllerSurface {
   closeWorkspacePane(): void;
 }
 
-interface WorkspaceResidencyControllerSurface {
+interface WorkspaceSelectionControllerSurface {
   selectWorkspace(workspaceId: string, href: string, historyMode?: "push" | "none"): Promise<void>;
   unselectWorkspace(workspaceId: string): void;
   visibleWorkspaceId(): string | undefined;
@@ -38,6 +38,6 @@ export function workspaceNavigationController(): WorkspaceNavigationControllerSu
   return workspaceController("workspace-navigation");
 }
 
-export function residencyController(): WorkspaceResidencyControllerSurface | null {
-  return workspaceController("workspace-residency");
+export function workspaceSelectionController(): WorkspaceSelectionControllerSurface | null {
+  return workspaceController("workspace-selection");
 }

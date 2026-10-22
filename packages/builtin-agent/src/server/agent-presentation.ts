@@ -3,7 +3,7 @@ import { durableContextTokens } from "./durable-accounting.ts";
 import { renderDurableTree } from "./durable-tree.ts";
 import type { TreeFilterMode } from "./session-tree.ts";
 import { createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
-import { createLivePresentation, type LiveRegion, type LiveRegionDigests } from "@agents-in-the-cloud/shared";
+import { createLivePresentation, escapeHtml, type LiveRegion, type LiveRegionDigests } from "@agents-in-the-cloud/shared";
 import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { DurableAgentController } from "./durable-runtime.ts";
 import { DurableAgentPresentation } from "./durable-presentation.ts";
@@ -22,6 +22,7 @@ export class AgentPresentation {
   readonly agentId: string;
   readonly label: string;
   readonly readOnly: boolean;
+  readonly jsonFinalAnswers: boolean;
   private presentation!: DurableAgentPresentation;
   private readonly transcriptListeners = new Map<AgentLivePresentationListener, { unsubscribe(): void }>();
   private unsubscribeWork!: () => void;
@@ -43,6 +44,7 @@ export class AgentPresentation {
       { target: ids.actions(this), html: renderPromptActions(this, this.isStreaming, this.controller.hasStoppableWork) },
       { target: ids.stats(this), html: renderAgentPaneComposerFooter(this, this.stats()), morph: false },
       { target: ids.completionCatalog(this), html: this.catalog },
+      { target: ids.promptSuggestion(this), html: escapeHtml(this.controller.promptSuggestion ?? "") },
       { target: notificationControlId(this), html: renderNotificationControl(this, this.isStreaming), action: "replace" },
       ...(this.failure ? [{ target: ids.notices(this), html: renderNotice("error", "This Agent view disconnected. Reload to reconnect.") }] : []),
     ];
@@ -53,11 +55,16 @@ export class AgentPresentation {
     this.agentId = agent.agentId;
     this.label = agent.label;
     this.readOnly = controller.readOnly;
+    this.jsonFinalAnswers = Boolean(agent.oneShot);
   }
   static async create(agent: WorkspaceAgentInfo, controller: DurableAgentController) {
     const runtime = new AgentPresentation(agent, controller, await createPiModelRuntime());
     try {
-      runtime.presentation = await DurableAgentPresentation.attach(controller, { ...agent, branchId: String(controller.id) }, BACKGROUND_CONTEXT, () => runtime.committed());
+      runtime.presentation = await DurableAgentPresentation.attach(controller, {
+        ...agent, branchId: String(controller.id), jsonFinalAnswers: runtime.jsonFinalAnswers,
+        // A one-shot agent takes no input but still runs live; only imported histories render as snapshots.
+        readOnly: agent.readOnly && !agent.oneShot,
+      }, BACKGROUND_CONTEXT, () => runtime.committed());
       runtime.unsubscribeWork = controller.subscribeWork(() => runtime.chrome.invalidate());
       runtime.unsubscribeUsage = controller.subscribeUsage(() => { void runtime.refreshUsage().catch(error => console.error("Could not refresh descendant usage", error)); });
       await runtime.refreshUsage();
@@ -86,7 +93,7 @@ export class AgentPresentation {
   private async attachSelectedBranch() {
     if (this.disposed) return;
     const previous = this.presentation;
-    const next = await DurableAgentPresentation.attach(this.controller, { workspaceId: this.workspaceId, agentId: this.agentId, branchId: String(this.controller.id) }, BACKGROUND_CONTEXT, () => this.committed());
+    const next = await DurableAgentPresentation.attach(this.controller, { workspaceId: this.workspaceId, agentId: this.agentId, branchId: String(this.controller.id), jsonFinalAnswers: this.jsonFinalAnswers }, BACKGROUND_CONTEXT, () => this.committed());
     if (this.disposed) { await next.dispose(); return; }
     this.presentation = next;
     this.observePresentation();
@@ -132,7 +139,7 @@ export class AgentPresentation {
     const usage = this.presentation.state.usage;
     const buckets = [...Object.values(usage.models), ...Object.values(usage.tools)];
     const model = this.model && this.modelRuntime.getModel(this.model.provider, this.model.id);
-    return { nativeBranchUsage: true, descendantCost: this.descendantCost, isSubagent: this.controller.isSubagent, contextPercent: model?.contextWindow ? this.contextTokens / model.contextWindow * 100 : null, compactAvailable: !this.isStreaming && Boolean(this.model),
+    return { nativeBranchUsage: true, descendantCost: this.descendantCost, contextPercent: model?.contextWindow ? this.contextTokens / model.contextWindow * 100 : null, compactAvailable: !this.isStreaming && Boolean(this.model),
       inputTokens: buckets.reduce((sum, item) => sum + item.input, 0), outputTokens: buckets.reduce((sum, item) => sum + item.output, 0),
       cost: buckets.reduce((sum, item) => sum + item.cost.total, 0), modelName: this.model?.id,
       thinkingLevel: this.thinkingLevel, thinkingLevels: this.availableThinkingLevels(), models: this.models.map(model => ({ ...model, selected: model.provider === this.model?.provider && model.id === this.model.id })) };

@@ -1,6 +1,9 @@
 import { AgentsInTheCloudCoreError, createKeyedOperationQueue, type AgentsInTheCloudEventBus, type JsonValue } from "@agents-in-the-cloud/core";
 import { createWorkspaceMetadataState } from "@agents-in-the-cloud/workspace";
 import { revokeAgentMcp } from "@agents-in-the-cloud/agent/server";
+import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
+import { workspaceFollowsAgentTitle } from "@agents-in-the-cloud/agent/server/agent-name-command";
+import { parseModelRef } from "@agents-in-the-cloud/llm/server";
 import type { createLivePresentation, WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
 import type { CliModelSettings, createCliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
 
@@ -20,13 +23,14 @@ export interface NativeAgentRuntime {
   /** Waits for a connecting harness. */
   systemPrompt(): Promise<string>;
   readonly completionCatalog: string;
+  /** A predicted next prompt, shown in the empty composer. */
+  readonly promptSuggestion?: string;
   readonly presentation: ReturnType<typeof createLivePresentation>;
   refreshCompletionCatalog(): Promise<void>;
   reconnect(): Promise<void>;
   send(input: WorkspaceAgentInput, requestId: string): Promise<void>;
   stop(): Promise<void>;
   configure(parameters: { model?: string; thinkingLevel?: string }): Promise<void>;
-  rename(title: string): Promise<void>;
   close(): Promise<void>;
   dispose(): Promise<void>;
 }
@@ -36,6 +40,8 @@ export function createNativeAgentStore<Record extends NativeAgentRecord>(filenam
   const metadata = createWorkspaceMetadataState(filename, value => ({ agents: parse(value) }), () => ({ agents: [] }));
   const list = (workspaceId: string) => metadata.read(workspaceId).agents;
   return {
+    /** The title of an Agent nobody has named yet. */
+    label,
     list,
     get(workspaceId: string, id: string) {
       const record = list(workspaceId).find(record => record.id === id);
@@ -80,7 +86,10 @@ export function createNativeAgents<Record extends NativeAgentRecord, Runtime ext
       const runtime = await ready(workspaceId, record.id);
       await options.activate?.(runtime);
       const input = parameters.input;
-      if (input && (input.text.trim() || input.images.length || input.attachmentNotes.length)) await runtime.send(input, `launch-${record.id}`);
+      if (input && (input.text.trim() || input.images.length || input.attachmentNotes.length)) {
+        await runtime.send(input, `launch-${record.id}`);
+        void nameFromPrompts(runtime, input.text).catch(error => console.error(`Could not name ${record.id}`, error));
+      }
       return record.id;
     });
   }
@@ -94,6 +103,32 @@ export function createNativeAgents<Record extends NativeAgentRecord, Runtime ext
       store().remove(workspaceId, agentId);
     });
   }
+  async function rename(runtime: Runtime, title: string, onlyIfUntitled = false) {
+    const { workspaceId, agentId, record } = runtime;
+    const result = await serialize(workspaceId, async () => {
+      const previousTitle = record.title;
+      if (onlyIfUntitled && previousTitle !== store().label) return undefined;
+      record.title = title;
+      store().save(workspaceId);
+      return { workspaceNamed: await workspaceFollowsAgentTitle(workspaceId, previousTitle, title) };
+    });
+    if (!result) return;
+    await getEvents().emit("workspace_agent_title_changed", { workspaceId, agentId, title });
+    if (result.workspaceNamed) await getEvents().emit("workspace_title_changed", { workspaceId, title });
+  }
+  function suggestTitle(runtime: Runtime, prompts: string) {
+    return suggestAgentSlug(prompts, runtime.record.model ? parseModelRef(runtime.record.model) : undefined);
+  }
+  const naming = new Set<string>();
+  /** Like Builtin Agents, an unnamed Agent tries again with each prompt: an early one can be too short to name it by. */
+  async function nameFromPrompts(runtime: Runtime, prompts: string) {
+    if (!prompts.trim() || runtime.record.title !== store().label || naming.has(runtime.agentId)) return;
+    naming.add(runtime.agentId);
+    try {
+      const title = await suggestTitle(runtime, prompts);
+      if (title) await rename(runtime, title, true);
+    } finally { naming.delete(runtime.agentId); }
+  }
   async function disposeWorkspace(workspaceId: string) {
     for (const record of store().list(workspaceId)) {
       const runtime = runtimes.get(record.id);
@@ -105,6 +140,6 @@ export function createNativeAgents<Record extends NativeAgentRecord, Runtime ext
     await Promise.all([...runtimes.values()].map(async runtime => (await runtime).dispose()));
     runtimes.clear();
   }
-  return { list: (workspaceId: string) => store().list(workspaceId), ready, create, close, disposeWorkspace, disposeAll };
+  return { list: (workspaceId: string) => store().list(workspaceId), ready, create, rename, suggestTitle, nameFromPrompts, close, disposeWorkspace, disposeAll };
 }
 export type NativeAgents<Runtime extends NativeAgentRuntime> = ReturnType<typeof createNativeAgents<NativeAgentRecord, Runtime>>;

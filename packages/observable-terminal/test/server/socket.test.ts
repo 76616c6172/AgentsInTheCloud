@@ -45,7 +45,7 @@ test("interactive sockets route input, size and progress, and detach once", () =
 `));
 
 test("read-only sockets ignore input and control messages", () => scenario(`
-  const connection = createObservableTerminalSocket({ ...options, readonly: true, fixedSize: true }, { onProgress: event => progress.push(event) });
+  const connection = createObservableTerminalSocket({ ...options, readonly: true }, { onProgress: event => progress.push(event) });
   connection.open(socket);
   for (const text of ["interrupt", JSON.stringify({ type: "resize", cols: 1, rows: 1 }), JSON.stringify({ type: "progress", state: 1 })]) connection.message(socket, text);
   expect(writes).toEqual([]);
@@ -54,15 +54,6 @@ test("read-only sockets ignore input and control messages", () => scenario(`
   callbacks.onData(new TextEncoder().encode("final output"));
   callbacks.onExit(0);
   expect(output).toEqual(["final output", "closed"]);
-`));
-
-test("fixed-size interactive sockets accept input without resizing", () => scenario(`
-  const connection = createObservableTerminalSocket({ ...options, fixedSize: true });
-  connection.open(socket);
-  connection.message(socket, "input");
-  connection.message(socket, JSON.stringify({ type: "resize", cols: 1, rows: 1 }));
-  expect(writes).toEqual(["input"]);
-  expect(sizes).toEqual([]);
 `));
 
 test("attachment failure delivers its diagnostic before closing", () => scenario(`
@@ -74,41 +65,47 @@ test("attachment failure delivers its diagnostic before closing", () => scenario
   expect(detachCount).toBe(0);
 `));
 
-test("missing execution reported by the bridge closes with the ended code without printing errors", () => scenario(`
+test("an ended terminal closes with the ended code without attaching or printing errors", () => scenario(`
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket({ ...options, reportSessionMissing: true });
-  connection.open(socket);
-  callbacks.onExit(44, "session-missing");
+  const connection = createObservableTerminalSocket(options, { ended: async () => true });
+  await connection.open(socket);
+  expect(callbacks).toBeUndefined();
   expect(output).toEqual([]);
-  expect(closed).toEqual([[4404, "session-missing"]]);
+  expect(closed).toEqual([[4404, "ended"]]);
 `));
 
-test("execution removed while attached delivers final output then signals ended", () => scenario(`
+test("a terminal that ends while attached delivers final output then signals ended", () => scenario(`
+  let ended = false;
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket({ ...options, reportSessionMissing: true });
-  connection.open(socket);
+  const connection = createObservableTerminalSocket(options, { ended: async () => ended });
+  await connection.open(socket);
   callbacks.onData(new TextEncoder().encode("last output"));
-  callbacks.onExit(44, "session-missing");
+  ended = true;
+  callbacks.onExit(0);
+  await Bun.sleep(0);
   expect(output).toEqual(["last output"]);
-  expect(closed).toEqual([[4404, "session-missing"]]);
+  expect(closed).toEqual([[4404, "ended"]]);
 `));
 
-test("attachment exit with an existing execution remains reconnectable", () => scenario(`
+test("an attachment that exits while the terminal goes on remains reconnectable", () => scenario(`
   const closed = [];
   socket.close = (...args) => closed.push(args);
-  const connection = createObservableTerminalSocket({ ...options, reportSessionMissing: true });
+  const connection = createObservableTerminalSocket(options, { ended: async () => false });
   await connection.open(socket);
   callbacks.onExit(1);
   await Bun.sleep(0);
   expect(closed).toEqual([[undefined, undefined]]);
 `));
 
-test("disconnect before open never attaches a leaked client", () => scenario(`
-  const connection = createObservableTerminalSocket(options);
+test("disconnecting during the ended check never attaches a leaked client", () => scenario(`
+  let resolveEnded;
+  const connection = createObservableTerminalSocket(options, { ended: () => new Promise(resolve => resolveEnded = resolve) });
+  const opening = connection.open(socket);
   connection.close();
-  connection.open(socket);
+  resolveEnded(false);
+  await opening;
   expect(callbacks).toBeUndefined();
   expect(output).toEqual([]);
 `));

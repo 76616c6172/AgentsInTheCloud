@@ -27,7 +27,7 @@ const resources = {
   thinking: async () => ({ levels: ["off" as const, "medium" as const, "high" as const], selected: "medium" as const }),
 };
 
-test("native registry includes registered controls, code mode, and receipt tasks, but no live delegation", () => {
+test("native registry includes registered controls and receipt tasks, but no integrations such as code mode or delegation", () => {
   const unregister = registerWorkspaceAgentTool("assembly-control", () => defineWorkspaceTool({
     name: "assembly-control", label: "Control", description: "Test control", parameters: Type.Object({}),
     async execute() { return { content: [{ type: "text", text: "done" }], details: undefined }; },
@@ -35,7 +35,7 @@ test("native registry includes registered controls, code mode, and receipt tasks
   try {
     const registry = createDurableWorkspaceRegistry("assembly-workspace", createModels());
     const tools = registry.snapshot().tools().map(({ tool }) => tool);
-    expect(tools.map((tool) => tool.name).sort()).toEqual(["assembly-control", "bash", "codemode", "edit", "pi.codemode.models.classify", "pi.codemode.models.generateImages", "read", "write"]);
+    expect(tools.map((tool) => tool.name).sort()).toEqual(["assembly-control", "bash", "edit", "read", "write"]);
     expect(tools.find((tool) => tool.name === "read")?.replay).toBe("safe");
     expect(tools.find((tool) => tool.name === "assembly-control")?.replay).toBe("unsafe");
     expect(registry.snapshot().task("agents-in-the-cloud.bash-operation")).toBeDefined();
@@ -48,6 +48,7 @@ test("prepares workspace instructions and skill discovery without loading skill 
   expect(agent.cwd).toBe("/work");
   expect(agent.thinkingLevel).toBe("medium");
   expect(agent.instructions).toContain("online coding tool called AgentsInTheCloud");
+  expect(agent.instructions).toContain("/opt/agents-in-the-cloud/docs/codemode-templates.md");
   expect(agent.instructions).toContain("/agents-in-the-cloud/session-share/builtin-durable/assembly-workspace");
   expect(agent.instructions).toContain('AgentsInTheCloud Agent ID is "tab"');
   expect(agent.instructions).toContain("matching seq and ordinal");

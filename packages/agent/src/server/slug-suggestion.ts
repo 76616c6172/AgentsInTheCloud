@@ -1,5 +1,5 @@
 import { resolveNewWorkspaceAgentModel } from "./model-state.ts";
-import { cheapestAvailableProviderModel, claudeCodeHeaders, createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
+import { cheapestAvailableProviderModel, createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
 import { clampThinkingLevel, type Api, type Model, type ThinkingLevel } from "@earendil-works/pi-ai";
 
 /**
@@ -51,7 +51,7 @@ export async function suggestAgentSlug(userPrompt: string, selectedModel?: Model
   if (!model || !(await runtime.checkAuth(model.provider))) return undefined;
   const response = await runtime.completeSimple(model, {
     messages: [{ role: "user", content: promptFor(userPrompt), timestamp: Date.now() }],
-  }, { ...agentTitleRequestOptions(model), headers: claudeCodeHeaders(model), sessionId: crypto.randomUUID() });
+  }, { ...agentTitleRequestOptions(model), sessionId: crypto.randomUUID() });
   if (response.stopReason === "error") return undefined;
   return normalizeSlug(textFromResponse(response));
 }

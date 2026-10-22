@@ -1,19 +1,14 @@
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { hostDiagnosticGroups } from "../diagnostics.ts";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
-import { destructiveConfirmationHtml } from "@agents-in-the-cloud/design-system/destructive-confirmation";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { requestAcceptsJson } from "@agents-in-the-cloud/core";
 import { hostOpenApiPaths } from "./openapi.ts";
-import { tabHtml, tabStripHtml } from "@agents-in-the-cloud/design-system/tab-strip";
-import { observableTerminalStaticFiles, renderTerminalConnectionStatus } from "@agents-in-the-cloud/observable-terminal/server";
 import { escapeHtml, type WorkspaceModule } from "@agents-in-the-cloud/shared";
 import { response } from "@agents-in-the-cloud/shared/http";
-import { hostAvailable, hostRequest, hostTerminalSocket } from "./connection.ts";
-import type { HostSample, HostTerminal } from "../protocol.ts";
+import { hostAvailable, hostRequest } from "./connection.ts";
+import type { HostSample } from "../protocol.ts";
 
-const terminalFrame = "host_terminals";
 const statsFrame = "host_stats";
 const e = escapeHtml;
 function failure(error: string): string {
@@ -46,64 +41,31 @@ function renderSample(sample?: HostSample, error?: string): string {
   return `<turbo-frame id="${statsFrame}"><section class="host-stats"><header class="host-section-heading"><div><h3>Diagnostics</h3><p>${sample ? "Sampled " : ""}${timestamp}</p></div>${sampleForm()}</header>${error ? failure(error) : ""}${sample ? renderDiagnosticTable(sample) : ""}${details}</section></turbo-frame>`;
 }
 
-function closeTerminalForm(terminal: HostTerminal): string {
-  return `<form method="post" action="/host/terminals/${terminal.id}/terminate" data-turbo-frame="${terminalFrame}">${destructiveConfirmationHtml({
-    id: `close_host_terminal_${terminal.id}`,
-    trigger: { type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: `Close ${terminal.title} and stop its processes` } },
-    confirmCaption: "Stop processes & close",
-    cancelCaption: "Keep running",
-  })}</form>`;
-}
-function renderTerminals(terminals: HostTerminal[], selected?: string): string {
-  const active = terminals.find(t => t.id === selected) ?? terminals[0];
-  const tabs = terminals.map(t => tabHtml({
-    label: { kind: "text", text: t.title }, iconHtml: Icons.Terminal, selected: t.id === active?.id,
-    primary: { tag: "a", attributesHtml: `id="host_tab_${t.id}" href="/host/terminals?selected=${t.id}" data-turbo-frame="${terminalFrame}" aria-controls="host_terminal_panel"` },
-    closeHtml: closeTerminalForm(t),
-  })).join("");
-  return `<turbo-frame id="${terminalFrame}"><section class="host-terminals"><header class="host-terminal-heading">${terminals.length ? tabStripHtml({ id: "host_terminal_tabs", label: "Host terminals", tabsHtml: tabs }) : ""}<form method="post" action="/host/terminals" data-turbo-frame="${terminalFrame}">${buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "+ New host terminal" } })}</form></header>
-  ${active ? `<section id="host_terminal_panel" role="tabpanel" aria-labelledby="host_tab_${active.id}" data-controller="host-terminal" data-host-terminal-url-value="/host/terminals/${active.id}/ws">${renderTerminalConnectionStatus("host-terminal")}<div class="host-terminal-screen observable-terminal-host" data-host-terminal-target="host"></div></section>` : `<p class="host-empty">Host terminals run as root in AgentsInTheCloud System, outside your Workspaces. Commands can affect the app and every Workspace, and can access secrets.</p>`}</section></turbo-frame>`;
-}
 async function handle(request: Request, url: URL): Promise<Response | undefined> {
   if (url.pathname !== "/host" && !url.pathname.startsWith("/host/")) return;
   const json = requestAcceptsJson(request);
   if (url.pathname === "/host" && request.method === "GET") {
-    if (json) return Response.json({ available: hostAvailable(), url: "/host", boundary: "AgentsInTheCloud System", shellUser: "root" });
+    if (json) return Response.json({ available: hostAvailable(), url: "/host", boundary: "AgentsInTheCloud System" });
     return Response.redirect(new URL("/settings?section=host", url), 303);
   }
   if (!hostAvailable()) return json
     ? Response.json({ error: { code: "host_unavailable", message: "Host access requires AgentsInTheCloud System" } }, { status: 503 })
     : response("Host access requires AgentsInTheCloud System", { status: 503 });
-  const sampling = url.pathname === "/host/sample" && ["GET", "POST"].includes(request.method);
-  const listing = url.pathname === "/host/terminals" && request.method === "GET";
-  const creating = url.pathname === "/host/terminals" && request.method === "POST";
-  const closing = request.method === "POST" ? url.pathname.match(/^\/host\/terminals\/(host-[a-f0-9-]{36})\/terminate$/) : null;
-  if (!sampling && !listing && !creating && !closing) return new Response("Not found", { status: 404 });
+  if (url.pathname !== "/host/sample" || !["GET", "POST"].includes(request.method)) return new Response("Not found", { status: 404 });
   try {
-    if (sampling) {
-      const sample = await hostRequest({ operation: "sample", fresh: request.method === "POST" });
-      return json ? Response.json(sample) : response(renderSample(sample));
-    }
-    let selected = url.searchParams.get("selected") ?? undefined;
-    if (creating) selected = (await hostRequest({ operation: "create" })).id;
-    if (closing) await hostRequest({ operation: "terminate", id: closing[1]! });
-    const terminals = await hostRequest({ operation: "list" });
-    return json ? Response.json({ selected, terminals }) : response(renderTerminals(terminals, selected));
+    const sample = await hostRequest({ operation: "sample", fresh: request.method === "POST" });
+    return json ? Response.json(sample) : response(renderSample(sample));
   } catch (error) {
     const message = String(error);
-    const code = sampling ? "host_sample_failed" : listing ? "host_unavailable" : "host_operation_failed";
-    if (json) return Response.json({ error: { code, message } }, { status: 502 });
-    if (sampling) return response(renderSample(undefined, message));
-    const retry = actionLinkHtml({ href: "/host/terminals", variant: "secondary", content: { kind: "caption", caption: listing ? "Retry" : "Back to terminals" }, attributesHtml: `data-turbo-frame="${terminalFrame}"` });
-    return response(`<turbo-frame id="${terminalFrame}">${failure(message)}${retry}</turbo-frame>`);
+    if (json) return Response.json({ error: { code: "host_sample_failed", message } }, { status: 502 });
+    return response(renderSample(undefined, message));
   }
 }
 /** Host targets AgentsInTheCloud System, not a Workspace or necessarily the physical Docker host. */
 export const agentsInTheCloudServerModule: WorkspaceModule = {
   id: "host",
-  settingsContributions: [{ id: "host", label: "Host", order: 80, render: async () => hostAvailable() ? `<div class="host-content"><turbo-frame id="${statsFrame}" src="/host/sample"><p role="status">Sampling host…</p></turbo-frame><turbo-frame id="${terminalFrame}" src="/host/terminals"><p role="status">Loading terminals…</p></turbo-frame></div>` : `<p>Host access requires an AgentsInTheCloud System image with the host service. This instance has no Host connection.</p>` }],
-  initialize(context) { context.registerSocketHandler(hostTerminalSocket); },
+  settingsContributions: [{ id: "host", label: "Host", order: 80, render: async () => hostAvailable() ? `<div class="host-content"><turbo-frame id="${statsFrame}" src="/host/sample"><p role="status">Sampling host…</p></turbo-frame></div>` : `<p>Host access requires an AgentsInTheCloud System image with the host service. This instance has no Host connection.</p>` }],
   routes: [{ handle }],
   openApiPaths: hostOpenApiPaths,
-  staticFiles: { ...observableTerminalStaticFiles, "/host.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
+  staticFiles: { "/host.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
 };

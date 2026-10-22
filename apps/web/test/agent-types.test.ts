@@ -59,33 +59,6 @@ test("default-change events observe the already-persisted preference", async () 
   expect(observed).toEqual(["codex"]);
 });
 
-test("defaults to Claude Code when an Anthropic subscription is the only way to run an agent", async () => {
-  const child = Bun.spawn([process.execPath, "-e", `
-    import { expect, mock } from "bun:test";
-    const agent = await import("@agents-in-the-cloud/builtin-agent/server");
-    const llm = await import("@agents-in-the-cloud/llm/server");
-    let builtinHasModel = false;
-    let credentials = [{ providerId: "anthropic", type: "oauth" }];
-    mock.module("@agents-in-the-cloud/builtin-agent/server", () => ({ ...agent, hasAvailableBuiltinAgentModel: async () => builtinHasModel }));
-    mock.module("@agents-in-the-cloud/llm/server", () => ({ ...llm, createPiModelRuntime: async () => ({ listCredentials: async () => credentials }) }));
-    const { defaultAgentType, orderedAgentTypes, rememberAgentType } = await import(${JSON.stringify(join(import.meta.dir, "../src/server/agent-types.ts"))});
-    expect((await orderedAgentTypes())[0].id).toBe("claude");
-    await rememberAgentType("builtin");
-    expect((await defaultAgentType()).id).toBe("claude");
-    await rememberAgentType("codex");
-    expect((await defaultAgentType()).id).toBe("codex");
-    await rememberAgentType("builtin");
-    builtinHasModel = true;
-    expect((await defaultAgentType()).id).toBe("builtin");
-    builtinHasModel = false;
-    credentials = [{ providerId: "anthropic", type: "api_key" }];
-    expect((await defaultAgentType()).id).toBe("builtin");
-  `], { cwd: join(import.meta.dir, ".."), env: { ...process.env, ATELIER_DATA_DIR: directory }, stdout: "pipe", stderr: "pipe" });
-  const [code, stdout, stderr] = await Promise.all([child.exited, new Response(child.stdout).text(), new Response(child.stderr).text()]);
-  expect({ code, stdout, stderr }).toEqual({ code: 0, stdout: "", stderr: "" });
-});
-
-
 test("previous Agent type preference remains readable and new choices use the renamed file", async () => {
   await writeFile(join(directory, "default-agent-provider.json"), JSON.stringify("pi"));
   expect((await defaultAgentType()).id).toBe("pi");

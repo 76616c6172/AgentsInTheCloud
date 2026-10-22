@@ -1,13 +1,8 @@
 export { observableTerminalStaticFiles } from "./static.ts";
 export {
-  observableTerminalCols,
-  observableTerminalRows,
-} from "./constants.ts";
-export {
-  normalizeCarriageReturns,
-  stripObservablePaneFraming,
-  stripTerminalControls,
+  tailTerminalOutput,
   tailTerminalText,
+  terminalOutputDisplayBytes,
 } from "./text.ts";
 export {
   buildKillSessionCommand,
@@ -19,9 +14,15 @@ export {
   type ObservableTerminalConnection,
 } from "./attach.ts";
 export {
-  runHostObservableCommand,
-} from "./host-command.ts";
+  createTerminalProcesses,
+  runTerminalProcess,
+  terminalProcessSession,
+  type TerminalProcesses,
+  type TerminalProcessState,
+} from "./terminal-process.ts";
 export { createObservableTerminalSocket, terminalSocketDimensions } from "./socket.ts";
+export { terminalOutputHtml } from "./output-html.ts";
+export { clearAppTerminalProcesses, appTerminalProcesses } from "./local-terminal-processes.ts";
 export { renderTerminalConnectionStatus } from "./status.ts";
 
 export { renderTerminalKeyBar } from "./key-bar.ts";

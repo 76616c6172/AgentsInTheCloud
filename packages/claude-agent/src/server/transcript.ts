@@ -34,7 +34,7 @@ function taskMessage(task: Extract<ClaudeState["rows"][number], { kind: "task" }
 }
 
 /** Claude retries failed requests itself and records an error only once it gives up, ending the turn. */
-interface Turn { prompt?: TranscriptItem; working: WorkingTranscriptItem; endedAt: number; interrupted: boolean; error?: TranscriptItem }
+interface Turn { prompt?: TranscriptItem; command: boolean; working: WorkingTranscriptItem; endedAt: number; interrupted: boolean; error?: TranscriptItem }
 
 /** Claude rows and the block it is streaming, grouped like every other Agent's turns. `running` is whether Claude's latest turn is still going. */
 export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "streaming">, running: boolean): TranscriptItem[] {
@@ -84,7 +84,7 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
   let answering = false;
   const begin = (prompt: TranscriptItem, uuid: string, timestamp: number) => {
     finish();
-    turn = { prompt, working: { type: "working", key: `${uuid}:working`, startedAt: timestamp, items: compaction ? [compaction] : [] }, endedAt: timestamp, interrupted: false };
+    turn = { prompt, command: prompt.type === "user" && prompt.text.startsWith("/"), working: { type: "working", key: `${uuid}:working`, startedAt: timestamp, items: compaction ? [compaction] : [] }, endedAt: timestamp, interrupted: false };
     compaction = undefined;
     answering = true;
   };
@@ -97,8 +97,6 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
       const intent = claudeUserIntent(row);
       if (intent?.kind === "prompt") begin({ type: "user", key: row.uuid, text: intent.text, images: intent.images }, row.uuid, row.timestamp);
       else if (intent?.kind === "control") controlOutput = true;
-      else if (intent?.kind === "output" && controlOutput) controlOutput = false;
-      else if (intent?.kind === "output") activity({ type: "note", key: `${row.uuid}:output`, text: intent.text, tone: "system" }, row.timestamp);
       else if (intent?.kind === "interrupted") {
         answering = false;
         if (turn) { turn.interrupted = true; turn.endedAt = Math.max(turn.endedAt, row.timestamp); }
@@ -128,8 +126,16 @@ export function projectClaudeTranscript(state: Pick<ClaudeState, "rows" | "strea
       let position = positions.get(row.messageId) ?? 0;
       for (const block of row.content) assistantBlock({ ...block, text: block.thinking ?? block.text ?? "" }, `${row.messageId}:${position++}`, row.timestamp, false);
       positions.set(row.messageId, position);
+    } else if (row.kind === "output") {
+      const key = `${row.uuid}:output`;
+      if (controlOutput) controlOutput = false;
+      else if (row.error) activity({ type: "note", key, text: row.text, tone: "error" }, row.timestamp);
+      // A command's output answers it.
+      else if (turn?.command) activity({ type: "text", key, text: row.text, final: false, live: false }, row.timestamp);
+      else activity({ type: "note", key, text: row.text, tone: "system" }, row.timestamp);
     } else if (row.kind === "steer") {
-      activity({ type: "user", key: row.uuid, text: row.text, images: [], steering: true }, row.timestamp);
+      const images = claudeImageSources(row.content).map((source, contentIndex) => ({ entryId: row.uuid, contentIndex, mimeType: source.media_type }));
+      activity({ type: "user", key: row.uuid, text: claudeText(row.content), images, steering: true }, row.timestamp);
     } else if (row.kind === "compact") {
       const note: TranscriptItem = { type: "note", key: row.uuid, text: "Claude compacted the conversation.", tone: "summary" };
       const next = rows.slice(index + 1).find(next => next.kind === "assistant" || (next.kind === "user" && claudeUserIntent(next)?.kind === "prompt"));

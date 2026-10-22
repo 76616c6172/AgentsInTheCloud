@@ -21,6 +21,8 @@ export interface AgentRenderContext {
   inlineWorkingItems?: boolean;
   /** Load completed working items through the transcript detail route when opened. */
   lazyCompletedWorkingItems?: boolean;
+  /** Final answers are JSON, as a script's one-shot agent's are, and show as code. */
+  jsonFinalAnswers?: boolean;
 }
 
 export function commentaryContext(ctx: AgentRenderContext): AgentRenderContext {
@@ -48,6 +50,7 @@ export const ids = {
   itemSummaryStatus: (ctx: AgentRenderContext, key: string) => domId(`${prefix(ctx)}_summary_status`, key),
   detailFrame: (ctx: AgentRenderContext, key: string) => domId(`${prefix(ctx)}_detail`, key),
   completionCatalog: (ctx: AgentRenderContext) => `${prefix(ctx)}_completion_catalog`,
+  promptSuggestion: (ctx: AgentRenderContext) => `${prefix(ctx)}_prompt_suggestion`,
   stats: (ctx: AgentRenderContext) => `${prefix(ctx)}_stats`,
   actions: (ctx: AgentRenderContext) => `${prefix(ctx)}_actions`,
   abortForm: (ctx: AgentRenderContext) => `${prefix(ctx)}_abort_form`,
@@ -55,10 +58,19 @@ export const ids = {
   input: (ctx: AgentRenderContext) => `${prefix(ctx)}_input`,
   draftAttachRow: (draftId: string) => domId("agent_draft_attach", draftId),
   notices: (ctx: AgentRenderContext) => `${prefix(ctx)}_notices`,
+  background: (ctx: AgentRenderContext) => `${prefix(ctx)}_background`,
+  backgroundList: (ctx: AgentRenderContext) => `${prefix(ctx)}_background_list`,
+  backgroundDetail: (ctx: AgentRenderContext, key: string) => domId(`${prefix(ctx)}_background_detail`, key),
+  backgroundPage: (ctx: AgentRenderContext) => `${prefix(ctx)}_background_page`,
 };
 
 export function agentPath(ctx: AgentRenderContext, suffix: string): string {
   return `${ctx.transcriptBasePath ?? `/workspaces/${encodeURIComponent(ctx.workspaceId)}/agents/${encodeURIComponent(ctx.agentId)}`}${suffix}`;
+}
+
+/** A background activity's page or detail. Everything under this path belongs to the Agent, including lazy frames inside it. */
+export function backgroundActivityPath(ctx: AgentRenderContext, key: string, suffix = ""): string {
+  return agentPath(ctx, `/background/${encodeURIComponent(key)}${suffix}`);
 }
 
 export function transcriptItemPath(ctx: AgentRenderContext, key: string, query = ""): string {

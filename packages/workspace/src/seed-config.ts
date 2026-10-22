@@ -1,17 +1,29 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { AgentsInTheCloudCoreError, agentsInTheCloudDataPath, type AgentsInTheCloudRuntimeContext } from "@agents-in-the-cloud/core";
+import { AgentsInTheCloudCoreError, agentsInTheCloudDataPath, type AgentsInTheCloudRuntimeContext, type JsonObject } from "@agents-in-the-cloud/core";
 import type { RepoWorkspaceManifest } from "./index.ts";
 import type { WorkspaceDockerPlan } from "./types.ts";
 import { seedConfigInstallScript } from "./startup-scripts.ts";
+
+let seededPiAuth: ((auth: JsonObject) => JsonObject) | undefined;
+
+/** Rewrites the host's Pi credentials before they are copied into a workspace. */
+export function registerSeededPiAuth(transform: (auth: JsonObject) => JsonObject): void {
+  seededPiAuth = transform;
+}
 
 export async function applySeedConfigManifest(manifest: RepoWorkspaceManifest, plan: WorkspaceDockerPlan, runtime: AgentsInTheCloudRuntimeContext, seedDirectory: string): Promise<void> {
   if ((manifest.seedPiConfig || manifest.seedAgentsInTheCloudConfig) && !plan.seedConfigEnabled) {
     throw new AgentsInTheCloudCoreError("workspace_seed_config_disabled", "This repository requests Atelier-in-Atelier seeding. Enable it in the workspace template’s Developer Settings (hold Alt in template settings), then create a new workspace.");
   }
   const entries: Array<{ source: string; staging: string; target: string }> = [];
+  const authJson = manifest.seedPiConfig?.authJson;
+  if (authJson) {
+    if (!seededPiAuth) throw new Error("Pi auth seeding is not registered");
+    const auth = seededPiAuth(JSON.parse(await readFile(agentsInTheCloudDataPath(runtime, "pi-config", "auth.json"), "utf8")));
+    entries.push({ source: await writeSeedFile(seedDirectory, "auth.json", JSON.stringify(auth)), staging: "/.agents-in-the-cloud/seed-pi-auth.json", target: authJson });
+  }
   for (const [name, target] of [
-    ["auth", manifest.seedPiConfig?.authJson],
     ["models", manifest.seedPiConfig?.modelsJson],
     ["models-store", manifest.seedPiConfig?.modelsStoreJson],
   ] as const) {
@@ -26,10 +38,7 @@ export async function applySeedConfigManifest(manifest: RepoWorkspaceManifest, p
     const sanitized = JSON.stringify(catalogue, (key, value) =>
       key === "encryptedSecret" || key === "encryptedPrivateKey" || key === "sshKeys" ? undefined : value,
     );
-    await mkdir(seedDirectory, { recursive: true });
-    const source = join(seedDirectory, "projects.json");
-    await writeFile(source, `${sanitized}\n`, { mode: 0o600 });
-    entries.push({ source, staging: "/.agents-in-the-cloud/seed-projects.json", target: workspaceTemplatesJson });
+    entries.push({ source: await writeSeedFile(seedDirectory, "projects.json", sanitized), staging: "/.agents-in-the-cloud/seed-projects.json", target: workspaceTemplatesJson });
   }
   for (const entry of entries) {
     plan.containerFiles.push({ source: entry.source, target: entry.staging });
@@ -37,3 +46,9 @@ export async function applySeedConfigManifest(manifest: RepoWorkspaceManifest, p
   }
 }
 
+async function writeSeedFile(seedDirectory: string, name: string, json: string): Promise<string> {
+  await mkdir(seedDirectory, { recursive: true });
+  const path = join(seedDirectory, name);
+  await writeFile(path, `${json}\n`, { mode: 0o600 });
+  return path;
+}

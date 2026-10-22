@@ -6,12 +6,13 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { gitCredentialHelperShellBody } from "@agents-in-the-cloud/git-hosting";
 import { AgentsInTheCloudCoreError, agentsInTheCloudDataPath, createProcessFileLock, dockerHostAgentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, invalidArguments, isJsonObject, readTextIfExists, requireDocker, runDocker, withCommandSignal, waitForCommand, shellQuote, writeJsonAtomic, type AgentsInTheCloudEventBus, type CommandInput, type JsonObject } from "@agents-in-the-cloud/core";
-import { runHostObservableCommand, stripTerminalControls, tailTerminalText } from "@agents-in-the-cloud/observable-terminal/server";
+import { runTerminalProcess, tailTerminalOutput, tailTerminalText, terminalOutputDisplayBytes } from "@agents-in-the-cloud/observable-terminal/server";
+import { terminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
+import { workspaceTerminalProcesses } from "./terminal-processes.ts";
 import { errorMessage, isWorkspaceAppPort, workspaceGatewayPort, type WorkspaceGateway, type WorkspaceHttpAppBackend, type WorkspaceServerProvisioningHook } from "@agents-in-the-cloud/shared";
 import { inspectWorkspaceImage, resolveWorkspaceImage } from "@agents-in-the-cloud/workspace-image";
 import { prepareWorkspaceSystemd } from "./systemd.ts";
-import { closeWorkspaceHelperConnection, refreshWorkspaceHelper, requireRootInWorkspace, runInWorkspace, workspaceHelperSocketPath, workspaceParentSocketDirectory } from "./helper.ts";
-import { workspaceHelperCliPath } from "@agents-in-the-cloud/workspace-helper";
+import { closeWorkspaceHelperConnection, refreshWorkspaceHelper, requireRootInWorkspace, runInWorkspace, workspaceParentSocketDirectory } from "./helper.ts";
 import { createWorkspaceContainerLifecycle, workspaceConfigurationLabel } from "./container-lifecycle.ts";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
@@ -22,8 +23,10 @@ export type { WorkspaceCreationContext, WorkspaceDockerMount, WorkspaceDockerPla
 export { checkFileInWorkspace, readFileInWorkspace, runInWorkspace, startInWorkspace, writeFileInWorkspace } from "./helper.ts";
 export { WorkspaceHelperError, WorkspaceHelperStatus } from "@agents-in-the-cloud/workspace-helper";
 export { exitStatus as workspaceExitStatus } from "@agents-in-the-cloud/workspace-helper";
+export { workspaceTerminalProcesses } from "./terminal-processes.ts";
 export { createWorkspaceMetadataState, type WorkspaceMetadataState } from "./metadata-state.ts";
 export { ensureHostInotifyLimit } from "./host-inotify.ts";
+export { registerSeededPiAuth } from "./seed-config.ts";
 export { createWorkspaceProvisioning, type WorkspaceProvisioning, type WorkspaceProvisionRun } from "./provisioning.ts";
 import type { WorkspaceProvisionRun, WorkspaceProvisionProgress } from "./provisioning.ts";
 
@@ -288,25 +291,18 @@ const workspaceSetupScript = ".agents-in-the-cloud/setup.sh";
 export const workspaceSetupProvisioningHook: WorkspaceServerProvisioningHook = {
   id: "workspace.setup",
   label: "Run repository setup",
-  recovery: "continue",
+  failurePolicy: "continue",
   async run({ workspaceId: id, events }) {
     if (!(await Bun.file(join(workspaceWorkHostPath(id), workspaceSetupScript)).exists())) {
       await events?.emit("workspace_provision_progress", { workspaceId: id, detail: `No ${workspaceSetupScript}` });
       return;
     }
 
-    const session = `agents-in-the-cloud-provision-setup-${crypto.randomUUID().slice(0, 8)}`;
-    const result = await runHostObservableCommand({
-      session,
-      cwd: "/",
-      command: [process.execPath, workspaceHelperCliPath, workspaceHelperSocketPath(id), "agents-in-the-cloud", workspaceRoot, "sh", workspaceSetupScript].map(shellQuote).join(" "),
-      onSessionStarted: async () => {
-        await events?.emit("workspace_provision_progress", { workspaceId: id, terminalSession: session });
-      },
+    const result = await runTerminalProcess(workspaceTerminalProcesses(id), { command: `sh ${shellQuote(workspaceSetupScript)}`, cwd: workspaceRoot }, async (processId) => {
+      await events?.emit("workspace_provision_progress", { workspaceId: id, terminalSocketPath: terminalProcessSocketPath(id, processId) });
     });
-    const output = tailTerminalText(stripTerminalControls(result.output));
-    await events?.emit("workspace_provision_progress", { workspaceId: id, output });
-    if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("workspace_setup_failed", output || `${workspaceSetupScript} failed with exit code ${result.exitCode}`);
+    await events?.emit("workspace_provision_progress", { workspaceId: id, output: tailTerminalOutput(result.output.ansi, terminalOutputDisplayBytes), terminalSocketPath: undefined });
+    if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("workspace_setup_failed", tailTerminalText(result.output.text) || `${workspaceSetupScript} failed with exit code ${result.exitCode}`);
   },
 };
 
@@ -470,8 +466,8 @@ export async function createWorkspace(options: { id: string; events: AgentsInThe
       const log = await ensureWorkspaceStarted(id);
       run.report({ output: log });
     }, "retry");
-    await run.step("workspace.readiness", "Prepare workspace", async () => {
-      await checkWorkspaceReadiness(id, (detail) => run.report({ detail }), (progress) => run.report(progress));
+    await run.step("workspace.preparation", "Prepare workspace", async () => {
+      await prepareWorkspaceRuntime(id, (detail) => run.report({ detail }), (progress) => run.report(progress));
     }, "retry-or-continue");
   } catch (error) {
     // Cancellation hands ownership to deletion, which reviews files before removing them.
@@ -653,8 +649,8 @@ export async function setWorkspaceParked(id: string, parked: boolean): Promise<n
   return null;
 }
 
-/** Repeated on resume and app recovery; the persisted list never rereads template settings. */
-export async function checkWorkspaceReadiness(id: string, report: (detail: string) => void = () => {}, activity: (progress: WorkspaceProvisionProgress) => void = () => {}): Promise<void> {
+/** Repeated on resume and app start; the persisted list never rereads template settings. */
+export async function prepareWorkspaceRuntime(id: string, report: (detail: string) => void = () => {}, activity: (progress: WorkspaceProvisionProgress) => void = () => {}): Promise<void> {
   report("Checking workspace gateway");
   await checkWorkspaceGateway(id);
   for (const socket of ["ingress", "egress"]) {

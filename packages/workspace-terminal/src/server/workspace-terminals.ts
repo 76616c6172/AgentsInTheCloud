@@ -1,6 +1,6 @@
 import { AgentsInTheCloudCoreError, createKeyedOperationQueue, shellQuote } from "@agents-in-the-cloud/core";
-import { buildKillSessionCommand, buildListSessionsCommand, buildObservableSessionCommand } from "@agents-in-the-cloud/observable-terminal/server";
-import { createWorkspaceMetadataState, execWorkspaceShell, workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { buildKillSessionCommand, buildListSessionsCommand, terminalProcessSession } from "@agents-in-the-cloud/observable-terminal/server";
+import { createWorkspaceMetadataState, execWorkspaceShell, workspaceRoot, workspaceTerminalProcesses } from "@agents-in-the-cloud/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 
@@ -8,10 +8,14 @@ const workspaceTerminalSchema = Type.Object({
   id: Type.String(),
   title: Type.String(),
   tmuxSession: Type.String(),
-  sessionRelationship: Type.Union([Type.Literal("owned"), Type.Literal("attached")]),
+  /**
+   * A terminal process the view started and releases on close; a tmux session
+   * someone else started, which the view only attaches to; or, from before
+   * terminal processes, a tmux session the view started and kills on close.
+   */
+  sessionRelationship: Type.Union([Type.Literal("process"), Type.Literal("attached"), Type.Literal("owned")]),
 });
 const workspaceTerminalsSchema = Type.Array(workspaceTerminalSchema);
-const workspaceTerminalHistoryLimit = 10_000;
 const mutateTerminals = createKeyedOperationQueue();
 
 export type WorkspaceTerminal = Static<typeof workspaceTerminalSchema>;
@@ -86,8 +90,8 @@ function sessionCommand(command?: string): string {
   return `/bin/bash -lc ${shellQuote(script)}`;
 }
 
-function newTerminal(terminals: WorkspaceTerminal[], title: string, tmuxSession: string, sessionRelationship: WorkspaceTerminal["sessionRelationship"]): WorkspaceTerminal {
-  const terminal = { id: crypto.randomUUID(), title: availableTitle(terminals.map((item) => item.title), title), tmuxSession, sessionRelationship };
+function newTerminal(terminals: WorkspaceTerminal[], id: string, title: string, tmuxSession: string, sessionRelationship: WorkspaceTerminal["sessionRelationship"]): WorkspaceTerminal {
+  const terminal = { id, title: availableTitle(terminals.map((item) => item.title), title), tmuxSession, sessionRelationship };
   terminals.push(terminal);
   return terminal;
 }
@@ -95,20 +99,9 @@ function newTerminal(terminals: WorkspaceTerminal[], title: string, tmuxSession:
 async function createTerminal(workspaceId: string, options: WorkspaceTerminalCreateOptions): Promise<WorkspaceTerminal> {
   const cwd = normalizeCwd(options.cwd);
   const terminals = [...await listWorkspaceTerminals(workspaceId)];
-  const sessions = await listTmuxSessions(workspaceId);
-  const tmuxSession = availableTitle(sessions.map((session) => session.name), options.title);
-  const result = await execWorkspaceShell(workspaceId, buildObservableSessionCommand({
-    requireExistingServer: true,
-    session: tmuxSession,
-    cwd,
-    command: sessionCommand(options.command),
-    passthrough: true,
-    status: false,
-    historyLimit: workspaceTerminalHistoryLimit,
-  }));
-  if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("terminal_create_failed", result.stderr.trim() || `could not create terminal: ${tmuxSession}`);
-
-  const terminal = newTerminal(terminals, options.title?.trim() || "Terminal", tmuxSession, "owned");
+  const id = crypto.randomUUID();
+  await workspaceTerminalProcesses(workspaceId).start({ id, command: sessionCommand(options.command), cwd, interactive: true });
+  const terminal = newTerminal(terminals, id, options.title?.trim() || "Terminal", terminalProcessSession(id), "process");
   terminalsState.write(workspaceId, terminals);
   return terminal;
 }
@@ -128,7 +121,7 @@ export async function attachWorkspaceTerminal(workspaceId: string, tmuxSession: 
       throw new AgentsInTheCloudCoreError("terminal_not_found", `tmux session not found: ${tmuxSession}`);
     }
     const terminals = [...await listWorkspaceTerminals(workspaceId)];
-    const terminal = newTerminal(terminals, tmuxSession, tmuxSession, "attached");
+    const terminal = newTerminal(terminals, crypto.randomUUID(), tmuxSession, tmuxSession, "attached");
     terminalsState.write(workspaceId, terminals);
     return terminal;
   });
@@ -140,6 +133,7 @@ export async function deleteWorkspaceTerminal(workspaceId: string, terminalId: s
     const index = terminals.findIndex((terminal) => terminal.id === terminalId);
     if (index < 0) throw new AgentsInTheCloudCoreError("terminal_not_found", `terminal not found: ${terminalId}`);
     const [terminal] = terminals.splice(index, 1);
+    if (terminal!.sessionRelationship === "process") await workspaceTerminalProcesses(workspaceId).release(terminal!.id);
     if (terminal!.sessionRelationship === "owned") {
       const result = await execWorkspaceShell(workspaceId, buildKillSessionCommand(terminal!.tmuxSession));
       if (result.exitCode !== 0) throw new AgentsInTheCloudCoreError("terminal_close_failed", result.stderr.trim() || `could not close terminal session: ${terminal!.tmuxSession}`);

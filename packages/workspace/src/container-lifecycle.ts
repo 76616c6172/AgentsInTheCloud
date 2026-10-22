@@ -16,7 +16,7 @@ const checkpointSchema = Type.Object({
 }, { additionalProperties: false });
 
 /** Configuration is committed before the first start. Recovery replays only file
- * copies, never plan preparation or repository hooks. Runtime readiness is checked
+ * copies, never plan preparation or repository hooks. Runtime preparation runs
  * after every start, independently of the configuration checkpoint. */
 export function createWorkspaceContainerLifecycle(options: {
   directory: string;

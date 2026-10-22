@@ -1,11 +1,9 @@
-@import url("/observable-terminal.css");
-
 .host-content { display: grid; gap: 20px; min-width: 0; }
 .host-stats { display: grid; gap: 14px; }
 .host-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .host-section-heading h3 { margin: 0 0 4px; font-size: var(--text-body); font-weight: var(--weight-bold); color: var(--text-bright); }
 .host-section-heading p { color: var(--text-muted); margin: 0; }
-.host-section-heading form, .host-terminal-heading form { margin: 0; flex-shrink: 0; }
+.host-section-heading form { margin: 0; flex-shrink: 0; }
 .host-table-wrap { border: 1px solid var(--line); border-radius: var(--radius-surface); overflow: hidden; }
 .host-diagnostics-table { width: 100%; border-collapse: collapse; font: inherit; line-height: var(--leading-standard); }
 .host-diagnostics-table th, .host-diagnostics-table td { padding: 7px 12px; text-align: start; }
@@ -23,13 +21,8 @@
 .host-probes { max-height: 440px; overflow: auto; }
 .host-probe-state { color: var(--text-muted); }
 .host-probe pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--text-code)/var(--leading-standard) var(--font-mono); }
-.host-terminals { display: grid; gap: 10px; min-width: 0; }
-.host-terminal-heading { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.host-terminal-heading > .tab-strip { flex: 0 1 auto; }
-.host-terminal-screen.observable-terminal-host { height: clamp(260px, 36dvh, 480px); min-width: 0; overflow: hidden; position: relative; font: var(--text-code)/var(--leading-standard) var(--font-mono); }
 .host-error { display: flex; align-items: start; gap: 8px; color: var(--danger); }
 .host-error p { flex: 1; }
-.host-empty { margin: 0; padding: 8px 0 16px; color: var(--text); line-height: var(--leading-copy); }
 @media (max-width: 540px) {
   .host-diagnostics-table th, .host-diagnostics-table td { padding: 7px 8px; }
   .host-diagnostics-table .host-resource { width: auto; }

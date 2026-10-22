@@ -2,6 +2,17 @@ export function normalizeCarriageReturns(text: string): string {
   return text.replace(/\r\n/g, "\n").replace(/^.*\r/gm, "");
 }
 
+/** How much of a finished command's output is kept to show, such as a bash call's or a provisioning step's. */
+export const terminalOutputDisplayBytes = 200_000;
+
+/** The end of `text` within `maxBytes`, from a line's start, noting when anything before it was cut. */
+export function tailTerminalOutput(text: string, maxBytes: number): string {
+  const bytes = Buffer.from(text);
+  if (bytes.byteLength <= maxBytes) return text;
+  const tail = bytes.subarray(bytes.byteLength - maxBytes).toString();
+  return `… output truncated to last ${maxBytes} bytes\n${tail.slice(tail.indexOf("\n") + 1)}`;
+}
+
 export function tailTerminalText(text: string, lines = 120): string {
   return text.replaceAll("\r", "").split("\n").slice(-lines).join("\n").trimEnd();
 }
@@ -78,16 +89,4 @@ export function stripTerminalControls(text: string): string {
     index++;
   }
   return output;
-}
-
-export function stripObservablePaneFraming(text: string): string {
-  let output = text.replace(/[ \t\r\n]*$/, "");
-  for (;;) {
-    const lastNewline = Math.max(output.lastIndexOf("\n"), output.lastIndexOf("\r"));
-    const line = lastNewline >= 0 ? output.slice(lastNewline + 1) : output;
-    const plainLine = stripTerminalControls(line).trim();
-    if (!/^Pane is dea(?:d)?$/.test(plainLine)) return output;
-    output = lastNewline >= 0 ? output.slice(0, lastNewline) : "";
-    output = output.replace(/[ \t\r\n]*$/, "");
-  }
 }

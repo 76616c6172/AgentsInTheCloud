@@ -4,11 +4,11 @@ import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
 import { observableTerminalStaticFiles } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspacePortBackend, type WorkspaceDockerMount, type WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
 import { mkdir } from "node:fs/promises";
-import { createAgentTermSocketSession } from "./bash-tmux.ts";
 import { sessionShareDir, sessionShareKeyForInit, sessionShareMountPath } from "./session-share.ts";
 import { createDeleteCurrentWorkspaceTool, registerWorkspaceAgentTool } from "./tools.ts";
 import { usageOpenApiPaths } from "./usage-openapi.ts";
 import { handleUsageRequest, renderUsagePaneAction } from "./usage-web.ts";
+import { promptSuggestionSettingsContribution } from "./prompt-suggestions.ts";
 import { workspaceFileEndpoint } from "./workspace-files.ts";
 import { subscribeWorkspaceAgentBusy } from "./workspace-agent-busy.ts";
 
@@ -41,9 +41,9 @@ export const agentWorkspaceModule: WorkspaceModule = {
   renderWorkspacePaneActions: renderUsagePaneAction,
   openApiPaths: usageOpenApiPaths,
   routes: [{ handle: handleUsageRequest }],
+  settingsContributions: [promptSuggestionSettingsContribution],
   initialize(context) {
     registerSessionShareMountEvents(context.events);
-    context.registerSocketHandler(createAgentTermSocketSession);
     context.registerWorkspaceAppResolver(async (app, requestUrl) => {
       if (app.appKey === "file") return {
         kind: "fetch",

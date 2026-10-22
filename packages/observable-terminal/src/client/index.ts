@@ -405,6 +405,7 @@ async function initializeTerminalViewer(options: ObservableTerminalViewerOptions
     };
     if (connection.state === "ended") applyEnded();
     const inputDecoder = new TextDecoder();
+
     term.on("error", (error) => console.error("Gespenst terminal error", error));
     if (options.mode === "interactive") {
       term.on("clipboardWrite", ({ location, contents }) => {

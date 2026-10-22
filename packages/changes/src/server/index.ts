@@ -5,16 +5,17 @@ import { deletionCommentsId, renderDeletionComments, commentsActionsId, comments
 import { domId, type LiveRegion } from "@agents-in-the-cloud/shared";
 import { changesDeletionReview, deletionReviewCommitResponse, deletionReviewFileResponse, clearDeletionReview } from "./deletion.ts";
 import { refreshChanges } from "./refresh.ts";
+import { commitLinkLabel, openCommitLink } from "./commit-links.ts";
 import type { JsonValue } from "@agents-in-the-cloud/core";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml, turboStreamResponse, type WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { escapeHtml, parseCommitLinkSpec, turboStreamResponse, type WorkspaceModule } from "@agents-in-the-cloud/shared";
 import { matchRoute, response, textResponse } from "@agents-in-the-cloud/shared/http";
 import { workspaceRepository } from "@agents-in-the-cloud/workspace/git";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { collectUnchangedPaths, maxUnchangedMediaBytes, readUnchangedContents, readUnchangedFile, unchangedMediaType, type ChangesFile, type UnchangedFile } from "./diff.ts";
 import { canEditFile } from "../editing.ts";
-import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff } from "./render.ts";
+import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff, noticeId, renderNotice } from "./render.ts";
 import type { DiffEndpoints } from "../history.ts";
 import { captureChanges, commitHistory, InvalidDiffEndpoints, workingTree, type ChangesSnapshot } from "./snapshot.ts";
 
@@ -88,7 +89,34 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
   }],
   commands: [{ id: "changes.open", execute: () => ({ createdWorkView: reference }) }],
   staticFiles: { "/deletion.css": { url: new URL("../client/deletion.css", import.meta.url), contentType: "text/css; charset=utf-8" }, "/changes.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
-  routes: [{ async handle(request, url) {
+  routes: [{ async handle(request, url, context) {
+    const linkRoute = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/(open|commit-label)$/);
+    if (linkRoute) {
+      if (request.method !== "GET") return textResponse("Method not allowed", { status: 405 });
+      const workspaceId = linkRoute[0]!, link = parseCommitLinkSpec(url.searchParams.get("commit") ?? "");
+      if (!link) return textResponse("Invalid commit link", { status: 400 });
+      const root = workspaceRepository(workspaceId);
+      if (linkRoute[1] === "commit-label") {
+        const label = await commitLinkLabel(root, link);
+        return label === undefined ? response("Commit not found", { status: 404 }) : response(label, { headers: { "Cache-Control": "private, max-age=31536000, immutable" } });
+      }
+      const state = await current(workspaceId), ticket = ++state.request;
+      const next = await openCommitLink(root, state.snapshot, link);
+      // A later selection owns the comparison; still bring Changes forward.
+      if (ticket === state.request) {
+        state.snapshot = next;
+        state.clients.clear();
+      }
+      return await context.openWorkView(workspaceId, reference);
+    }
+    const noticeRoute = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/notice\/dismiss$/);
+    if (noticeRoute) {
+      if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });
+      const workspaceId = noticeRoute[0]!, { snapshot } = await current(workspaceId), history = String((await request.formData()).get("history"));
+      // A newer link may have set a new notice since this one was shown.
+      if (history === snapshot.history.id) snapshot.notice = undefined;
+      return turboStreamResponse(replace(noticeId(workspaceId, history), renderNotice(workspaceId, history)));
+    }
     const editRoute = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/edit\/(begin|save|cancel)$/);
     if (editRoute) {
       if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });
@@ -234,7 +262,8 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
       const endpoints: DiffEndpoints = requestedEndpoints;
       const root = workspaceRepository(workspaceId);
       if (match[1] === "compare") next = await captureChanges(root, endpoints, previous.history);
-      else next = await refreshChanges(root, previous, endpoints);
+      // A browser still showing an older history (say, before a commit link replaced it) refreshes what the server shows now.
+      else next = await refreshChanges(root, previous, data.get("history") === previous.history.id ? endpoints : previous.endpoints);
     } catch (thrown) {
       const error = thrown instanceof Error ? thrown : new Error(String(thrown));
       const invalid = error instanceof InvalidDiffEndpoints;

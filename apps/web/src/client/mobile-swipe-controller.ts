@@ -71,12 +71,12 @@ export class MobileSwipeController extends Controller<HTMLElement> {
 
   /** Sidebar navigation is available during preparation and deletion, not just in Agent/Work views. */
   private get workspaceElement(): HTMLElement | null {
-    const element = this.element.querySelector<HTMLElement>(".workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)");
+    const element = this.element.querySelector<HTMLElement>(".workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)");
     return element && !element.closest("[inert]") ? element : null;
   }
 
   private get presentationElement(): HTMLElement | null {
-    const element = this.element.querySelector<HTMLElement>(".workspace-detail-resident.visible [data-controller~=workspace-presentation]");
+    const element = this.element.querySelector<HTMLElement>(".workspace-detail-mount.visible [data-controller~=workspace-presentation]");
     return element && !element.closest("[inert]") ? element : null;
   }
 
@@ -375,7 +375,7 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   };
 
   private visibleFrame(frame: HTMLIFrameElement): boolean {
-    return !this.sidebarOpen && frame.closest(".workspace-detail-resident.visible") !== null
+    return !this.sidebarOpen && frame.closest(".workspace-detail-mount.visible") !== null
       && frame.closest("[data-workspace-logically-visible='true']") !== null
       && !frame.closest("[inert]") && frame.getClientRects().length > 0;
   }

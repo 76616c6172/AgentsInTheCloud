@@ -3,7 +3,7 @@ import { providerAvailability } from "./provider-availability.ts";
 import type { ModelRef } from "./model-reference.ts";
 import { readJsonSettings, updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
 import { syncSubscriptionClis } from "./subscription-cli.ts";
-import { anthropicUsageSource } from "./anthropic-subscription-usage.ts";
+import { anthropicUsageSource, observeAnthropicSubscriptionResponse } from "./anthropic-subscription-usage.ts";
 import { forgetSubscriptionInference } from "./recent-subscription-activity.ts";
 import { defaultProviderModels, modelDisplayName } from "./hardcoded-provider-knowledge.ts";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
@@ -11,7 +11,7 @@ import { arch, platform, release } from "node:os";
 import { dirname, join } from "node:path";
 import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, isJsonObject, readTextIfExists, writeJsonAtomic, type JsonObject, type JsonValue } from "@agents-in-the-cloud/core";
 import { errorMessage } from "@agents-in-the-cloud/shared";
-import type { Api, AuthInteraction, AuthPrompt, Model, ProviderHeaders } from "@earendil-works/pi-ai";
+import type { Api, AuthInteraction, AuthPrompt, Model, ProviderHeaders, ProviderResponse } from "@earendil-works/pi-ai";
 import { InMemoryCredentialStore } from "@earendil-works/pi-ai";
 import { ModelRuntime, readStoredCredential } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -201,31 +201,35 @@ export function cheapestProviderModel(runtime: Pick<ModelRuntime, "getModels">, 
 
 const agentsInTheCloudUserAgent = `AgentsInTheCloud (${platform()} ${release()}; ${arch()})`;
 
-/** Introduces AgentsInTheCloud to providers instead of pi. Caller headers still win. */
-function identifyAsAgentsInTheCloud(runtime: ModelRuntime): ModelRuntime {
+/** Introduces AgentsInTheCloud to providers instead of pi, and keeps subscription usage current. Caller headers and callbacks still apply. */
+export function instrumentModelRuntime(runtime: ModelRuntime): ModelRuntime {
+  const usesAnthropicSubscription = (model: Model<Api>) => model.provider === "anthropic" && runtime.isUsingOAuth(model.provider);
   const withIdentity = (model: Model<Api>, headers: ProviderHeaders | undefined): ProviderHeaders | undefined => {
-    // Anthropic subscriptions only accept requests that identify as Claude Code.
-    if (model.provider === "anthropic" && runtime.isUsingOAuth(model.provider)) return headers;
-    const identity: ProviderHeaders = model.api === "openai-codex-responses" ? { "User-Agent": agentsInTheCloudUserAgent, originator: "AgentsInTheCloud" } : { "User-Agent": agentsInTheCloudUserAgent };
+    const identity: ProviderHeaders = model.api === "openai-codex-responses" ? { "User-Agent": agentsInTheCloudUserAgent, originator: "AgentsInTheCloud" }
+      // Pi signs Anthropic subscription requests as Claude Code, in lowercase headers.
+      : usesAnthropicSubscription(model) ? { "user-agent": agentsInTheCloudUserAgent, "x-app": null }
+      : { "User-Agent": agentsInTheCloudUserAgent };
     return { ...identity, ...headers };
   };
+  // Anthropic responses carry the subscription's limits, as Claude Code's do through the workspace proxy.
+  const observingUsage = (model: Model<Api>, onResponse: ((response: ProviderResponse, model: Model<Api>) => void | Promise<void>) | undefined) => usesAnthropicSubscription(model)
+    ? async (response: ProviderResponse, responseModel: Model<Api>) => {
+      observeAnthropicSubscriptionResponse(new Headers(response.headers), response.status >= 200 && response.status < 300);
+      await onResponse?.(response, responseModel);
+    }
+    : onResponse;
   // Instance overrides also catch completeSimple, fetchDeferred, and the runtime's own re-entry when it routes virtual models.
   const streamSimple = runtime.streamSimple.bind(runtime);
   const streamDeferred = runtime.streamDeferred.bind(runtime);
-  runtime.streamSimple = (model, context, options) => streamSimple(model, context, { ...options, headers: withIdentity(model, options?.headers) });
-  runtime.streamDeferred = (model, handle, options) => streamDeferred(model, handle, { ...options, headers: withIdentity(model, options?.headers) });
+  runtime.streamSimple = (model, context, options) => streamSimple(model, context, { ...options, headers: withIdentity(model, options?.headers), onResponse: observingUsage(model, options?.onResponse) });
+  runtime.streamDeferred = (model, handle, options) => streamDeferred(model, handle, { ...options, headers: withIdentity(model, options?.headers), onResponse: observingUsage(model, options?.onResponse) });
   return runtime;
-}
-
-/** Housekeeping requests to Anthropic pose as Claude Code, the version pi already claims for Claude subscriptions. */
-export function claudeCodeHeaders(model: Model<Api>): ProviderHeaders | undefined {
-  return model.provider === "anthropic" ? { "User-Agent": "claude-cli/2.1.280", "x-app": "cli" } : undefined;
 }
 
 export function createPiModelRuntime(): Promise<ModelRuntime> {
   return modelRuntime ??= (async () => {
     await preparePiModelsJson();
-    return identifyAsAgentsInTheCloud(await ModelRuntime.create({ authPath: piAuthJsonPath(), modelsPath: piModelsJsonPath() }));
+    return instrumentModelRuntime(await ModelRuntime.create({ authPath: piAuthJsonPath(), modelsPath: piModelsJsonPath() }));
   })();
 }
 
@@ -274,13 +278,13 @@ export async function validateModelProviderApiKey(provider: string, key: string,
   if (!trimmed) throw new Error("API key is required");
   const credentials = new InMemoryCredentialStore();
   await credentials.modify(provider, async () => ({ type: "api_key", key: trimmed }));
-  const runtime = identifyAsAgentsInTheCloud(await ModelRuntime.create({ credentials, modelsPath: customModel ? null : piModelsJsonPath(), allowModelNetwork: false }));
+  const runtime = instrumentModelRuntime(await ModelRuntime.create({ credentials, modelsPath: customModel ? null : piModelsJsonPath(), allowModelNetwork: false }));
   if (customModel) runtime.registerProvider(provider, { api: customModel.api, baseUrl: customModel.baseUrl, models: [customModel] });
   const models = runtime.getModels(provider);
   const model = models[Math.floor(Math.random() * models.length)];
   if (!model) throw new Error(`No models found for provider "${provider}"`);
   // A probe is its own one-request conversation. OpenCode Go rejects requests without a session ID.
-  const response = await runtime.completeSimple(model, { messages: [{ role: "user", content: "Reply with exactly: ok", timestamp: Date.now() }] }, { maxTokens: 1, headers: claudeCodeHeaders(model), sessionId: crypto.randomUUID(), signal: customModel ? AbortSignal.timeout(15_000) : undefined });
+  const response = await runtime.completeSimple(model, { messages: [{ role: "user", content: "Reply with exactly: ok", timestamp: Date.now() }] }, { maxTokens: 1, sessionId: crypto.randomUUID(), signal: customModel ? AbortSignal.timeout(15_000) : undefined });
   if (response.stopReason === "error" || response.stopReason === "aborted") throw new Error(response.errorMessage ?? "Provider rejected the API key");
 }
 

@@ -3,7 +3,7 @@ import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { HttpRequestBlockedError, type SecretRequestTransform } from "@agents-in-the-cloud/proxy-egress/server";
-import { availableProviderModels, anthropicSubscriptionUnavailableReason, codexAccountId, modelRefValue, type ModelRef, type EnabledModel } from "@agents-in-the-cloud/llm/server";
+import { availableProviderModels, codexAccountId, modelRefValue, type ModelRef, type EnabledModel } from "@agents-in-the-cloud/llm/server";
 
 // Self-describing, non-secret markers survive server restarts without a token registry.
 // Every use is checked against the *current* host-side catalogue and authentication.
@@ -12,7 +12,8 @@ const markerSchema = Type.Object({
   field: Type.Union([Type.Literal("key"), Type.Literal("account"), Type.Literal("header")]),
   header: Type.Optional(Type.String()),
   // "sk" keeps the real key's `sk-` prefix: Pi classifies OpenAI credentials by it (API key or Sign in with ChatGPT).
-  style: Type.Union([Type.Literal("plain"), Type.Literal("codex"), Type.Literal("sk")]),
+  // "anthropic-oauth" keeps `sk-ant-oat`, which tells Pi to sign in as a Claude subscription.
+  style: Type.Union([Type.Literal("plain"), Type.Literal("codex"), Type.Literal("sk"), Type.Literal("anthropic-oauth")]),
 });
 type Marker = Static<typeof markerSchema>;
 type Runtime = Pick<ModelRuntime, "getAvailable" | "getModel" | "checkAuth"> & {
@@ -32,6 +33,7 @@ function placeholder(marker: Marker): string {
     return `${Buffer.from('{"alg":"none"}').toString("base64url")}.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.${token}`;
   }
   if (marker.style === "sk") return `sk-${token}`;
+  if (marker.style === "anthropic-oauth") return `sk-ant-oat-${token}`;
   return token;
 }
 
@@ -49,8 +51,6 @@ function endpoint(model: Model<Api>, auth: AuthResult): URL {
 }
 
 function unsupportedAuth(model: Model<Api>, auth: AuthResult): string | undefined {
-  // Anthropic permits Claude subscription (OAuth) tokens only in Claude Code.
-  if (model.api === "anthropic-messages" && auth.auth.apiKey?.startsWith("sk-ant-oat")) return anthropicSubscriptionUnavailableReason;
   if (!auth.auth.apiKey && !Object.keys(auth.auth.headers ?? {}).length && ["bedrock-converse-stream", "google-vertex"].includes(model.api)) {
     return "Pi's workspace bridge requires an API key or bearer token; host AWS credential chains and Google ADC cannot be copied into a workspace.";
   }
@@ -100,7 +100,9 @@ export async function createPiCliConfiguration(runtime: Runtime, enabledModels: 
     // Ambient host credentials have no safe file representation. Do not advertise them in Pi.
     if (unsupportedAuth(model, auth)) continue;
     const baseUrl = endpoint(model, auth).href.replace(/\/$/, "");
-    const style = model.api === "openai-codex-responses" ? "codex" : auth.auth.apiKey?.startsWith("sk-") ? "sk" : "plain";
+    const style = model.api === "openai-codex-responses" ? "codex"
+      : model.api === "anthropic-messages" && auth.auth.apiKey?.includes("sk-ant-oat") ? "anthropic-oauth"
+      : auth.auth.apiKey?.startsWith("sk-") ? "sk" : "plain";
     const key = auth.auth.apiKey ? placeholder({ provider: model.provider, model: model.id, field: "key", style }) : "agents-in-the-cloud-pi-no-key";
     const provider = result.models.providers[model.provider] ??= { apiKey: key, models: [] };
     result.auth[model.provider] = { type: "api_key", key: provider.apiKey };
@@ -153,6 +155,7 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
       }
       return pending;
     }
+    let subscription = false;
     async function replace(value: string): Promise<string> {
       for (const match of value.matchAll(markerPattern)) {
         let marker: Marker;
@@ -164,6 +167,7 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
         const allowed = candidates.some((candidate) => endpoint(candidate, auth).origin === url.origin);
         if (!allowed) throw new HttpRequestBlockedError(`Pi credentials are not allowed for ${url.origin}`);
         let replacement: string | null | undefined;
+        if (marker.style === "anthropic-oauth") subscription = true;
         if (marker.field === "key") replacement = auth.auth.apiKey;
         else if (marker.field === "header") replacement = auth.auth.headers?.[marker.header!];
         else {
@@ -188,6 +192,11 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
       if (value.includes("agents-in-the-cloud-pi-no-key")) continue;
       const replaced = await replace(value);
       if (replaced) headers.set(name, replaced);
+    }
+    // Pi signs Claude subscription requests as Claude Code; this is the Pi TUI.
+    if (subscription) {
+      headers.delete("x-app");
+      headers.set("user-agent", "pi");
     }
     // Query-encoded API keys are supported without enabling substitution for unrelated workspace secrets.
     const query = new URLSearchParams();

@@ -5,6 +5,7 @@ import {
   repairStreamingMarkdownTail,
   streamingMarkdownStableBoundary,
 } from "../src/streaming-markdown.ts";
+import { renderMarkdown } from "../src/markdown.ts";
 
 const workspaceId = "stream workspace";
 
@@ -18,6 +19,23 @@ describe("streaming Markdown", () => {
     const update = renderer.render(`${prefixes.at(-1)} text`);
     expect(update.stableHtmlAddition).toBe("");
     expect(update.tailHtml).toContain("<p>Tail text</p>");
+  });
+
+  test("never commits part of a disclosure that later renders differently", () => {
+    for (const source of [
+      "Intro\n\n<details>\n<summary>S</summary>\n\nReason\n\n```\n</details>\n```\n\n</details>\n\nAfter\n\n",
+      "<details>\n<summary>S</summary>\n\n- ```js\n  x\n  ```\n\n</details>\n\nAfter\n\n",
+      "<details>\n<summary>Outer</summary>\n\n- <details>\n  <summary>Inner</summary>\n\n  inner\n  </details>\n\nstill outer\n\n</details>\n\nAfter\n\n",
+    ]) {
+      // Committed chunks are rendered separately, without the newlines that join blocks.
+      const final = renderMarkdown(workspaceId, source).replaceAll("\n", "");
+      const renderer = new StreamingMarkdownRenderer(workspaceId);
+      let stable = "";
+      for (let end = 1; end <= source.length; end++) {
+        stable += renderer.render(source.slice(0, end)).stableHtmlAddition;
+        expect(final.startsWith(stable.replaceAll("\n", ""))).toBe(true);
+      }
+    }
   });
 
   test("keeps protected block constructs and everything after them in the mutable tail", () => {

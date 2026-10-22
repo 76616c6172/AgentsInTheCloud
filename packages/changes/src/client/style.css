@@ -105,6 +105,7 @@
 @keyframes changes-spin { to { transform: rotate(360deg); } }
 .changes-diff-endpoints-error { position: absolute; inset: auto 8px 8px; z-index: 4; display: flex; align-items: center; gap: 8px; padding: 8px; background: var(--panel); border: 1px solid var(--danger); border-radius: var(--radius-control); color: var(--danger); box-shadow: var(--shadow); font-size: var(--text-code); }
 .changes-diff-endpoints-error > span { flex: 1; min-width: 0; }
+.changes-notice-dismiss { display: contents; }
 .changes-busy .changes-surface, .changes-busy .changes-empty, .changes-failed .changes-surface, .changes-failed .changes-empty { visibility: hidden; }
 .changes-busy .changes-summary, .changes-failed .changes-summary { visibility: hidden; }
 .changes-picker-host[hidden], .changes-loading[hidden], .changes-diff-endpoints-error[hidden] { display: none; }

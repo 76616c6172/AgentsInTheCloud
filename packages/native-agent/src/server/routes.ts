@@ -1,14 +1,14 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
-import { parseModelRef } from "@agents-in-the-cloud/llm/server";
 import { invalidArguments, readJsonObject, requestAcceptsJson, type JsonValue } from "@agents-in-the-cloud/core";
 import { expandSlashCommand } from "@agents-in-the-cloud/agent/server/slash-command-input";
 import { listFileCompletions, renderFileCompletionMenu } from "@agents-in-the-cloud/agent/server/file-completions";
 import { runAgentNameCommand } from "@agents-in-the-cloud/agent/server/agent-name-command";
-import { suggestAgentSlug } from "@agents-in-the-cloud/agent/server/slug-suggestion";
 import { agentAttachmentDraftId, deliverAttachmentDraft, removeStagedAttachments } from "@agents-in-the-cloud/prompt/server";
 import { findTranscriptItem, isTranscriptTarget } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame } from "@agents-in-the-cloud/agent/server/render-transcript";
+import { renderBackgroundGone, renderBackgroundInlineDetail, renderBackgroundPage } from "@agents-in-the-cloud/agent/server/background-activity";
+import { ids } from "@agents-in-the-cloud/agent/server/render-context";
 import { response, textResponse } from "@agents-in-the-cloud/shared/http";
 import { turboStream, workspaceModuleModalFrameId, turboStreamResponse } from "@agents-in-the-cloud/shared";
 import type { NativeAgentRuntime, NativeAgents } from "./agents.ts";
@@ -68,8 +68,8 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
       if (text.trim() === "/new" && options.newConversation) { await options.newConversation(runtime); return success(); }
       if (text.trim() === "/park") return new Response(null, { status: 307, headers: { Location: `/workspaces/${encodeURIComponent(workspaceId)}/park` } });
       const named = await runAgentNameCommand(text, {
-        suggest: () => suggestAgentSlug(options.promptText(runtime), runtime.record.model ? parseModelRef(runtime.record.model) : undefined),
-        setTitle: title => runtime.rename(title),
+        suggest: () => agents.suggestTitle(runtime, options.promptText(runtime)),
+        setTitle: title => agents.rename(runtime, title),
       });
       if (named) { if (named === "no-title") throw invalidArguments("Send a prompt before asking for an Agent name"); return success(); }
       const id = requestId();
@@ -80,9 +80,12 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
       if (form && options.delivered(runtime, id)) return success(true, consumedHeaders);
       const attachmentIds = form?.getAll("attachment").map(String) ?? [];
       const attachments = await deliverAttachmentDraft(workspaceId, draft, attachmentIds);
-      const expanded = options.isHarnessCommand?.(runtime, text) ? text.trim() : await expandSlashCommand(workspaceId, text);
+      const harnessCommand = options.isHarnessCommand?.(runtime, text) === true;
+      const expanded = harnessCommand ? text.trim() : await expandSlashCommand(workspaceId, text);
       if (!expanded.trim() && !attachments.images.length && !attachments.attachmentNotes.length) throw invalidArguments("Write a prompt or attach a file");
+      const prompts = harnessCommand ? "" : [options.promptText(runtime), expanded].filter(Boolean).join("\n\n");
       await runtime.send({ text: expanded, ...attachments }, id);
+      void agents.nameFromPrompts(runtime, prompts).catch(error => console.error(`Could not name ${agentId}`, error));
       await removeStagedAttachments(draft, attachmentIds);
       return success(true, consumedHeaders);
     }
@@ -93,6 +96,28 @@ export function createNativeAgentRoutes<Runtime extends NativeAgentRuntime, Comm
     if (operation === "completions/slash-command-expand" && request.method === "POST") {
       const text = String(field("text") ?? "");
       return textResponse(verbatim(runtime, text) ? text.trim() : await expandSlashCommand(workspaceId, text));
+    }
+    const background = operation.match(/^background\/([^/]+)(?:\/(.+))?$/);
+    if (background && rendering.background) {
+      const key = decodeURIComponent(background[1]!);
+      const path = background[2];
+      const ctx = rendering.renderContext(runtime);
+      const activity = rendering.background.activities(runtime).find(activity => activity.key === key);
+      if (path === "stop" && request.method === "POST" && rendering.background.stop) {
+        if (activity?.stoppable) await rendering.background.stop(runtime, activity);
+        return success();
+      }
+      if (path === undefined && request.method === "GET") {
+        // Turbo names the frame it loads into: a drill-in page, or an inline row.
+        const page = request.headers.get("turbo-frame") === ids.backgroundPage(ctx);
+        if (!activity) return response(renderBackgroundGone(ctx, key, page));
+        const detail = await rendering.background.detail(runtime, activity, ctx);
+        return response(page ? renderBackgroundPage(ctx, activity, detail) : renderBackgroundInlineDetail(ctx, activity, detail));
+      }
+      if (path !== undefined && activity) {
+        const handled = await rendering.background.route?.(runtime, activity, path, url, ctx);
+        if (handled) return handled;
+      }
     }
     if (operation.startsWith("transcript-items/") && request.method === "GET") {
       const key = decodeURIComponent(operation.slice("transcript-items/".length));

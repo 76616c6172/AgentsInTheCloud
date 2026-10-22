@@ -1,4 +1,4 @@
-import { encodeObservableTerminalMessage, terminalSessionMissingCloseCode } from "../shared/index.ts";
+import { encodeObservableTerminalMessage, terminalEndedCloseCode } from "../shared/index.ts";
 
 export type TerminalConnectionState = "connecting" | "connected" | "reconnecting" | "unavailable" | "ended";
 export interface TerminalSize { cols: number; rows: number }
@@ -71,7 +71,7 @@ export function createTerminalConnection(options: {
     socket.onclose = (event) => {
       if (ws !== socket || disposed) return;
       ws = undefined;
-      if (event.code === terminalSessionMissingCloseCode) {
+      if (event.code === terminalEndedCloseCode) {
         cancelRetry();
         report("ended");
         return;

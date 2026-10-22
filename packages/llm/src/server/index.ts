@@ -1,4 +1,4 @@
-export { getCustomModelsJson, setCustomModelsJson, getEnabledModels, hasConnectedModelProvider, hasAvailableEnabledModel, setEnabledModels, cheapestProviderModel, claudeCodeHeaders, createPiModelRuntime, disconnectModelProvider, seedProviderEnabledModels, type EnabledModel } from "./pi-config-models.ts";
+export { getCustomModelsJson, setCustomModelsJson, getEnabledModels, hasConnectedModelProvider, hasAvailableEnabledModel, setEnabledModels, cheapestProviderModel, createPiModelRuntime, disconnectModelProvider, seedProviderEnabledModels, type EnabledModel } from "./pi-config-models.ts";
 export { getAgentModelPreference, setAgentModelPreference, getAgentModelThinkingLevel, setAgentModelThinkingLevel } from "./agent-model-preferences.ts";
 export { popularProviderIds } from "./hardcoded-provider-knowledge.ts";
 export { modelRefValue, parseModelRef, type ModelRef } from "./model-reference.ts";
@@ -11,7 +11,7 @@ export { connectedUsageProviders, getProviderUsageOverview, hasUsageLimits, prov
 export { installSubscriptionCli, installCodexSubscriptionAuth, installClaudeSubscriptionAuth } from "./subscription-cli.ts";
 export { renderSharedComposerSelections, renderLaunchModelSettings, renderReadOnlyLaunchModelSettings, modelThinkingLevels, type ComposerModelOption } from "./model-picker.ts";
 export { modelUnavailableReason, providerAvailability } from "./provider-availability.ts";
-export { anthropicSubscriptionUnavailableReason, requireProviderSubscription, usesProviderSubscription } from "./subscription.ts";
+export { requireProviderSubscription, usesProviderSubscription } from "./subscription.ts";
 
 export { availableProviderModels, cheapestAvailableProviderModel } from "./known-model-provider-incorrectness.ts";
 export { codexAccountId } from "./codex-token.ts";

@@ -1,7 +1,7 @@
 import { phoneLayoutMediaQuery, recentWorkspaceTemplateStorageKey } from "@agents-in-the-cloud/shared";
 import { slidePageChange } from "@agents-in-the-cloud/design-system/page-slide/client";
 import { Controller } from "@hotwired/stimulus";
-import { registerWorkspaceControllers, residencyController } from "./workspace-controller-registry.ts";
+import { registerWorkspaceControllers, workspaceSelectionController } from "./workspace-controller-registry.ts";
 import { markActiveWorkspaceRow } from "./workspace-presentation.ts";
 
 /** Points from the artwork to the first-workspace action. */
@@ -210,25 +210,25 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   connect(): void {
     this.scrollTarget.addEventListener("scroll", this.scrolled, { passive: true });
-    this.element.addEventListener("agents-in-the-cloud:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
+    this.element.addEventListener("agents-in-the-cloud:workspace-mobile-destination-selected", this.workspaceMobileDestinationSelected);
     document.addEventListener("agents-in-the-cloud:workspace-pane-changed", this.workspacePaneChanged);
     const scroll = Number(localStorage.getItem("agents-in-the-cloud:workspace-pane-scroll"));
     if (Number.isFinite(scroll)) this.scrollTarget.scrollTop = scroll;
-    this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-resident.visible"));
+    this.setWorkspacePaneOpen(!this.element.querySelector(".workspace-detail-mount.visible"));
     this.workspacePanePinned = localStorage.getItem("agents-in-the-cloud:workspace-pane-pinned") === "true";
     this.setWorkspacePaneCollapsed(!this.workspacePanePinned);
   }
 
   disconnect(): void {
     this.scrollTarget.removeEventListener("scroll", this.scrolled);
-    this.element.removeEventListener("agents-in-the-cloud:mobile-resident-destination-selected", this.mobileResidentDestinationSelected);
+    this.element.removeEventListener("agents-in-the-cloud:workspace-mobile-destination-selected", this.workspaceMobileDestinationSelected);
     document.removeEventListener("agents-in-the-cloud:workspace-pane-changed", this.workspacePaneChanged);
     if (this.scrollTimer) clearTimeout(this.scrollTimer);
   }
 
   closeWorkspacePane(): void {
     this.setWorkspacePaneOpen(false);
-    this.element.querySelector<HTMLElement>(".workspace-detail-resident.visible [data-show-workspace-list]")!.focus();
+    this.element.querySelector<HTMLElement>(".workspace-detail-mount.visible [data-show-workspace-list]")!.focus();
   }
 
   showWorkspacePane(): void {
@@ -293,9 +293,9 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     document.dispatchEvent(new CustomEvent("agents-in-the-cloud:mobile-workspace-pane-changed"));
   }
 
-  private readonly mobileResidentDestinationSelected = (): void => this.setWorkspacePaneOpen(false);
+  private readonly workspaceMobileDestinationSelected = (): void => this.setWorkspacePaneOpen(false);
   private readonly workspacePaneChanged = (): void => {
-    this.setActiveWorkspace(residencyController()?.visibleWorkspaceId());
+    this.setActiveWorkspace(workspaceSelectionController()?.visibleWorkspaceId());
   };
 
   async selectWorkspace(event: Event): Promise<void> {
@@ -306,7 +306,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   async selectWorkspaceById(workspaceId: string): Promise<void> {
     this.setWorkspacePaneOpen(false);
-    await residencyController()?.selectWorkspace(workspaceId, `/workspaces/${encodeURIComponent(workspaceId)}`);
+    await workspaceSelectionController()?.selectWorkspace(workspaceId, `/workspaces/${encodeURIComponent(workspaceId)}`);
   }
 
   async parkWorkspace(event: Event): Promise<void> {

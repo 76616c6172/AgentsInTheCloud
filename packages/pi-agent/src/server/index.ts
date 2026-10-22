@@ -11,7 +11,7 @@ import { piModelSettings } from "./model-settings.ts";
 import { loadPiTranscript, loadPiTranscriptImage, piResumePath, piHistoryFiles } from "./transcript.ts";
 
 const cliModule = createCliAgentModule({
-  id: "pi", label: "Pi", iconHtml: providerBrandIconHtml("pi", "Pi"),
+  id: "pi", label: "Pi CLI", iconHtml: providerBrandIconHtml("pi", "Pi"),
   requireSetup: requirePiModels,
   settings: piModelSettings,
   prepareWorkspace: installPiCliConfiguration,

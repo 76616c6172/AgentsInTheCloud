@@ -1,19 +1,48 @@
 import { createHash } from "node:crypto";
-import type { EffortLevel, ModelInfo, SDKMessage, SlashCommand } from "@anthropic-ai/claude-agent-sdk";
-import { createKeyedOperationQueue, invalidArguments, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import type { EffortLevel, ModelInfo, Query, SDKMessage, SlashCommand } from "@anthropic-ai/claude-agent-sdk";
+import { Type } from "typebox";
+import { Value } from "typebox/value";
+import { createKeyedOperationQueue, invalidArguments, type AgentsInTheCloudEventBus, type JsonValue } from "@agents-in-the-cloud/core";
 import { createLivePresentation, type WorkspaceAgentInput } from "@agents-in-the-cloud/shared";
 import { createPiModelRuntime, parseModelRef, setAgentModelPreference } from "@agents-in-the-cloud/llm/server";
 import { publishWorkspaceAgentBusy } from "@agents-in-the-cloud/agent/server";
+import { readPromptSuggestionsEnabled } from "@agents-in-the-cloud/agent/server/prompt-suggestions";
 import { createNativeAgents } from "@agents-in-the-cloud/native-agent/server";
-import { listPromptTemplates } from "@agents-in-the-cloud/agent/server/prompt-templates";
+import { listPromptOnlyTemplates } from "@agents-in-the-cloud/agent/server/prompt-templates";
 import { renderSlashCommandCatalog } from "@agents-in-the-cloud/agent/server/slash-commands";
 import { claudeAgentCommands, claudeNativeCommands, uuidPattern, type ClaudeCommand, type ClaudeCommandResult } from "./commands.ts";
 import { claudeSessionDirectory, hasClaudeSession, listClaudeSessions, readClaudeRows, type ClaudeBlock } from "./rows.ts";
+import { workflowProgress, workflowProgressSchema, type ClaudeWorkflowProgress } from "./workflow.ts";
 import { ClaudeState } from "./state.ts";
 import { openClaudeTransport, type ClaudeTransport } from "./transport.ts";
 import { agentTypeId, label, prepareClaude, settings } from "./setup.ts";
 import { createClaudeStore, type ClaudeAgentRecord } from "./store.ts";
 import { liveRegions } from "./render.ts";
+
+/** A background task of Claude Code's: a command, subagent, monitor, workflow or other kind of work. */
+export interface ClaudeTask {
+  id: string;
+  /** Claude Code's task type, such as `local_bash`, `local_agent`, `monitor` or `local_workflow`. */
+  type: string;
+  description: string;
+  subagentType?: string;
+  parentTaskId?: string;
+  /** Not activity, such as a watcher; Claude won't report on it. */
+  ambient: boolean;
+  toolUseId?: string;
+  startedAt?: number;
+  workflowName?: string;
+  /** A workflow's script. */
+  script?: string;
+  /** Its latest one-line status, such as a subagent's progress summary. */
+  summary?: string;
+  lastToolName?: string;
+  usage?: { tokens: number; toolUses: number };
+  /** A workflow's phases and agents, as its latest progress frame described them. */
+  workflow?: ClaudeWorkflowProgress;
+}
+
+const taskOutputSchema = Type.Object({ output: Type.String(), total_bytes: Type.Number(), truncated: Type.Boolean() });
 
 /** Claude records prompts under the UUID they were sent with, so retries can find them. */
 function promptUuid(requestId: string): string {
@@ -32,6 +61,8 @@ export class ClaudeRuntime {
   /** Slash commands and prompt templates; turns can add templates, so each finished turn reloads them. */
   completionCatalog = "";
   failure?: Error;
+  /** Claude's guess at the next prompt, offered in the empty composer until a prompt is sent. */
+  promptSuggestion?: string;
   /** Claude Code's own measure of how full its context window is. */
   contextPercent: number | null = null;
   private transport?: ClaudeTransport;
@@ -40,8 +71,10 @@ export class ClaudeRuntime {
   private closing = false;
   /** A turn is running, or a queued prompt will start one. */
   private running = false;
-  /** Background commands and subagents Claude is waiting on; it reports on them in a turn of its own once they finish. */
-  private backgroundTasks: string[] = [];
+  /** Claude Code's live background tasks, as it last listed them, with what their events added. */
+  tasks: ClaudeTask[] = [];
+  /** What task events say about a task, kept until it leaves the live set; it may start before it joins. */
+  private taskEvents = new Map<string, Partial<ClaudeTask>>();
   private interrupting = false;
   private busy = false;
   private readonly serialize = createKeyedOperationQueue();
@@ -51,9 +84,13 @@ export class ClaudeRuntime {
   /** Claude is in a turn. Background work keeps going after it, without holding up the conversation. */
   get isTurnRunning() { return !this.failure && this.running; }
   /** Not yet settled: Claude is in a turn or will report on background work in one. */
-  get isBusy() { return !this.failure && (this.running || this.backgroundTasks.length > 0); }
+  get isBusy() { return !this.failure && (this.running || this.reportedTasks.length > 0); }
+  /** Background commands and subagents Claude is waiting on; it reports on them once they finish. Ambient tasks, such as watchers, are not. */
+  private get reportedTasks() { return this.tasks.filter(task => !task.ambient); }
   private changed() {
     if (this.disposed) return;
+    // A turn answers the suggestion; the next one arrives after it.
+    if (this.running) this.promptSuggestion = undefined;
     const busy = this.isBusy;
     if (busy !== this.busy) {
       this.busy = busy;
@@ -66,7 +103,7 @@ export class ClaudeRuntime {
     this.presentation.invalidate();
   }
   async refreshCompletionCatalog() {
-    const templates = await listPromptTemplates(this.workspaceId);
+    const templates = await listPromptOnlyTemplates(this.workspaceId);
     this.templateNames = new Set(templates.map(template => template.name));
     this.completionCatalog = renderSlashCommandCatalog(templates, [], "cli", [...claudeAgentCommands, ...claudeNativeCommands(this.commands, this.templateNames)]);
     this.presentation.invalidate();
@@ -104,7 +141,7 @@ export class ClaudeRuntime {
       await this.startConnection();
     });
   }
-  private get sessions() { return claudeSessionDirectory(this.workspaceId, this.agentId); }
+  get sessions() { return claudeSessionDirectory(this.workspaceId, this.agentId); }
   /** Saved history alone; showing it needs nothing from the workspace container. */
   private async prepareState() {
     const { sessionId, forkedFrom } = this.record;
@@ -126,8 +163,10 @@ export class ClaudeRuntime {
   }
   private async connect(statePrepared = false) {
     this.running = false;
-    this.backgroundTasks = [];
+    this.tasks = [];
+    this.taskEvents.clear();
     this.interrupting = false;
+    this.promptSuggestion = undefined;
     try {
       if (!statePrepared) await this.prepareState();
       this.instructions = (await prepareClaude(this.workspaceId, this.agentId)).instructions;
@@ -172,7 +211,7 @@ export class ClaudeRuntime {
       this.save();
       const uuid = promptUuid(requestId);
       // Claude absorbs a prompt sent while it works into its running turn, or queues it as the next one.
-      this.state.add(this.running ? { kind: "steer", uuid, timestamp: Date.now(), text } : { kind: "user", uuid, timestamp: Date.now(), content, meta: false });
+      this.state.add(this.running ? { kind: "steer", uuid, timestamp: Date.now(), content } : { kind: "user", uuid, timestamp: Date.now(), content, meta: false });
       this.running = true;
       // SAFETY: Content blocks match the API's text and base64 image parameters.
       this.transport!.send({ type: "user", uuid: uuid as `${string}-${string}-${string}-${string}-${string}`, session_id: "", parent_tool_use_id: null, origin: { kind: "human" }, message: { role: "user", content: content as never } });
@@ -243,7 +282,20 @@ export class ClaudeRuntime {
       await this.transport!.query.interrupt();
     }
     // Stopped tasks end quietly, without a turn to report on them.
-    await Promise.all(this.backgroundTasks.map(taskId => this.transport!.query.stopTask(taskId)));
+    await Promise.all(this.reportedTasks.map(task => this.transport!.query.stopTask(task.id)));
+  }
+  async stopTask(taskId: string) {
+    await this.activate();
+    this.assertOpen();
+    await this.transport!.query.stopTask(taskId);
+  }
+  /** The end of a background command's or monitor's output. */
+  async taskOutput(taskId: string) {
+    await this.activate();
+    this.assertOpen();
+    // SAFETY: The SDK implements the get_task_output control request, typed as SDKControlGetTaskOutputRequest, but its Query type doesn't declare the method yet. The response is parsed.
+    const query = this.transport!.query as Query & { getTaskOutput(taskId: string): Promise<JsonValue> };
+    return Value.Parse(taskOutputSchema, await query.getTaskOutput(taskId));
   }
   /** The selected entry of Claude Code's own model catalog. */
   get selectedModel(): ModelInfo | undefined {
@@ -281,11 +333,6 @@ export class ClaudeRuntime {
       this.changed();
     });
   }
-  async rename(title: string) {
-    this.record.title = title;
-    this.save();
-    await this.events.emit("workspace_agent_title_changed", { workspaceId: this.workspaceId, agentId: this.agentId, title });
-  }
   async close() {
     this.closing = true;
     await this.serialize(this.agentId, async () => {
@@ -306,9 +353,26 @@ export class ClaudeRuntime {
       this.commands = message.commands;
       void this.refreshCompletionCatalog().catch(error => console.error("Could not refresh Claude Code completions", error));
     } else if (message.type === "system" && message.subtype === "background_tasks_changed") {
-      // Ambient tasks, such as watchers, are not work Claude will report back on.
-      this.backgroundTasks = message.tasks.filter(task => !task.ambient).map(task => task.task_id);
-    } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && this.backgroundTasks.includes(message.task_id)) {
+      // The full live set, replacing the last one.
+      const live = new Set(message.tasks.map(task => task.task_id));
+      for (const task of this.tasks) if (!live.has(task.id)) this.taskEvents.delete(task.id);
+      this.tasks = message.tasks.map(task => ({
+        ...this.taskEvents.get(task.task_id),
+        id: task.task_id, type: task.task_type, description: task.description, subagentType: task.subagent_type, parentTaskId: task.parent_task_id, ambient: task.ambient === true,
+      }));
+    } else if (message.type === "system" && (message.subtype === "task_started" || message.subtype === "task_progress")) {
+      const events = this.taskEvents.get(message.task_id) ?? {};
+      if (message.subtype === "task_started") Object.assign(events, { toolUseId: message.tool_use_id, startedAt: Date.now(), workflowName: message.workflow_name, script: message.task_type === "local_workflow" ? message.prompt : undefined });
+      else {
+        Object.assign(events, { summary: message.summary, lastToolName: message.last_tool_name, usage: { tokens: message.usage.total_tokens, toolUses: message.usage.tool_uses } });
+        // SAFETY: Claude Code sends a workflow's phases and agents on its task_progress, but the SDK doesn't declare the field yet. It is parsed.
+        // A frame without it changed nothing about them.
+        const entries = (message as { workflow_progress?: unknown }).workflow_progress;
+        if (entries !== undefined) events.workflow = workflowProgress(Value.Parse(workflowProgressSchema, entries));
+      }
+      this.taskEvents.set(message.task_id, events);
+      this.tasks = this.tasks.map(task => task.id === message.task_id ? { ...task, ...events } : task);
+    } else if (message.type === "system" && message.subtype === "task_notification" && message.status !== "stopped" && this.reportedTasks.some(task => task.id === message.task_id)) {
       // Claude reports on finished background work in its running turn, or else in a turn of its own.
       // Foreground commands notify too, but were never background work.
       this.state.add({
@@ -326,10 +390,19 @@ export class ClaudeRuntime {
       this.interrupting = false;
       void this.refreshHistory().catch(error => console.error("Could not read Claude Code history", error));
       void this.refreshContextUsage().then(() => this.changed()).catch(error => console.error("Could not read Claude Code context usage", error));
+    } else if (message.type === "prompt_suggestion") {
+      // The setting is read when Claude connects; turning it off since then still hides new suggestions.
+      void readPromptSuggestionsEnabled().then(enabled => {
+        if (!enabled || this.running) return;
+        this.promptSuggestion = message.suggestion;
+        this.changed();
+      }).catch(error => console.error("Could not read the Suggested prompts setting", error));
     } else if (message.type === "stream_event" || message.type === "assistant") {
       // A queued prompt started its own turn.
       this.running = true;
     }
+    // A foreground task ends without ever joining the live set.
+    if (message.type === "system" && message.subtype === "task_notification" && !this.tasks.some(task => task.id === message.task_id)) this.taskEvents.delete(message.task_id);
     this.state.receive(message);
     this.changed();
   }

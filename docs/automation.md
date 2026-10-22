@@ -72,11 +72,11 @@ Other browser-navigable surfaces are:
 /settings                               # Settings: app-level preferences and shared configuration
 /settings?section=models                # A specific settings section
 /settings/developer-tools               # Developer tools: app-level maintenance and design-system inspection
-/host                                   # Host: System diagnostics and privileged terminals
+/host                                   # Host: System diagnostics
 /design-system-catalogue.html           # Live component catalogue (HTML)
 ```
 
-Host targets AgentsInTheCloud System, outside individual Workspaces, rather than necessarily the physical machine running Docker. `GET /host` with `Accept: application/json` reports availability and the access boundary; it does not create a terminal.
+Host targets AgentsInTheCloud System, outside individual Workspaces, rather than necessarily the physical machine running Docker. `GET /host` with `Accept: application/json` reports availability and the access boundary.
 
 **Developer tools** is the app-level maintenance and design-system inspection page, separate from Workspace template configuration. The existing `/settings/development` URL remains valid.
 
@@ -109,7 +109,7 @@ created=$(curl -sS -X POST http://localhost:3000/workspaces \
 id=$(jq -r '.workspace.id' <<<"$created")
 ```
 
-`source` may be `{ "type": "empty" }` or `{ "type": "workspace-template", "workspaceTemplate": "name-or-id" }`. Optional `agent` fields are `agentTypeId` (Builtin, Claude Code, Claude Code CLI, Codex, Codex CLI, or Pi: `builtin`, `claude`, `claude-cli`, `codex`, `codex-cli`, or `pi`), `initialPrompt`, `model`, `thinkingLevel`, and `attachmentDraft`.
+`source` may be `{ "type": "empty" }` or `{ "type": "workspace-template", "workspaceTemplate": "name-or-id" }`. Optional `agent` fields are `agentTypeId` (Builtin, Claude Code, Claude Code CLI, Codex, Codex CLI, or Pi: `builtin`, `claude`, `claude-cli`, `codex`, `codex-cli`, or `pi`), `initialPrompt`, `model`, `thinkingLevel`, and `attachmentDraft`. For the Builtin Agent, `model` may be any model in a connected provider’s catalogue, enabled or not; a model that can’t run is refused with 400 rather than replaced by the default.
 
 Poll the same UI URL with JSON content negotiation:
 
@@ -125,8 +125,8 @@ done
 
 Existing workspaces are discovered before the server starts listening. Each active
 workspace then runs its startup checklist in the background with phase `provisioningPhase`.
-Readiness checks the ingress and egress gateways, parent sockets, and the workspace's
-saved image preload list. Failure retains the container for repair and presents
+Workspace preparation checks the ingress and egress gateways and parent sockets, and installs the workspace's
+saved Preloaded images. Failure retains the container for repair and presents
 **Retry** and **Continue anyway**. Use
 `POST /workspaces/:id/provisioning/continue?action=retry` to retry runtime preparation,
 or omit the query parameter to explicitly bypass the failure. Bypassing makes the
@@ -134,9 +134,9 @@ workspace enter `runningPhase` while retaining its preparation warning. Until st
 the workspace shows its checklist instead of its Agents or Work views. AgentsInTheCloud and
 other workspaces remain available throughout.
 
-The list and detail responses include optional `issues` entries with `kind` and
-`message`. Image inspection runs independently at AgentsInTheCloud startup. Readiness checks
-run again when a workspace resumes or AgentsInTheCloud restarts; bypassing a failure does not
+The list and detail responses include optional `warnings` entries with `kind` and
+`message`; running workspace details also include each warning's `title`, `state`, and `action`. Image inspection runs independently at AgentsInTheCloud startup. Workspace preparation
+runs again when a workspace resumes or AgentsInTheCloud restarts; bypassing a failure does not
 permanently disable checks. Existing workspaces keep their saved preload references
 when template settings change.
 
@@ -159,10 +159,12 @@ curl -sS -X POST "http://localhost:3000/workspaces/$id/commands/browser.create" 
   -H 'Accept: application/json' -H 'Content-Type: application/json' \
   -d '{"url":"http://localhost:3000/"}'
 
-curl -sS -X POST "http://localhost:3000/workspaces/$id/commands/agent.create" \
+curl -sS -X POST "http://localhost:3000/workspaces/$id/commands/agent.create.claude" \
   -H 'Origin: http://localhost:3000' \
   -H 'Accept: application/json' -H 'Content-Type: application/json' -d '{}'
 ```
+
+`agent.create.<agentTypeId>` creates an Agent of that type and returns its id as `command.agentId`. Plain `agent.create` uses the default type, which is the one the user picked last, so scripts that control the Agent afterwards should name the type.
 
 Navigate an existing Browser view with `POST /workspaces/:id/browser/:browserId/navigate` and `{ "url": "..." }`.
 
@@ -184,12 +186,22 @@ Rename with `POST /workspaces/:id/sidebar-title` and `{ "title": "..." }`. Park,
 
 ## Control an agent
 
-- `POST /workspaces/:id/agents/:agentId/model` with `{ "model": "provider::model" }`
-- `POST /workspaces/:id/agents/:agentId/thinking-level` with `{ "thinkingLevel": "medium" }`
-- `POST /workspaces/:id/agents/:agentId/messages` with `{ "text": "...", "mode": "send" }`
-- `POST /workspaces/:id/agents/:agentId/abort`
+Agent control routes live under a path that depends on the Agent's `agentTypeId`:
 
-Message submission returns `202 Accepted`; it does not wait for inference to finish.
+| `agentTypeId` | `<base>` |
+|---|---|
+| `builtin` | `/workspaces/:id/agents/:agentId` |
+| `claude` | `/workspaces/:id/claude-code-agents/:agentId` |
+| `codex` | `/workspaces/:id/codex-agents/:agentId` |
+
+`claude-cli`, `codex-cli`, and `pi` Agents run in a terminal and have no control routes. Give them their first prompt through `agent.initialPrompt` when creating the workspace.
+
+- `POST <base>/model` with `{ "model": "provider::model" }`. Claude Code needs an `anthropic::` model from its catalog and Codex an `openai-codex::` one. Both refuse to switch while working.
+- `POST <base>/thinking-level` with `{ "thinkingLevel": "medium" }`
+- `POST <base>/messages` with `{ "text": "..." }`
+- `POST <base>/abort`
+
+Message submission returns `202 Accepted`; it does not wait for inference to finish. Builtin also accepts `"mode": "send"` or `"steer"`. Claude Code and Codex steer automatically while busy, and run their own slash commands through `messages`: a command that needs more input returns `200` with a `command` result instead. `/openapi.json` lists each type's routes and bodies.
 
 ## Present the result
 
@@ -208,7 +220,8 @@ individual provider with `GET /usage/providers/openai-codex` or
 OAuth sign-in, not an API key. Its five-hour, weekly, and available model/feature
 windows use the same pacing reference. Buckets with no reset timestamp retain
 their reported usage, with null reset and timing values and timing state `unknown`.
-Null buckets are omitted; monetary extra usage is not a paced allowance. Anthropic
+Null buckets are omitted; monetary extra usage is not a paced allowance, so only
+whether it's on, and why not, shows as an `Extra usage` entry in `details`. Anthropic
 does not report a plan name or account-wide allowed/limit-reached flags, so these
 are null.
 In the app, each provider’s usage shows on its card in the Models dialog; the

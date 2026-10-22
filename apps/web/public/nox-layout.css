@@ -73,21 +73,21 @@ svg.brand-icon path[fill] { fill: currentColor; }
   /* Live fullscreen keeps its original containing block and can cover the bar. */
   .agents-in-the-cloud-fullscreen-open .fixed-shell-app-main { container-type: inline-size; }
   .agents-in-the-cloud-fullscreen-open .fixed-shell-main { container-type: normal; isolation: auto; }
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-agents-in-the-cloud-bar { display: none; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-agents-in-the-cloud-bar { display: none; }
 
   /* Ready, preparing and deleting workspaces share the same sidebar reveal. The workspace
    * steps aside into a live preview on the right, uncovering the list card beneath it.
    * --nox-drawer-progress (0–1) follows the finger; otherwise the open state picks the end.
    * Round the ring from Work, the list has its own --nox-list-progress and the workspace is
    * already aside, short of its spot by --nox-loop-nudge (see the loop card below). */
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) {
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) {
     --nox-drawer-gap: 8px;
     --nox-drawer-width: min(calc(100vw - 88px), 400px);
     --nox-drawer-motion: transform var(--motion-enter) var(--motion-ease-out), opacity var(--motion-enter) var(--motion-ease-out), border-radius var(--motion-enter) var(--motion-ease-out);
     --nox-reveal-transform: translateX(calc(var(--nox-drawer-progress, 0) * (var(--nox-drawer-width) + 2 * var(--nox-drawer-gap)) + var(--nox-loop-nudge, 0px))) scale(calc(1 - var(--nox-drawer-progress, 0) * 0.1));
   }
-  .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) { --nox-drawer-progress: 1; }
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane {
+  .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) { --nox-drawer-progress: 1; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane {
     position: absolute; grid-area: 1 / 1 / -1 / -1; z-index: 0;
     inset: calc(env(safe-area-inset-top, 0px) + var(--nox-drawer-gap)) auto calc(env(safe-area-inset-bottom, 0px) + var(--nox-drawer-gap)) var(--nox-drawer-gap);
     width: var(--nox-drawer-width); height: auto;
@@ -99,15 +99,15 @@ svg.brand-icon path[fill] { fill: currentColor; }
     transition: var(--nox-drawer-motion), visibility 0s linear var(--motion-enter);
   }
   /* The workspace stays above the list so it covers it while closing. */
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main { position: relative; z-index: 1; transform-origin: 0 50%; transition: var(--nox-drawer-motion); }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main { position: relative; z-index: 1; transform-origin: 0 50%; transition: var(--nox-drawer-motion); }
   /* Transform only while revealing: any transform would confine fixed-position fullscreen. */
-  .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main,
+  .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main,
   .fixed-shell-app:is([data-nox-drawer-drag], [data-nox-drawer-loop]) > .fixed-shell-app-main {
     transform: var(--nox-reveal-transform);
     border-radius: calc(var(--nox-drawer-progress, 0) * var(--radius-overlay)); overflow: clip;
     box-shadow: 0 0 0 1px var(--line-strong);
   }
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .nox-workspace-scrim {
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .nox-workspace-scrim {
     display: block; position: absolute; grid-area: 1 / 1 / -1 / -1; inset: 0; z-index: 2;
     transform-origin: 0 50%; transform: var(--nox-reveal-transform); border-radius: var(--radius-overlay);
     background: color-mix(in srgb, #000 30%, transparent);
@@ -115,26 +115,26 @@ svg.brand-icon path[fill] { fill: currentColor; }
     touch-action: none;
     transition: var(--nox-drawer-motion), visibility 0s linear var(--motion-enter);
   }
-  .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) {
+  .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) {
     visibility: visible;
     transition: var(--nox-drawer-motion), visibility 0s;
   }
   /* Outranks the reveal's own transitions, so drags follow the finger and the loop lands in place. */
-  .fixed-shell-app[data-nox-drawer-drag]:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > :is(.fixed-shell-workspace-pane, .fixed-shell-app-main, .nox-workspace-scrim) { transition: none; }
+  .fixed-shell-app[data-nox-drawer-drag]:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > :is(.fixed-shell-workspace-pane, .fixed-shell-app-main, .nox-workspace-scrim) { transition: none; }
   .fixed-shell-app:is([data-nox-drawer-drag], [data-nox-drawer-loop]) > :is(.fixed-shell-workspace-pane, .nox-workspace-scrim) { visibility: visible; }
 
   /* The card has no outline; a rule under its title would be the only line left, so drop it too. */
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane .panel__header { border-bottom: 0; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane .panel__header { border-bottom: 0; }
   /* New workspace and Settings sit at the bottom of the card. */
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .workspace-pane-footer { border-top: 1px solid var(--line); }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .workspace-pane-footer { border-top: 1px solid var(--line); }
 
   /* Group rows by status under "label ─── count" headings. Headings follow the rows in
    * the DOM so counters hold each group's total; order places them above their rows. */
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll { counter-reset: nox-attention nox-busy nox-idle; }
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order] { order: 31; counter-increment: nox-idle; }
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner) { order: 21; counter-increment: nox-busy; }
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) { order: 11; counter-increment: nox-attention; }
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > #workspace_pane_parked { order: 40; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll { counter-reset: nox-attention nox-busy nox-idle; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order] { order: 31; counter-increment: nox-idle; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner) { order: 21; counter-increment: nox-busy; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) { order: 11; counter-increment: nox-attention; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > #workspace_pane_parked { order: 40; }
   .nox-workspace-group { align-items: center; gap: 10px; margin: 12px 8px 2px; color: var(--text-muted); font-size: 13px; }
   .nox-workspace-group::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--line); }
   .nox-workspace-group::after { order: 2; font-variant-numeric: tabular-nums; }
@@ -145,9 +145,9 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .nox-workspace-group[data-nox-workspace-group="idle"] { order: 30; }
   .nox-workspace-group[data-nox-workspace-group="idle"]::after { content: counter(nox-idle); }
   /* A heading shows only when an earlier sibling row belongs to its group. */
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) ~ [data-nox-workspace-group="attention"],
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
-  .fixed-shell-app:has(.workspace-detail-resident.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.status-spinner, .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) ~ [data-nox-workspace-group="attention"],
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.status-spinner, .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
 
   /* Phone chrome lives at the top: one bar with the sidebar button, the pane's tabs and More.
    * Swipes and tabs replace the bottom bar, which stays in the markup for its status slots. */
@@ -298,11 +298,11 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .nox-agent-transcript-action { display: none; }
 
   /* Focus changes visibility, never the saved split width or sidebar preference. */
-  .fixed-shell-app:has(.workspace-detail-resident.visible .is-work-pane-focused) > :is(.fixed-shell-workspace-pane, .nox-workspace-rail),
+  .fixed-shell-app:has(.workspace-detail-mount.visible .is-work-pane-focused) > :is(.fixed-shell-workspace-pane, .nox-workspace-rail),
   .fixed-workspace-presentation.is-work-pane-focused :is(.fixed-shell-agent-pane, .fixed-shell-work-resizer) {
     display: none;
   }
-  .fixed-shell-app:has(.workspace-detail-resident.visible .is-work-pane-focused) > .fixed-shell-app-main {
+  .fixed-shell-app:has(.workspace-detail-mount.visible .is-work-pane-focused) > .fixed-shell-app-main {
     margin-left: 0;
   }
   .fixed-workspace-presentation.is-work-pane-focused .fixed-shell-work-pane {

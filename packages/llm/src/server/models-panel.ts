@@ -1,7 +1,6 @@
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { connectCustomOpenAIEndpoint, customOpenAIProtocols, customOpenAIDefaults, CustomEndpointInputError, type CustomOpenAIProtocol, type CustomOpenAIEndpointInput } from "./custom-openai-endpoint.ts";
 import { availableProviderModels } from "./known-model-provider-incorrectness.ts";
-import { anthropicSubscriptionNotice } from "./subscription.ts";
 import { listAccounts, providerLabel, sortByPopularity, type Account } from "./accounts.ts";
 import { modelUnavailableReason, providerAvailability } from "./provider-availability.ts";
 import { providerUsageFrameId, supportedUsageProviders } from "./provider-usage.ts";
@@ -108,7 +107,6 @@ function renderAccountCard(account: Account, host: ModelsHost, open: boolean): s
   const usage = note
     ? `<p class="usage-caption">${escapeHtml(note)}</p>${usageLink ? `<div class="model-account__actions">${usageLink}</div>` : ""}`
     : `<turbo-frame class="model-provider-usage" id="${providerUsageFrameId("limits", account.id, host)}" src="${usagePath}/limits?scope=${host}" loading="lazy"><p class="usage-caption" role="status"><span class="status-spinner" aria-hidden="true"></span> Checking usage…</p></turbo-frame>`;
-  const notice = account.provider === "anthropic" && account.method === "subscription" ? warningBannerHtml(anthropicSubscriptionNotice) : "";
   const reconnect = account.method === "subscription" && account.connection === "needs_attention"
     ? `<form method="post" action="/models/providers/${encodeURIComponent(account.provider)}/connect?${hostQuery(host)}&reconnect=1" data-turbo="true">${buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "Sign in again" } })}</form>`
     : "";
@@ -129,7 +127,7 @@ function renderAccountCard(account: Account, host: ModelsHost, open: boolean): s
   const actions = `<div class="model-account__actions">${reconnect}${disconnect}</div>`;
   // Signing in again happens right here in the card, in place of its actions.
   const actionsHtml = reconnect ? `<turbo-frame id="${ids.reconnect(host, account.provider)}" class="model-connect">${actions}</turbo-frame>` : actions;
-  return `<div class="model-account">${disclosureHtml({ summary, open: open || account.connection === "needs_attention", bodyHtml: `<div class="form-section">${notice}${usage}${actionsHtml}</div>` })}</div>`;
+  return `<div class="model-account">${disclosureHtml({ summary, open: open || account.connection === "needs_attention", bodyHtml: `<div class="form-section">${usage}${actionsHtml}</div>` })}</div>`;
 }
 
 function renderProviderChoice(provider: Pick<ProviderChoice, "provider" | "label">, host: ModelsHost, width: "fit" | "fill" = "fit", customApi?: CustomOpenAIProtocol): string {
@@ -340,12 +338,15 @@ function renderConnectionStep(provider: Pick<ProviderChoice, "provider" | "label
   bodyHtml: string;
   actionsHtml?: string;
   attributesHtml?: string;
-  /** Signing in again inside the provider's card, which already names the provider. */
+  /** About the provider account itself, which its card shows once connected. */
+  noticeHtml?: string;
+  /** Signing in again inside the provider's card, which already names the provider and shows its notice. */
   reconnect?: boolean;
 }): string {
   return connectFrame(host, `<div id="model_connection_step" class="model-provider-connection${options.reconnect ? " model-provider-connection--reconnect" : ""}"${options.attributesHtml ? ` ${options.attributesHtml}` : ""}>
     ${options.reconnect ? "" : providerHeading(provider)}
     <div class="model-connection-content">
+      ${options.reconnect ? "" : options.noticeHtml ?? ""}
       ${options.bodyHtml}
     </div>
     <div class="model-setup-actions">${options.actionsHtml ?? backToChoices(host)}</div>
@@ -573,7 +574,6 @@ function oauthBrowserRedirectBody(flow: PendingOAuthFlow): string {
   const promptForm = localhost ? oauthPromptForm(flow) : oauthPromptForm(flow, `Paste the code from the ${flow.label} page here`);
   return `<div class="settings-oauth-card">
     ${localhost ? "<p>After signing in, copy the localhost URL here—even if that page won’t load.</p>" : ""}
-    ${flow.provider === "anthropic" ? warningBannerHtml(anthropicSubscriptionNotice) : ""}
     ${oauthAuthenticationAction(flow, flow.authUrl ?? "#", false, flow.provider === "anthropic" ? "Open Anthropic auth page" : localhost ? undefined : `Open ${flow.label} page to get the code`)}
     ${promptForm}
     ${!prompt && flow.redirectSubmitted ? oauthStatus("pending", `Waiting for ${flow.label}`, localhost ? "Confirming the pasted redirect URL." : "Confirming the pasted code.") : ""}

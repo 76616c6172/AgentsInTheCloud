@@ -62,21 +62,14 @@ describe("Anthropic subscription models", () => {
     await rm(dataDir, { recursive: true, force: true });
   });
   const catalogueModel = (provider: string, id: string): Model<Api> => ({ provider, id, name: id, api: "openai-completions", baseUrl: "https://example.test", reasoning: false, input: ["text"], cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, contextWindow: 1000, maxTokens: 100 });
-  const runtime = (anthropicCredential: "oauth" | "api_key") => ({
+  const runtime = {
     getAvailable: async (provider?: string) => [provider === "anthropic" ? catalogueModel("anthropic", "claude") : catalogueModel("openai", "gpt")],
-    checkAuth: async () => ({ type: "api_key" as const }),
+    checkAuth: async () => ({ type: "oauth" as const }),
     getModel: () => undefined,
-    listCredentials: async () => [{ providerId: "anthropic", type: anthropicCredential }, { providerId: "openai", type: "api_key" as const }],
-  });
+  };
 
-  test("are hidden from the built-in agent, which falls back to another provider", async () => {
-    const models = await enabledModelOptionViews(undefined, runtime("oauth"));
-    expect(models.map((model) => model.provider)).toEqual(["openai"]);
-    expect(selectAvailableEnabledModel(models, { provider: "anthropic", id: "claude" })).toEqual({ provider: "openai", id: "gpt" });
-  });
-
-  test("stay available when Anthropic is connected with an API key", async () => {
-    const models = await enabledModelOptionViews(undefined, runtime("api_key"));
+  test("are available to the built-in agent", async () => {
+    const models = await enabledModelOptionViews(undefined, runtime);
     expect(models.map((model) => [model.provider, model.available, model.selected])).toEqual([["anthropic", true, true], ["openai", true, false]]);
   });
 });

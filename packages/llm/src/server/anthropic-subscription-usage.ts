@@ -1,6 +1,7 @@
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { readSubscriptionUsageJson, requestSubscriptionUsage, SubscriptionUsageError, type Fetcher, type SubscriptionUsage } from "./subscription-usage.ts";
+import { recordSubscriptionInference } from "./recent-subscription-activity.ts";
 type UsageWindow = SubscriptionUsage["windows"][number];
 
 const accountWindowSchema = Type.Object({
@@ -80,7 +81,17 @@ export function anthropicUsageFromHeaders(headers: Headers, checkedAt: Date): Su
     if (reset !== null && (resetHeader!.trim() === "" || !Number.isInteger(reset) || reset <= 0)) throw unrecognizedHeaders();
     return [{ count: Number(name[1]), unit: name[2]!, feature: name[3], usedPercent: used * 100, resetsAt: reset === null ? null : new Date(reset * 1000).toISOString() }];
   }));
-  return { plan: null, checkedAt: checkedAt.toISOString(), allowed: status !== "rejected", limitReached: status === "rejected", windows };
+  return { plan: null, checkedAt: checkedAt.toISOString(), allowed: status !== "rejected", limitReached: status === "rejected", windows, details: extraUsage(headers) };
+}
+
+/** Extra usage is billed per token once plan limits run out. Anthropic says whether it's
+ * available ("allowed", "allowed_warning" or "rejected") and, when it isn't, why, such as "out_of_credits". */
+function extraUsage(headers: Headers): SubscriptionUsage["details"] {
+  const status = headers.get("anthropic-ratelimit-unified-overage-status");
+  if (status === null) return undefined;
+  const reason = headers.get("anthropic-ratelimit-unified-overage-disabled-reason");
+  const value = status === "allowed" ? "On" : status === "allowed_warning" ? "On, nearly used up" : status === "rejected" ? (reason ? `Off, ${reason}` : "Off") : status;
+  return [{ label: "Extra usage", value: value.replaceAll("_", " ") }];
 }
 
 /** The cheapest request that returns the unified limit headers; count_tokens does not. */
@@ -182,3 +193,15 @@ export function createAnthropicUsageSource(fetcher: Fetcher = fetch, now: () => 
 }
 
 export const anthropicUsageSource = createAnthropicUsageSource();
+
+/** A response to a request made with the connected subscription: keep its limits, and count successful inference as activity. */
+export function observeAnthropicSubscriptionResponse(headers: Headers, succeededInference: boolean): void {
+  try {
+    if (headers.has("anthropic-ratelimit-unified-status")) anthropicUsageSource.observe(headers);
+    if (succeededInference) recordSubscriptionInference("anthropic");
+  } catch (error) {
+    // Usage is a side channel; never fail the request over it.
+    if (!(error instanceof SubscriptionUsageError)) throw error;
+    console.warn(`[usage] ${error.message}`);
+  }
+}

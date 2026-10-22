@@ -4,7 +4,7 @@ import { focusLikelyOpensSoftwareKeyboard, phoneLayoutMediaQuery, workspaceAgent
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { prepareLiveSurface, selectLiveSurface } from "./live-surface.ts";
-import { residencyController } from "./workspace-controller-registry.ts";
+import { workspaceSelectionController } from "./workspace-controller-registry.ts";
 import type { MobileSwipeDirection } from "@agents-in-the-cloud/shared/mobile-swipe";
 
 type PresentationPane = HTMLElement & { dataset: DOMStringMap & { workspacePaneRole?: string; workspacePaneId?: string; workspaceLogicallyVisible?: string } };
@@ -103,9 +103,9 @@ export function createWorkspacePresentationController(
       this.state = this.restoreState();
       this.media = window.matchMedia(phoneLayoutMediaQuery);
       this.media.addEventListener("change", this.viewportChanged);
-      this.element.addEventListener("agents-in-the-cloud:workspace-residency-visible", this.residencyVisible);
+      this.element.addEventListener("agents-in-the-cloud:workspace-mount-visible", this.mountVisible);
       this.element.addEventListener("live:structure", this.structureChanged);
-      this.element.addEventListener("agents-in-the-cloud:workspace-residency-hidden", this.residencyHidden);
+      this.element.addEventListener("agents-in-the-cloud:workspace-mount-hidden", this.mountHidden);
       this.element.addEventListener("agents-in-the-cloud:agent-connection-rejected", this.agentConnectionRejected);
       this.element.addEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.addEventListener("visibilitychange", this.documentVisibilityChanged);
@@ -126,9 +126,9 @@ export function createWorkspacePresentationController(
 
     disconnect(): void {
       this.media?.removeEventListener("change", this.viewportChanged);
-      this.element.removeEventListener("agents-in-the-cloud:workspace-residency-visible", this.residencyVisible);
+      this.element.removeEventListener("agents-in-the-cloud:workspace-mount-visible", this.mountVisible);
       this.element.removeEventListener("live:structure", this.structureChanged);
-      this.element.removeEventListener("agents-in-the-cloud:workspace-residency-hidden", this.residencyHidden);
+      this.element.removeEventListener("agents-in-the-cloud:workspace-mount-hidden", this.mountHidden);
       this.element.removeEventListener("agents-in-the-cloud:agent-connection-rejected", this.agentConnectionRejected);
       this.element.removeEventListener("turbo:before-morph-attribute", this.preserveAgentWidth);
       document.removeEventListener("visibilitychange", this.documentVisibilityChanged);
@@ -170,7 +170,7 @@ export function createWorkspacePresentationController(
 
     presentWorkView(key: string): void {
       navigationIntents.set(this.workspaceIdValue, { ...navigationIntents.get(this.workspaceIdValue), work: key });
-      if (!this.element.closest(".workspace-detail-resident.visible")) return;
+      if (!this.element.closest(".workspace-detail-mount.visible")) return;
       const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`);
       this.selectWorkViewState(key, selector?.dataset.workViewKind === "contextual");
       this.persistAndApply({ focus: true });
@@ -206,7 +206,7 @@ export function createWorkspacePresentationController(
     async prepareIntendedSurfaces(): Promise<void> {
       this.normalizeState();
       this.applyState({ emit: false });
-      await prepareLiveSurface(this.element.closest<HTMLElement>(".workspace-detail-resident")!);
+      await prepareLiveSurface(this.element.closest<HTMLElement>(".workspace-detail-mount")!);
       await this.initializeEmbeddedWorkSurface();
     }
 
@@ -242,7 +242,7 @@ export function createWorkspacePresentationController(
 
     syncMore(event: ToggleEvent): void {
       this.moreOpen = event.newState === "open";
-      if (this.moreOpen) this.selectResidentMobileDestination();
+      if (this.moreOpen) this.selectWorkspaceMobileDestination();
       this.applyState({ emit: false, focus: this.moreOpen });
     }
 
@@ -260,7 +260,7 @@ export function createWorkspacePresentationController(
       } else if (direction === -1) destination = "agents";
       if (!destination) return;
       return () => {
-        this.selectResidentMobileDestination();
+        this.selectWorkspaceMobileDestination();
         this.state.phoneDestination = destination;
         this.moreOpen = false;
         // Navigation must not focus a composer or terminal and open the keyboard.
@@ -287,7 +287,7 @@ export function createWorkspacePresentationController(
     }
 
     selectMobileWork(): void {
-      this.selectResidentMobileDestination();
+      this.selectWorkspaceMobileDestination();
       const key = this.state.activeWorkViewKey;
       if (key) {
         const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)!;
@@ -305,7 +305,7 @@ export function createWorkspacePresentationController(
       // SAFETY: The server-rendered DOM and connected controller contract establish this element shape.
       const destination = (event.currentTarget as HTMLElement).dataset.mobileDestination as PhoneDestination | undefined;
       if (!destination) return;
-      this.selectResidentMobileDestination();
+      this.selectWorkspaceMobileDestination();
       this.state.phoneDestination = destination;
       if (destination.startsWith("work:")) {
         this.state.activeWorkViewKey = destination.slice(5);
@@ -381,13 +381,13 @@ export function createWorkspacePresentationController(
     }
 
     private activateWorkView(key: string, contextual: boolean): void {
-      this.selectResidentMobileDestination();
+      this.selectWorkspaceMobileDestination();
       this.selectWorkViewState(key, contextual);
       this.persistAndApply({ focus: true });
     }
 
-    private selectResidentMobileDestination(): void {
-      this.element.dispatchEvent(new CustomEvent("agents-in-the-cloud:mobile-resident-destination-selected", { bubbles: true }));
+    private selectWorkspaceMobileDestination(): void {
+      this.element.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-mobile-destination-selected", { bubbles: true }));
     }
 
     private selectWorkViewState(key: string, contextual: boolean): void {
@@ -466,7 +466,7 @@ export function createWorkspacePresentationController(
 
     private persist(): void {
       sessionStorage.setItem(this.storageKey, JSON.stringify(this.state));
-      if (this.element.closest(".workspace-detail-resident.visible")) {
+      if (this.element.closest(".workspace-detail-mount.visible")) {
         const url = new URL(location.href);
         if (url.pathname === `/workspaces/${encodeURIComponent(this.workspaceIdValue)}`) {
           if (url.searchParams.get("agent") !== this.state.activeAgentId) url.searchParams.delete("agentTarget");
@@ -493,7 +493,7 @@ export function createWorkspacePresentationController(
       focusToggle.setAttribute("aria-pressed", String(workFocused));
       this.element.dataset.phoneDestination = this.state.phoneDestination;
       this.element.dataset.navigationReady = "true";
-      selectLiveSurface(this.element.closest<HTMLElement>(".workspace-detail-resident")!, this.state.activeAgentId ?? "", this.state.workPaneVisible ? this.state.activeWorkViewKey ?? "" : "");
+      selectLiveSurface(this.element.closest<HTMLElement>(".workspace-detail-mount")!, this.state.activeAgentId ?? "", this.state.workPaneVisible ? this.state.activeWorkViewKey ?? "" : "");
       const selectedAgentChanged = this.element.dataset.workspaceSelectedAgent !== this.state.activeAgentId;
       this.element.dataset.workspaceSelectedAgent = this.state.activeAgentId ?? "";
 
@@ -572,7 +572,7 @@ export function createWorkspacePresentationController(
 
     private layoutMobileNavigation(): void {
       if (!this.isPhone) return;
-      if (this.element.closest(".workspace-detail-resident.visible")) {
+      if (this.element.closest(".workspace-detail-mount.visible")) {
         // Share the actual footer track, including its safe area and margin, with the sidebar.
         const footerHeight = this.element.getBoundingClientRect().bottom - this.element.querySelector(".fixed-shell-main")!.getBoundingClientRect().bottom;
         this.element.closest<HTMLElement>(".fixed-shell-app")!.style.setProperty("--mobile-workspace-bar-height", `${footerHeight}px`);
@@ -580,7 +580,7 @@ export function createWorkspacePresentationController(
     }
 
     private visiblePanes(): PresentationPane[] {
-      if (!this.element.closest(".workspace-detail-resident.visible")) return [];
+      if (!this.element.closest(".workspace-detail-mount.visible")) return [];
       const selector = this.isPhone
         ? this.state.phoneDestination === "agents" ? `[data-workspace-pane-role='agent'].is-active` : `[data-workspace-pane-role='work'].is-active`
         : this.workPaneFocused ? `[data-workspace-pane-role='work'].is-active`
@@ -688,7 +688,7 @@ export function createWorkspacePresentationController(
     };
     private structureChanged = (): void => { this.presentationChanged(); };
     private viewportChanged = (): void => { this.applyState({ emit: true }); };
-    private residencyVisible = (event: Event): void => {
+    private mountVisible = (event: Event): void => {
       // Restore the visible pane's width before transcript navigation measures it.
       this.restorePreferences();
       if (event instanceof CustomEvent && event.detail.selectedFromList) this.selectDestinationOnWorkspaceEntry();
@@ -696,7 +696,7 @@ export function createWorkspacePresentationController(
       this.persist();
       this.applyState({ emit: true });
     };
-    private residencyHidden = (): void => {
+    private mountHidden = (): void => {
       const panes = [...this.element.querySelectorAll<PresentationPane>("[data-workspace-pane-role]")];
       panes.forEach((pane) => { pane.dataset.workspaceLogicallyVisible = "false"; });
       this.emitVisibilityChanges(panes.filter((pane) => visiblePresentationPanes.has(pane)), []);
@@ -726,19 +726,12 @@ export function installWorkspacePresentationTurboStream(Turbo: TurboLike, applic
     return workspaceId;
   };
   Turbo.StreamActions["unselect-workspace"] = function unselectWorkspace(this: StreamElement): void {
-    residencyController()?.unselectWorkspace(behaviorWorkspaceId(this));
-  };
-  Turbo.StreamActions["remove-workspace-resident"] = function removeWorkspaceResident(this: StreamElement): void {
-    for (const target of this.targetElements) {
-      const resident = target.closest<HTMLElement>(".workspace-detail-resident[data-workspace-id]");
-      const workspaceId = resident?.dataset.workspaceId;
-      if (workspaceId) document.dispatchEvent(new CustomEvent("agents-in-the-cloud:workspace-removed", { detail: { workspaceId } }));
-    }
+    workspaceSelectionController()?.unselectWorkspace(behaviorWorkspaceId(this));
   };
 
   Turbo.StreamActions["workspace-pane-changed"] = function workspacePaneChanged(this: StreamElement): void {
     for (const target of this.targetElements) {
-      const visibleWorkspaceId = document.querySelector<HTMLElement>(".workspace-detail-resident.visible[data-workspace-id]")?.dataset.workspaceId;
+      const visibleWorkspaceId = document.querySelector<HTMLElement>(".workspace-detail-mount.visible[data-workspace-id]")?.dataset.workspaceId;
       const pathWorkspaceId = location.pathname.match(/^\/workspaces\/([^/]+)$/)?.[1];
       const workspaceId = visibleWorkspaceId ?? (pathWorkspaceId ? decodeURIComponent(pathWorkspaceId) : undefined);
       if (workspaceId) markActiveWorkspaceRow(target, workspaceId);

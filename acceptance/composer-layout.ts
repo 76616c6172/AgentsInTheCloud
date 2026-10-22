@@ -218,10 +218,12 @@ await scenario("mobile-G2-D10-pinned", "G2/D10: with the transcript pinned to th
   await pinToBottom();
   const opened = await transition(recorder, "open composer", () => page.tap(sel.opener));
   const after = opened.after;
+  const agentTemplateShown = await page.visible('.agent-composer-pane .composer-prompt-template-buttons [data-command-trigger="/ok"]');
   recorder.add(
     check("D10: transcript ends where the composer starts", after.composer !== null && close(bottom(after.transcript), after.composer[1]), `transcript bottom ${bottom(after.transcript)}, composer top ${after.composer?.[1]}`),
     check("Pinned: newest content stays at the bottom edge", after.contentBottom !== null && after.contentBottom <= bottom(after.transcript) + 1 && after.contentBottom > bottom(after.transcript) - 120, `content end ${after.contentBottom}, transcript bottom ${bottom(after.transcript)}`),
     ...floatingStackChecks(after, true),
+    check("The prompt template the agent wrote shows as a button", agentTemplateShown, agentTemplateShown ? "/ok shown" : "/ok missing, though the staging turn wrote .agents-in-the-cloud/prompts/ok.md"),
   );
   await recorder.file("open.png", await page.screenshot());
   const closed = await transition(recorder, "close composer", () => page.tap(sel.close));
@@ -256,7 +258,7 @@ await scenario("mobile-H1-H7-height", "H1–H7 with the keyboard down: line-by-l
   const hadPromptTemplateButtons = await page.visible(promptTemplateButtons);
   // The buttons set the empty composer's height, so the text field simply takes the prompt template buttons' place.
   await transition(recorder, "first letter", () => page.insertText("L"), { expectChange: false });
-  recorder.add(check("Prompt template buttons hide once something is written", hadPromptTemplateButtons && !await page.visible(promptTemplateButtons), hadPromptTemplateButtons ? "shown when empty, hidden after one letter" : "no prompt template buttons staged in this workspace"));
+  recorder.add(check("Prompt template buttons hide once something is written", hadPromptTemplateButtons && !await page.visible(promptTemplateButtons), hadPromptTemplateButtons ? "shown when empty, hidden after one letter" : "no prompt template buttons shown"));
   await page.insertText("ine 1");
   await Bun.sleep(200);
   const heights: number[] = [];

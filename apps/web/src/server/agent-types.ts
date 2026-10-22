@@ -1,6 +1,4 @@
-import { hasAvailableBuiltinAgentModel } from "@agents-in-the-cloud/builtin-agent/server";
 import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, invalidArguments, readTextIfExists, writeJsonAtomic, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { createPiModelRuntime, usesProviderSubscription } from "@agents-in-the-cloud/llm/server";
 import type { WorkspaceAgentType } from "@agents-in-the-cloud/shared";
 import { workspaceModules } from "./workspace-modules.generated.ts";
 
@@ -20,10 +18,7 @@ export async function defaultAgentType(): Promise<WorkspaceAgentType> {
   const text = await readTextIfExists(preferencePath())
     ?? await readTextIfExists(agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "default-agent-provider.json"));
   const id: unknown = text === undefined ? undefined : JSON.parse(text);
-  const agentType = registeredAgentTypes().find((agentType) => agentType.id === id) ?? getAgentType("builtin");
-  // Anthropic subscriptions work only in Claude Code; without another usable model, the built-in agent could not start.
-  if (agentType.id === "builtin" && !await hasAvailableBuiltinAgentModel() && await usesProviderSubscription(await createPiModelRuntime(), "anthropic")) return getAgentType("claude");
-  return agentType;
+  return registeredAgentTypes().find((agentType) => agentType.id === id) ?? getAgentType("builtin");
 }
 
 export async function rememberAgentType(id: string, events?: AgentsInTheCloudEventBus): Promise<void> {

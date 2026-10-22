@@ -15,7 +15,6 @@ export interface Measurement {
 
 export async function measure(path: HighlightPath, fixture: Fixture, chunkSize = 0, budgetMs = 10_000): Promise<Measurement> {
   const code = source(fixture);
-  const inputLength = path === "write" ? JSON.stringify({ path: fixture, content: code }).length : code.length;
   const child = Bun.spawn([process.execPath, new URL("./child.ts", import.meta.url).pathname, path, fixture, String(chunkSize)], {
     stdout: "pipe", stderr: "pipe",
   });
@@ -27,7 +26,7 @@ export async function measure(path: HighlightPath, fixture: Fixture, chunkSize =
   ]).finally(() => clearTimeout(timeout));
   const records = stdout.trim().split("\n").filter(Boolean).map((line) => JSON.parse(line));
   return {
-    path, fixture, chunkSize, expectedUpdates: chunkSize ? Math.ceil(inputLength / chunkSize) : 3,
+    path, fixture, chunkSize, expectedUpdates: chunkSize ? Math.ceil(code.length / chunkSize) : 3,
     bun: Bun.version, platform: `${process.platform}/${process.arch}`,
     timedOut, exitCode, samples: records.filter((record): record is Sample => "step" in record), stderr,
   };

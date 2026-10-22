@@ -1,4 +1,5 @@
 import { calculateContextTokens, estimateMessageTokens } from "@earendil-works/pi-ai/utils/estimate";
+import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { defineExtension, GenerationTask, hook, type ContextView } from "@earendil-works/pi-durable";
 import type { ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { hasUsageLimits, recordSubscriptionInference, supportedUsageProviders } from "@agents-in-the-cloud/llm/server";
@@ -16,14 +17,16 @@ export function durableContextTokens(view: ContextView): number {
     + view.messages.slice(from).reduce((sum, message) => sum + estimateMessageTokens(message), 0);
 }
 
-/** Pacing activity, not billing: no secondary transcript or exactly-once claim. */
+/** Pacing activity, not billing: no secondary transcript or exactly-once claim. Also for responses outside a turn, like prompt suggestions. */
+export async function recordDurableSubscriptionActivity(models: Pick<ModelRuntime, "getAuth">, message: AssistantMessage, record = recordSubscriptionInference): Promise<void> {
+  // Only these subscriptions report limits we can fetch for pacing.
+  if (!["openai-codex", "github-copilot", "opencode-go"].includes(message.provider) || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;
+  const provider = supportedUsageProviders.find((supported) => supported.id === message.provider)!;
+  if (hasUsageLimits(provider, await models.getAuth(provider.id))) record(provider.id);
+}
+
 export function durableSubscriptionActivity(models: Pick<ModelRuntime, "getAuth">, record = recordSubscriptionInference) {
   return defineExtension({ name: "agents-in-the-cloud.subscription-activity", hooks: [hook(GenerationTask, {
-    async afterResponse(message) {
-      // Only these subscriptions report limits we can fetch for pacing.
-      if (!["openai-codex", "github-copilot", "opencode-go"].includes(message.provider) || message.stopReason === "error" || message.stopReason === "aborted" || message.stopReason === "deferred") return;
-      const provider = supportedUsageProviders.find((supported) => supported.id === message.provider)!;
-      if (hasUsageLimits(provider, await models.getAuth(provider.id))) record(provider.id);
-    },
+    afterResponse: (message) => recordDurableSubscriptionActivity(models, message, record),
   })] });
 }

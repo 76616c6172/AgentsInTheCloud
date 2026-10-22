@@ -1,4 +1,4 @@
-import type { TranscriptItem } from "./transcript.ts";
+import type { ScriptFileView, ToolView, TranscriptItem } from "./transcript.ts";
 
 export type AgentTranscriptAnchor = {
   anchor: string;
@@ -12,6 +12,13 @@ export interface AgentTranscriptSnapshot {
   /** Messages that reached the Agent, placed by when they arrived. */
   messages: Extract<TranscriptItem, { type: "message" }>[];
   anchors: AgentTranscriptAnchor[];
+  /**
+   * Calls tools made to other tools, such as a script's, by the calling tool's call ID. An unfinished call is
+   * `running`: the host shows its live progress, or that it was cut off when the calling tool ended first.
+   */
+  nested?: { toolCallId: string; calls: ToolView[] }[];
+  /** The script files code mode calls ran, by the call's ID. */
+  scriptFiles?: { toolCallId: string; file: ScriptFileView }[];
   /** Entries before this persisted marker are copied context; entries after it are local activity. */
   inheritedContext?: { boundaryEntryId: string; source: string };
 }

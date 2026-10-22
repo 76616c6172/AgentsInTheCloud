@@ -74,9 +74,7 @@ test("exports enabled models, labels, capabilities and custom models without cre
     anthropic: { auth: { apiKey: "sk-ant-oat-real-secret" }, source: "OAuth" },
   });
   const config = await createPiCliConfiguration(runtime, [{ provider: "custom", id: "test-model", label: "My enabled model" }, { provider: "anthropic", id: "test-model", label: "Claude" }]);
-  // Anthropic permits Claude subscription tokens only in Claude Code.
-  expect(config.enabledModels).toEqual(["custom/test-model"]);
-  expect(config.auth.anthropic).toBeUndefined();
+  expect(config.enabledModels).toEqual(["custom/test-model", "anthropic/test-model"]);
   expect(config.models.providers.custom!.models[0]!.name).toBe("My enabled model");
   expect(config.models.providers.custom!.models[0]!.thinkingLevelMap).toEqual({ minimal: null });
   const serialized = JSON.stringify(config);
@@ -90,7 +88,7 @@ test("exports enabled models, labels, capabilities and custom models without cre
     const imported = await ModelRuntime.create({ modelsPath: join(directory, "models.json"), authPath: join(directory, "auth.json"), modelsStorePath: join(directory, "cache.json"), allowModelNetwork: false });
     expect(imported.getError()).toBeUndefined();
     const available = await imported.getAvailable();
-    for (const m of models.filter((item) => item.provider !== "anthropic")) expect(available.some((item) => item.provider === m.provider && item.id === m.id)).toBe(true);
+    for (const m of models) expect(available.some((item) => item.provider === m.provider && item.id === m.id)).toBe(true);
     expect((await imported.getAuth(imported.getModel("custom", "test-model")!))!.auth.headers!["x-custom-auth"]).toBe(config.models.providers.custom!.models[0]!.headers!["x-custom-auth"]);
   } finally { await rm(directory, { recursive: true, force: true }); }
 });
@@ -144,19 +142,21 @@ test("OpenAI placeholders keep the shape Pi uses to tell API keys from Sign in w
   }
 });
 
-test("exports Anthropic API keys but refuses Claude subscription tokens, including for already running Pi tabs", async () => {
+test("Anthropic placeholders keep the shape Pi uses to tell API keys from Claude subscriptions", async () => {
   const anthropic = model("anthropic", "anthropic-messages", "https://api.anthropic.com");
-  const runtime = fixture([anthropic], { anthropic: { auth: { apiKey: "sk-ant-api03-secret" } } });
-  expect(await piCliModelUnavailableReason(runtime, anthropic)).toBeUndefined();
-  const config = await createPiCliConfiguration(runtime, []);
-  const transform = createHttpHooks({ onRequest: createPiCliCredentialTransform(async () => runtime) }).httpHooks.onRequest;
-  const request = () => new Request("https://api.anthropic.com/v1/messages", { headers: { "x-api-key": config.auth.anthropic!.key } });
-  expect((await transform(request())).headers.get("x-api-key")).toBe("sk-ant-api03-secret");
-
-  runtime.auth.anthropic = { auth: { apiKey: "sk-ant-oat01-secret" } };
-  expect(await piCliModelUnavailableReason(runtime, anthropic)).toContain("Anthropic does not allow you to use our other agents with their subscription");
-  expect((await createPiCliConfiguration(runtime, [])).auth.anthropic).toBeUndefined();
-  await expect(transform(request())).rejects.toThrow("Anthropic does not allow you to use our other agents with their subscription");
+  // Pi signs in as a Claude subscription, with a bearer token, when the key contains `sk-ant-oat`.
+  for (const [secret, header, subscription] of [["sk-ant-api03-secret", "x-api-key", false], ["sk-ant-oat01-secret", "authorization", true]] as const) {
+    const runtime = fixture([anthropic], { anthropic: { auth: { apiKey: secret }, source: subscription ? "OAuth" : undefined } });
+    expect(await piCliModelUnavailableReason(runtime, anthropic)).toBeUndefined();
+    const key = (await createPiCliConfiguration(runtime, [])).auth.anthropic!.key;
+    expect(key).not.toContain(secret);
+    expect(key.includes("sk-ant-oat")).toBe(subscription);
+    const value = subscription ? `Bearer ${key}` : key;
+    const request = await createHttpHooks({ onRequest: createPiCliCredentialTransform(async () => runtime) }).httpHooks.onRequest(new Request("https://api.anthropic.com/v1/messages", { headers: { [header]: value, "user-agent": "claude-cli/2.1.280", "x-app": "cli" } }));
+    expect(request.headers.get(header)).toBe(subscription ? `Bearer ${secret}` : secret);
+    // Subscription requests say they come from Pi rather than Claude Code.
+    expect([request.headers.get("user-agent"), request.headers.get("x-app")]).toEqual(subscription ? ["pi", null] : ["claude-cli/2.1.280", "cli"]);
+  }
 });
 
 test("rejects foreign hosts, changed endpoints, disconnected providers and malformed markers", async () => {
@@ -224,9 +224,9 @@ test("credential bridge intercepts current model hosts and authentication endpoi
     custom: { auth: { apiKey: "secret" } },
     anthropic: { auth: { apiKey: "sk-ant-oat-secret" } },
   });
-  expect(await piCliCredentialHosts(runtime)).toEqual(["chatgpt.com", "custom.example"]);
+  expect(await piCliCredentialHosts(runtime)).toEqual(["chatgpt.com", "custom.example", "api.anthropic.com"]);
   runtime.auth.openai = { auth: { apiKey: "sk-secret" } };
-  expect(await piCliCredentialHosts(runtime)).toEqual(["api.openai.com", "custom.example"]);
+  expect(await piCliCredentialHosts(runtime)).toEqual(["api.openai.com", "custom.example", "api.anthropic.com"]);
 });
 
 test("bridge credentials are scrubbed from reflected headers and queries, including after refresh", async () => {

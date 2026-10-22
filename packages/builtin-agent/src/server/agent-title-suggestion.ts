@@ -2,7 +2,7 @@ import { createKeyedOperationQueue, type AgentsInTheCloudEventBus } from "@agent
 import { errorMessage } from "@agents-in-the-cloud/shared";
 import { getWorkspaceTitle, listWorkspaces, setWorkspaceTitle } from "@agents-in-the-cloud/workspace";
 import { resolveNewWorkspaceAgentModel } from "@agents-in-the-cloud/agent/server/model-state";
-import { cheapestAvailableProviderModel, claudeCodeHeaders, createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
+import { cheapestAvailableProviderModel, createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
 import { listWorkspaceAgents, setWorkspaceAgentTitle, untitledAgentTitle, type WorkspaceAgentInfo } from "./agent-store.ts";
 import { agentTitleRequestOptions, normalizeSlug, promptFor, textFromResponse } from "@agents-in-the-cloud/agent/server/slug-suggestion";
 
@@ -106,7 +106,7 @@ function suggestAgentTitle(agent: { workspaceId: string; agentId?: string }, use
       if (!(await runtime.checkAuth(model.provider))) return fail(titleModelRef, "model authentication is not configured");
       const response = await runtime.completeSimple(model, {
         messages: [{ role: "user", content: promptFor(promptText), timestamp: Date.now() }],
-      }, { ...agentTitleRequestOptions(model), headers: claudeCodeHeaders(model), sessionId: crypto.randomUUID() });
+      }, { ...agentTitleRequestOptions(model), sessionId: crypto.randomUUID() });
       if (response.stopReason === "error") {
         return fail(titleModelRef, response.errorMessage ?? "model returned an error", {
           stopReason: response.stopReason,

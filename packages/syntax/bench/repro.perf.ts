@@ -17,12 +17,8 @@ async function check(path: typeof paths[number], fixture: typeof fixtures[number
   expect(result.exitCode).toBe(0);
   expect(result.samples.length, "all requested updates completed").toBe(result.expectedUpdates);
   expect(report.maxHighlightMs, "maximum shared server highlight budget (ms)").toBeLessThan(maxHighlightMs);
-  const diff = path === "review" || path === "tool-diff";
-  // Pierre's first render includes lazy engine/grammar initialization. Keep this
-  // known cold-start exception explicit; do not warm it up outside measurement.
-  if (diff) expect(result.samples[0]!.elapsedMs, "Pierre cold render budget (ms)").toBeLessThan(200);
-  const updates = diff ? result.samples.slice(1) : result.samples;
-  expect(Math.max(...updates.map((sample) => sample.elapsedMs)), "render operation budget (ms)").toBeLessThan(maxUpdateMs);
+  // Includes cold first renders: Highlights needs no engine or grammar warm-up.
+  expect(report.maxUpdateMs, "render operation budget (ms)").toBeLessThan(maxUpdateMs);
   if (chunkSize) expect(report.totalMs, "entire uncoalesced streaming replay budget (ms)").toBeLessThan(maxStreamMs);
 }
 

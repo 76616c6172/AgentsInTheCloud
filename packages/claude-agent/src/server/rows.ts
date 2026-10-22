@@ -31,6 +31,8 @@ const rowSchema = Type.Object({
   attachment: Type.Optional(Type.Object({ type: Type.String(), prompt: Type.Optional(Type.Union([Type.String(), Type.Array(blockSchema)])), source_uuid: Type.Optional(Type.String()), runId: Type.Optional(Type.String()) })),
   customTitle: Type.Optional(Type.String()), aiTitle: Type.Optional(Type.String()),
 });
+/** Claude records a local command's output on a row of its own. */
+const commandOutputSchema = Type.Object({ type: Type.Literal("system"), subtype: Type.Literal("local_command"), uuid: Type.String(), content: Type.String() });
 export type ClaudeBlock = Static<typeof blockSchema>;
 /** Message content as blocks. Live SDK content uses the API's wider block types; keep only the shapes history also records. */
 export function claudeBlocks(content: string | object[]): ClaudeBlock[] {
@@ -42,28 +44,36 @@ export type ClaudeRow =
   | { kind: "user"; uuid: string; timestamp: number; content: ClaudeBlock[]; meta: boolean }
   | { kind: "assistant"; uuid: string; timestamp: number; messageId: string; content: ClaudeBlock[]; stopReason: string | null; usage?: Static<typeof usageSchema>; error: boolean }
   /** A prompt sent while Claude worked, absorbed into its running turn. */
-  | { kind: "steer"; uuid: string; timestamp: number; text: string }
+  | { kind: "steer"; uuid: string; timestamp: number; content: ClaudeBlock[] }
   /** A background command or subagent finished, during Claude's turn or before a turn reporting on it. A resumed subagent finishes again, in a new run. */
   | { kind: "task"; uuid: string; timestamp: number; runId: string; toolUseId?: string; status: string; summary: string; result?: string; usage?: ClaudeTaskUsage }
-  | { kind: "compact"; uuid: string; timestamp: number };
+  | { kind: "compact"; uuid: string; timestamp: number }
+  /** What a local command such as /code-review printed. Claude streams it as a reply, and records it under the same UUID. */
+  | { kind: "output"; uuid: string; timestamp: number; text: string; error: boolean };
 
 /** What a background subagent spent. */
 export interface ClaudeTaskUsage { tokens: number; toolUses: number; durationMs: number }
 
-/** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents. */
-export function claudeRows(jsonl: string): ClaudeRow[] {
+/** Claude Code's native JSONL is untrusted, append-only input. Sidechains belong to its own subagents, which keep them in files of their own. */
+export function claudeRows(jsonl: string, sidechain = false): ClaudeRow[] {
   const rows: ClaudeRow[] = [];
   for (const row of nativeJsonlRows(jsonl, rowSchema)) {
-    if (row.isSidechain === true) continue;
+    if ((row.isSidechain === true) !== sidechain) continue;
     const timestamp = nativeTimestamp(row.timestamp);
     if (row.type === "attachment" && row.attachment?.type === "queued_command" && row.uuid) {
       // Background work that finishes mid-turn is delivered into it, like a prompt sent while Claude works.
-      const text = claudeText(claudeBlocks(row.attachment.prompt ?? ""));
-      rows.push(taskRow(row.uuid, timestamp, text, row.attachment.runId) ?? { kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, text });
+      const content = claudeBlocks(row.attachment.prompt ?? "");
+      rows.push(taskRow(row.uuid, timestamp, claudeText(content), row.attachment.runId) ?? { kind: "steer", uuid: row.attachment.source_uuid ?? row.uuid, timestamp, content });
+    } else if (Value.Check(commandOutputSchema, row)) {
+      const output = commandOutput(row.content);
+      if (output) rows.push({ kind: "output", uuid: row.uuid, timestamp, ...output });
     } else if (!row.uuid || !row.message) {
       if (row.type === "system" && row.subtype === "compact_boundary" && row.uuid) rows.push({ kind: "compact", uuid: row.uuid, timestamp });
     } else if (row.type === "user") {
-      rows.push(taskRow(row.uuid, timestamp, claudeText(claudeBlocks(row.message.content)), row.origin?.runId) ?? { kind: "user", uuid: row.uuid, timestamp, content: claudeBlocks(row.message.content), meta: row.isMeta === true || row.isCompactSummary === true });
+      // Older Claude Code versions recorded a command's output as a user message.
+      const content = claudeBlocks(row.message.content);
+      const output = row.isMeta === true ? undefined : commandOutput(claudeText(content));
+      rows.push(output ? { kind: "output", uuid: row.uuid, timestamp, ...output } : taskRow(row.uuid, timestamp, claudeText(content), row.origin?.runId) ?? { kind: "user", uuid: row.uuid, timestamp, content, meta: row.isMeta === true || row.isCompactSummary === true });
     } else if (row.type === "assistant") {
       rows.push({ kind: "assistant", uuid: row.uuid, timestamp, messageId: row.message.id ?? row.uuid, content: claudeBlocks(row.message.content), stopReason: row.message.stop_reason ?? null, usage: row.message.usage, error: row.isApiErrorMessage === true });
     }
@@ -91,6 +101,34 @@ export function claudeSessionDirectory(workspaceId: string, agentId: string): st
 export async function readClaudeRows(directory: string, sessionId: string): Promise<ClaudeRow[] | undefined> {
   const text = await readTextIfExists(join(directory, `${sessionId}.jsonl`));
   return text === undefined ? undefined : claudeRows(text);
+}
+
+/** A subagent's own conversation, saved beside the session that started it. */
+export async function readClaudeSubagentRows(directory: string, sessionId: string, agentId: string, inWorkflow = false): Promise<ClaudeRow[]> {
+  const subagents = join(directory, sessionId, "subagents");
+  const path = inWorkflow ? await workflowAgentPath(subagents, agentId) : join(subagents, `agent-${agentId}.jsonl`);
+  if (!path) return [];
+  // Its page reloads while it runs; the file is parsed again only once it has grown.
+  const file = await stat(path).catch(error => { if (isNotFoundError(error)) return undefined; throw error; });
+  if (!file) return [];
+  const version = `${file.size}:${file.mtimeMs}`;
+  const cached = subagentRows.get(path);
+  if (cached?.version === version) return cached.rows;
+  const rows = claudeRows(await readTextIfExists(path) ?? "", true);
+  subagentRows.set(path, { version, rows });
+  return rows;
+}
+const subagentRows = new Map<string, { version: string; rows: ClaudeRow[] }>();
+
+/** A workflow's agents keep their transcripts in a folder for its run, which only their names identify. */
+async function workflowAgentPath(subagents: string, agentId: string): Promise<string | undefined> {
+  const workflows = join(subagents, "workflows");
+  const runs = await readdir(workflows).catch(error => { if (isNotFoundError(error)) return []; throw error; });
+  for (const run of runs) {
+    const path = join(workflows, run, `agent-${agentId}.jsonl`);
+    if (await Bun.file(path).exists()) return path;
+  }
+  return undefined;
 }
 
 export async function hasClaudeSession(directory: string, sessionId: string): Promise<boolean> {
@@ -146,17 +184,21 @@ function tag(value: string, name: string): string | undefined {
 /** Commands AgentsInTheCloud issues for its own controls; their echoes are not the user's prompts. */
 const controlCommands = new Set(["/model"]);
 
-/** What a user row means: a prompt or command, command output, or an interruption. */
-export function claudeUserIntent(row: Extract<ClaudeRow, { kind: "user" }>): { kind: "prompt"; text: string; images: SessionImageRef[] } | { kind: "output"; text: string } | { kind: "control" | "interrupted"; text?: never } | undefined {
+/** Output is tagged as such; anything else on an output row is not for the transcript. */
+function commandOutput(text: string): { text: string; error: boolean } | undefined {
+  const value = text.trim();
+  const leading = value.match(/^<(local-command-stdout|local-command-stderr)>/)?.[1];
+  const output = leading ? tag(value, leading)?.trim() : undefined;
+  return output ? { text: output, error: leading === "local-command-stderr" } : undefined;
+}
+
+/** What a user row means: a prompt or command, or an interruption. */
+export function claudeUserIntent(row: Extract<ClaudeRow, { kind: "user" }>): { kind: "prompt"; text: string; images: SessionImageRef[] } | { kind: "control" | "interrupted"; text?: never } | undefined {
   if (row.meta || row.content.some(block => block.type === "tool_result")) return undefined;
   const value = claudeText(row.content).trim();
   if (interruption.test(value)) return { kind: "interrupted" };
   // Claude's own messages start with its tags; a prompt may contain them anywhere.
   const leading = value.match(/^<([a-z-]+)>/)?.[1];
-  if (leading === "local-command-stdout" || leading === "local-command-stderr") {
-    const output = tag(value, leading)?.trim();
-    return output ? { kind: "output", text: output } : undefined;
-  }
   if (leading && internalMessages.has(leading)) return undefined;
   const images = claudeImageSources(row.content).map((source, contentIndex) => ({ entryId: row.uuid, contentIndex, mimeType: source.media_type }));
   const command = leading === "command-name" || leading === "command-message" ? tag(value, "command-name") : undefined;
