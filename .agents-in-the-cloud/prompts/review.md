@@ -27,3 +27,5 @@ You have context the reviewer didn't, so you decide every finding, minors includ
 After each round, decide whether to run another. A later round's input scopes it to the previous round's fix commits, lists all pushbacks so far, and lists each fix commit with the finding and repro it addresses. Treat `partial` and `unresolved` fix checks as findings at their original level.
 
 Keep going while rounds turn up things worth fixing. Pause and talk to the user instead when an issue needs their judgement: a fix that would change the plan, a trade-off you can't settle with what you know, or findings that keep coming back.
+
+When presenting your final answer, when presenting a fix you made, always use our commit syntax so the user can easily click the link and see the diff in the changes view.
