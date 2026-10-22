@@ -6,7 +6,7 @@ import { Controller } from "@hotwired/stimulus";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { submitFormWithFirstButton } from "./form-submission.ts";
 import { clientHooks, type PaletteResult } from "./workspace-client-hooks.ts";
-import { registerWorkspaceControllers, workspaceSelectionController, workspaceNavigationController } from "./workspace-controller-registry.ts";
+import { controllerForElement, registerWorkspaceControllers, workspaceSelectionController, workspaceNavigationController } from "./workspace-controller-registry.ts";
 
 type WorkspaceCommandRegistration = Omit<WorkspaceClientCommand, "run">;
 
@@ -118,18 +118,11 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       run: () => this.openOldestAttentionWorkspace(),
     });
     clientHooks.registerCommand({
-      id: "work-view.open-previous",
-      label: "Open previous Work view",
-      scope: "workspace",
-      binding: "Meta+Alt+BracketLeft",
-      run: () => this.openAdjacentWorkView(-1),
-    });
-    clientHooks.registerCommand({
-      id: "work-view.open-next",
-      label: "Open next Work view",
+      id: "work-pane.toggle",
+      label: "Show or hide Work pane",
       scope: "workspace",
       binding: "Meta+Alt+BracketRight",
-      run: () => this.openAdjacentWorkView(1),
+      run: () => this.toggleWorkPane(),
     });
     clientHooks.registerCommand({
       id: "agents-in-the-cloud.open-palette",
@@ -237,18 +230,9 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     return [];
   }
 
-  private openAdjacentWorkView(direction: -1 | 1): void {
+  private toggleWorkPane(): void {
     const presentation = this.visibleWorkspacePresentation();
-    if (!presentation) return;
-    if (!presentation.classList.contains("is-work-pane-open")) {
-      presentation.querySelector<HTMLButtonElement>("[data-show-work-pane]")?.click();
-      return;
-    }
-
-    const selectors = [...presentation.querySelectorAll<HTMLButtonElement>("[data-work-view-key]")];
-    const activeIndex = selectors.findIndex((selector) => selector.getAttribute("aria-selected") === "true");
-    if (activeIndex < 0 || selectors.length < 2) return;
-    selectors[(activeIndex + direction + selectors.length) % selectors.length]!.click();
+    if (presentation) controllerForElement<{ toggleWorkPane(): void }>(presentation, "workspace-presentation")!.toggleWorkPane();
   }
 
   private scheduleShortcutOverlay(): void {
@@ -331,7 +315,6 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       case "Period": return event.key === ".";
       case "Slash": return event.key === "/" || event.key === "?";
       case "Semicolon": return event.key === ";" || event.key === ":";
-      case "BracketLeft": return event.key === "[";
       case "BracketRight": return event.key === "]";
       default: return false;
     }
