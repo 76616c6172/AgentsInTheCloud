@@ -333,6 +333,9 @@
   .status-list__item[aria-busy="true"] .status-list__marker { animation: none !important; }
 }
 
+/* Code and output wrap everywhere, so long lines and values never hide off to the side. */
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+
 ::selection { color: var(--text-bright); background: color-mix(in srgb, var(--accent) 32%, transparent); }
 :focus-visible { outline-color: var(--accent); }
 

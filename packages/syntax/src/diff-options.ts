@@ -16,7 +16,7 @@ function diffOptions(presentation: "changes" | "tool") {
   return {
     ...pierreHighlightOptions,
     diffStyle: "unified" as const,
-    overflow: changes ? "wrap" as const : "scroll" as const,
+    overflow: "wrap" as const,
     disableLineNumbers: true,
     disableFileHeader: true,
     hunkSeparators: changes ? "line-info" as const : "simple" as const,
