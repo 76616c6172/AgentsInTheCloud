@@ -3,8 +3,9 @@ import type { Message, Usage, UserMessage } from "@earendil-works/pi-ai";
 import { getProviderUsageOverview, supportedUsageProviders, type ProviderUsageOverview } from "@agents-in-the-cloud/llm/server";
 
 /** Only providers on which we measured the suggestion request reading the turn's prompt cache.
+ * Anthropic reads the turn's cache at the breakpoint pi-ai sets on the last message, and writes only the final reply and instruction.
  * xAI caches on a best-effort basis and occasionally misses; see `promptSuggestionCacheMissLimit`. */
-export const promptSuggestionProviders: ReadonlySet<string> = new Set(["openai-codex", "xai"]);
+export const promptSuggestionProviders: ReadonlySet<string> = new Set(["openai-codex", "xai", "anthropic"]);
 
 /** Misses in a row after which an Agent stops suggesting. One miss can be bad luck; repeated misses mean the request no longer matches the turn's. */
 export const promptSuggestionCacheMissLimit = 2;
