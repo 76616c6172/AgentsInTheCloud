@@ -1,5 +1,4 @@
 import type { Context } from "@earendil-works/chord";
-import { awaitWithContext } from "@earendil-works/chord/context";
 import { defineDoc, defineExtension, defineTask, defineTool, type TaskId } from "@earendil-works/pi-durable";
 import type { TerminalProcesses } from "@agents-in-the-cloud/observable-terminal/server";
 import { workspaceRoot, workspaceTerminalProcesses } from "@agents-in-the-cloud/workspace";
@@ -44,8 +43,9 @@ export function createDurableBashExtension(workspaceId: string, processes: Termi
    * A restart reruns the phase, which reattaches to the same terminal process.
    */
   async function settle(id: string, context: Context): Promise<BashResult> {
-    const ended = context.abortSignal ? withCommandSignal(context.abortSignal, () => processes.waitForEnd(id)) : processes.waitForEnd(id);
-    const state = await awaitWithContext(ended, context);
+    // The command signal alone cancels the wait: it kills the waiting shell.
+    const signal = context.abortSignal;
+    const state = signal ? await withCommandSignal(signal, () => processes.waitForEnd(id)) : await processes.waitForEnd(id);
     if (state.state === "missing") return { status: "uncertain", message: "The command's terminal process is missing, so the command was not run again." };
     if (state.state === "lost") return { status: "uncertain", message: "The command's terminal disappeared before it recorded a result. The command was not run again." };
     return {

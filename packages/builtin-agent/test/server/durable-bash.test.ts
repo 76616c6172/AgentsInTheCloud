@@ -204,3 +204,20 @@ test("aborting a bash tool stops its command but lets the agent finish the turn"
   expect(await f.processes.state(id)).toEqual({ state: "missing" });
   expect(await Bun.file(join(f.path, "after-abort")).exists()).toBe(false);
 });
+
+// bun test fails on the unhandled rejection; in the app, Bun exits on one.
+test("stopping while the command is starting stops it without an unhandled rejection", async () => {
+  const f = await fixture();
+  let stop!: () => Promise<void>;
+  const processes: TerminalProcesses = { ...f.processes, async start(options) {
+    await f.processes.start(options);
+    // Stop lands after the command started but before the tool waits for it.
+    const stopped = stop();
+    await Bun.sleep(300);
+    void stopped;
+  } };
+  const h = await harness(f.path, processes, "sleep 3");
+  stop = () => h.conversation.abort(context);
+  const submission = await h.conversation.submit({ type: "input", content: "Run", requestId: "one" }, context);
+  expect((await submission.wait(context)).status).toBe("unanswered");
+}, 20_000);
