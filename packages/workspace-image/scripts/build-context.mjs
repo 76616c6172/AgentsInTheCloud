@@ -96,7 +96,7 @@ for (const platform of ["linux/amd64", "linux/arm64"]) {
   await buildGoProgram(gatewaySource, join(outDir, "gateway", platform.replace("/", "-"), "agents-in-the-cloud-workspace-gateway"), platform);
 }
 
-let dockerfile = `FROM oven/bun:1.4.0 AS bun-dist\n\nFROM ${runtimeImage}\n\nARG DEBIAN_FRONTEND=noninteractive\nLABEL com.agents-in-the-cloud.workspace-image.modules=${quote(moduleNames.join(","))}\n\nRUN mkdir -p /opt/agents-in-the-cloud/home-defaults && cp -a /etc/skel/. /opt/agents-in-the-cloud/home-defaults/\n\n`;
+let dockerfile = `FROM oven/bun:1.4.4 AS bun-dist\n\nFROM ${runtimeImage}\n\nARG DEBIAN_FRONTEND=noninteractive\nLABEL com.agents-in-the-cloud.workspace-image.modules=${quote(moduleNames.join(","))}\n\nRUN mkdir -p /opt/agents-in-the-cloud/home-defaults && cp -a /etc/skel/. /opt/agents-in-the-cloud/home-defaults/\n\n`;
 dockerfile += `COPY --from=bun-dist /usr/local/bin/bun /usr/local/bin/bun\nCOPY --from=bun-dist /usr/local/bin/bunx /usr/local/bin/bunx\nRUN bun --version\n\n`;
 function appendCopies(copies) {
   for (const copy of copies) {
