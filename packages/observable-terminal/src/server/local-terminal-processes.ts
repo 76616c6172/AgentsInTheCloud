@@ -1,6 +1,6 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { agentsInTheCloudDataPath, commandSignal, getAgentsInTheCloudRuntimeContext, withCommandSignal } from "@agents-in-the-cloud/core";
+import { agentsInTheCloudDataPath, getAgentsInTheCloudRuntimeContext, runCommand, withCommandSignal } from "@agents-in-the-cloud/core";
 import type { StartWorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
 import { createTerminalProcesses, type RunTerminalProcessCommand, type TerminalProcesses } from "./terminal-process.ts";
 
@@ -13,23 +13,12 @@ function environment(tmuxDirectory: string, env: Record<string, string> | undefi
   return { ...process.env, TMUX: undefined, TMUX_PANE: undefined, TMUX_TMPDIR: tmuxDirectory, ...env };
 }
 
-/** Runs commands on this machine, the way the workspace helper runs them in a workspace: the ambient command signal kills them. */
+/**
+ * Runs commands on this machine, the way the workspace helper runs them in a workspace:
+ * the ambient command signal kills the command's whole process group.
+ */
 export function runLocally(tmuxDirectory: string): RunTerminalProcessCommand {
-  return async (start, options) => {
-    const signal = commandSignal();
-    signal?.throwIfAborted();
-    const child = Bun.spawn(start.argv, {
-      signal,
-      cwd: start.workdir,
-      env: environment(tmuxDirectory, start.env),
-      stdin: options.stdin === undefined ? "ignore" : Buffer.from(options.stdin),
-      stdout: "pipe",
-      stderr: "pipe",
-    });
-    const [stdout, stderr, exitCode] = await Promise.all([new Response(child.stdout).arrayBuffer(), new Response(child.stderr).text(), child.exited]);
-    signal?.throwIfAborted();
-    return { exitCode, stdout: Buffer.from(stdout), stderr };
-  };
+  return (start, options) => runCommand(start.argv, { cwd: start.workdir, env: environment(tmuxDirectory, start.env), stdin: options.stdin });
 }
 
 /** Starts terminal clients on this machine on a PTY, the way the workspace helper starts them. */

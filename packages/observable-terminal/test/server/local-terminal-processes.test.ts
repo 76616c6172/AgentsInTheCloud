@@ -72,3 +72,17 @@ test("a run cancelled while the tmux server is still starting doesn't break late
   const result = await runTerminalProcess(processes, { command: "echo second", cwd: directory }, () => {});
   expect(result.output.text).toBe("second");
 });
+
+test("cancelling a wait for a local process stops waiting promptly, leaving the process running", async () => {
+  const { directory, processes } = await place();
+  const id = crypto.randomUUID();
+  await processes.start({ id, command: "sleep 30", cwd: directory });
+  const cancel = new AbortController();
+  const waited = withCommandSignal(cancel.signal, () => processes.waitForEnd(id));
+  await Bun.sleep(500);
+  const cancelled = Date.now();
+  cancel.abort(new Error("Run cancelled"));
+  await expect(waited).rejects.toThrow("Run cancelled");
+  expect(Date.now() - cancelled).toBeLessThan(5_000);
+  expect((await processes.state(id)).state).toBe("running");
+}, 70_000);
