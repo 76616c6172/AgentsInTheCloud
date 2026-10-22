@@ -7,7 +7,7 @@ import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import type { WorkspaceInitInstruction } from "@agents-in-the-cloud/workspace";
 
-export type WorkspaceTemplateSummary = Omit<WorkspaceTemplateRecord, "secrets" | "sshKeys" | "sshKnownHosts" | "environment" | "privateNetworkAccess"> & {
+export type WorkspaceTemplateSummary = Omit<WorkspaceTemplateRecord, "secrets" | "sshKeys" | "sshKnownHosts" | "environment" | "privateNetworkAccess" | "changeBuckets"> & {
   configurationFingerprint?: string;
   /** Adding a template counts as using it, as does creating a workspace from it. */
   lastUsedAt?: number;
@@ -85,6 +85,8 @@ const configurationProperties = {
   environment: Type.Optional(Type.Array(workspaceTemplateEnvironmentVariableSchema)),
   /** Canonical `host:port` entries; absent in files saved before Private network access existed. */
   privateNetworkAccess: Type.Optional(Type.Array(Type.String())),
+  /** Change bucket lines as typed; absent means the defaults globally and none for a template. */
+  changeBuckets: Type.Optional(Type.String()),
 };
 
 const configurationRecordSchema = Type.Object(configurationProperties);

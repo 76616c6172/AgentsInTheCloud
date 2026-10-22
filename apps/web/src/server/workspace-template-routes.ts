@@ -1,4 +1,4 @@
-import { globalWorkspaceSettingsErrorId, globalWorkspaceSettingsFrameId, globalWorkspaceSettingsPath, globalWorkspaceSettingsUrl, renderGlobalWorkspaceSettingsFrame, renderTemplateSettings, renderTemplateSettingsFrame, templateSettingsErrorHtml, templateSettingsErrorId, templateSettingsFrameId, templateSettingsHostId, templateSettingsUrl, type TemplateSettingsLocation, type TemplateSettingsSection, type TemplateSettingsReference } from "./template-settings.ts";
+import { type ConfigurationSectionName, globalWorkspaceSettingsErrorId, globalWorkspaceSettingsFrameId, globalWorkspaceSettingsPath, globalWorkspaceSettingsUrl, renderGlobalWorkspaceSettingsFrame, renderTemplateSettings, renderTemplateSettingsFrame, templateSettingsErrorHtml, templateSettingsErrorId, templateSettingsFrameId, templateSettingsHostId, templateSettingsUrl, type TemplateSettingsLocation, type TemplateSettingsSection, type TemplateSettingsReference } from "./template-settings.ts";
 import { AgentsInTheCloudCoreError, invalidArguments, readJsonObject, requestAcceptsJson, type JsonObject } from "@agents-in-the-cloud/core";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
 import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
@@ -12,7 +12,7 @@ import {
   listWorkspaceTemplates, parseWorkspaceTemplateSpec, renameWorkspaceTemplateSshKey,
   workspaceTemplateSecretPathPermissionSchema,
   setWorkspaceTemplateDockerfile, setWorkspaceTemplatePreloadImages, setWorkspaceTemplatePrivileged, setWorkspaceTemplateSeedConfigEnabled,
-  setPrivateNetworkAccess, setWorkspaceTemplateSshKnownHosts,
+  setPrivateNetworkAccess, setWorkspaceTemplateSshKnownHosts, getChangeBuckets, setChangeBuckets,
   updateWorkspaceTemplate,
   updateWorkspaceTemplateEnvironmentVariable, updateWorkspaceTemplateSecret,
   type ConfigurationScope, type WorkspaceTemplateEnvironmentVariable, type WorkspaceTemplateSecretInput, type WorkspaceTemplateSecretSummary, type WorkspaceTemplateSshKeySummary, type WorkspaceTemplateSummary,
@@ -144,13 +144,13 @@ export function createWorkspaceTemplateRoutes(deps: {
     return await settingsPageResponse(request, workspaceTemplateId, section, record, false);
   }
 
-  type ConfigurationResult = { secret: WorkspaceTemplateSecretSummary; deleted?: true } | { environmentVariable: WorkspaceTemplateEnvironmentVariable; deleted?: true } | { key: WorkspaceTemplateSshKeySummary } | { knownHosts: string } | { privateNetworkAccess: string[] };
+  type ConfigurationResult = { secret: WorkspaceTemplateSecretSummary; deleted?: true } | { environmentVariable: WorkspaceTemplateEnvironmentVariable; deleted?: true } | { key: WorkspaceTemplateSshKeySummary } | { knownHosts: string } | { privateNetworkAccess: string[] } | { changeBuckets: string };
 
   /**
    * Secrets, SSH keys and Environment variables re-render whichever settings page edited them.
    * Save/create remains in the record's editor; deletion returns to the list because that editor no longer exists.
    */
-  async function configurationSettingsResponse(request: Request, scope: ConfigurationScope, name: "secrets" | "ssh" | "environment" | "network", record: string | undefined, result: ConfigurationResult): Promise<Response> {
+  async function configurationSettingsResponse(request: Request, scope: ConfigurationScope, name: ConfigurationSectionName, record: string | undefined, result: ConfigurationResult): Promise<Response> {
     deps.invalidatePresentation();
     if (requestAcceptsJson(request)) return jsonResponse(result);
     const url = new URL(request.url);
@@ -299,6 +299,12 @@ export function createWorkspaceTemplateRoutes(deps: {
     return configurationSettingsResponse(request, scope, "network", undefined, { privateNetworkAccess });
   }
 
+  async function updateChangeBucketsEndpoint(scope: ConfigurationScope, request: Request): Promise<Response> {
+    const input = requestAcceptsJson(request) ? jsonString(await readJsonObject(request), "changeBuckets") : String((await request.formData()).get("changeBuckets") ?? "");
+    const changeBuckets = await setChangeBuckets(scope, input);
+    return configurationSettingsResponse(request, scope, "buckets", undefined, { changeBuckets });
+  }
+
   async function createSshKeyFromForm(scope: ConfigurationScope, request: Request): Promise<Response> {
     const formData = await request.formData();
     const key = await createWorkspaceTemplateSshKey(scope, String(formData.get("privateKey") ?? ""), undefined, undefined, String(formData.get("name") ?? ""));
@@ -318,7 +324,7 @@ export function createWorkspaceTemplateRoutes(deps: {
 
   /** Secrets, SSH keys, Environment variables and Private network access for a template or for all workspaces share one set of endpoints. */
   async function handleConfigurationRoute(request: Request, url: URL): Promise<Response | undefined> {
-    const match = url.pathname.match(/^\/(?:workspace-templates\/([^/]+)|global-workspace-settings)\/(secrets|environment|ssh-keys|ssh-known-hosts|private-network-access)(?:\/([^/]+))?(?:\/(delete|public-key))?$/);
+    const match = url.pathname.match(/^\/(?:workspace-templates\/([^/]+)|global-workspace-settings)\/(secrets|environment|ssh-keys|ssh-known-hosts|private-network-access|change-buckets)(?:\/([^/]+))?(?:\/(delete|public-key))?$/);
     if (!match) return undefined;
     const [, workspaceTemplateId, concern, recordId, action] = match;
     const scope: ConfigurationScope = workspaceTemplateId === undefined ? globalWorkspaceConfiguration : decodeURIComponent(workspaceTemplateId);
@@ -350,6 +356,11 @@ export function createWorkspaceTemplateRoutes(deps: {
         if (record) return undefined;
         if (request.method === "GET" && requestAcceptsJson(request)) return jsonResponse({ privateNetworkAccess: (await getConfiguration(scope)).privateNetworkAccess });
         if (post) return await updatePrivateNetworkAccessEndpoint(scope, request);
+        return undefined;
+      case "change-buckets":
+        if (record) return undefined;
+        if (request.method === "GET" && requestAcceptsJson(request)) return jsonResponse({ changeBuckets: await getChangeBuckets(scope) });
+        if (post) return await updateChangeBucketsEndpoint(scope, request);
     }
     return undefined;
   }
