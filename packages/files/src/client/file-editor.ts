@@ -192,6 +192,8 @@ export function createFileEditorController(Controller: WorkspaceClientController
         unsafeCSS: editorCSS,
         createEditor: (type, options, key) => new Editor(type, {
           ...options,
+          // Rounded selections paint concave corners in an opaque editor background; ours is transparent.
+          roundedSelection: false,
           onAttach: (editor) => {
             const first = !this.editor;
             this.editor = editor;

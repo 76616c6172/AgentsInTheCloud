@@ -44,6 +44,7 @@
     "typescript": "6.0.3"
   },
   "patchedDependencies": {
-    "@gespenst/core@0.1.1": "patches/@gespenst%2Fcore@0.1.1.patch"
+    "@gespenst/core@0.1.1": "patches/@gespenst%2Fcore@0.1.1.patch",
+    "@pierre/diffs@1.6.1": "patches/@pierre%2Fdiffs@1.6.1.patch"
   }
 }
