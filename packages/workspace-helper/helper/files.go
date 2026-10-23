@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -233,4 +234,72 @@ func (s *helper) WriteFile(stream pb.WorkspaceHelper_WriteFileServer) error {
 	}
 	committed = true
 	return stream.SendAndClose(&pb.WriteFileResponse{})
+}
+
+// Describes path without reading it: Lstat and Stat, and for regular files and
+// folders an open that tells whether the caller may read them.
+func statFile(path string) (*pb.FileStat, error) {
+	link, err := os.Lstat(path)
+	info := link
+	if err == nil && link.Mode()&fs.ModeSymlink != 0 {
+		info, err = os.Stat(path)
+	}
+	switch {
+	case errors.Is(err, fs.ErrNotExist), errors.Is(err, syscall.ENOTDIR), errors.Is(err, syscall.ELOOP):
+		return &pb.FileStat{Kind: pb.FileKind_FILE_KIND_MISSING}, nil
+	case errors.Is(err, fs.ErrPermission):
+		return &pb.FileStat{Kind: pb.FileKind_FILE_KIND_INACCESSIBLE}, nil
+	case err != nil:
+		return nil, err
+	}
+	stat := &pb.FileStat{
+		Kind:           pb.FileKind_FILE_KIND_OTHER,
+		Symlink:        link.Mode()&fs.ModeSymlink != 0,
+		Size:           uint64(info.Size()),
+		ModifiedUnixMs: info.ModTime().UnixMilli(),
+	}
+	if info.Mode().IsRegular() {
+		stat.Kind = pb.FileKind_FILE_KIND_REGULAR
+	} else if info.IsDir() {
+		stat.Kind = pb.FileKind_FILE_KIND_DIRECTORY
+	}
+	if stat.Kind != pb.FileKind_FILE_KIND_OTHER {
+		// access(2) won't do: it checks the real user, not the file system
+		// identity asUser takes on. A file removed since the stat is unreadable.
+		file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK, 0)
+		if err == nil {
+			file.Close()
+			stat.Readable = true
+		} else if !errors.Is(err, fs.ErrPermission) && !errors.Is(err, fs.ErrNotExist) {
+			return nil, err
+		}
+	}
+	return stat, nil
+}
+
+func (s *helper) StatFiles(ctx context.Context, request *pb.StatFilesRequest) (*pb.StatFilesResponse, error) {
+	for _, path := range request.Paths {
+		if err := absolute(path); err != nil {
+			return nil, err
+		}
+	}
+	account, err := s.lookupUser(request.User)
+	if err != nil {
+		return nil, err
+	}
+	stats := make([]*pb.FileStat, 0, len(request.Paths))
+	err = s.asUser(account, func() error {
+		for _, path := range request.Paths {
+			stat, err := statFile(path)
+			if err != nil {
+				return err
+			}
+			stats = append(stats, stat)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fileError(err)
+	}
+	return &pb.StatFilesResponse{Stats: stats}, nil
 }

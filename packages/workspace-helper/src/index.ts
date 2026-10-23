@@ -110,6 +110,7 @@ const execMethod = service.Exec!;
 const attachMethod = service.Attach!;
 const readFileMethod = service.ReadFile!;
 const writeFileMethod = service.WriteFile!;
+const statFilesMethod = service.StatFiles!;
 
 const users = { "agents-in-the-cloud": "USER_AGENT", root: "USER_ROOT" } satisfies Record<WorkspaceHelperUser, string>;
 const signals = { SIGHUP: "SIGNAL_HUP", SIGINT: "SIGNAL_INT", SIGTERM: "SIGNAL_TERM", SIGKILL: "SIGNAL_KILL" } satisfies Record<WorkspaceHelperSignal, string>;
@@ -375,6 +376,52 @@ export async function writeWorkspaceFile(socketPath: string, file: WorkspaceFile
   }
   call.end();
   await finished;
+}
+
+/** What is at a path, as a user sees it, following symlinks. */
+export type WorkspaceFileStat = { path: string } & (
+  /** Nothing there, a dangling symlink, or a symlink loop; or the user may not look into a folder on the way. */
+  | { kind: "missing" | "inaccessible" }
+  | {
+    kind: "regular" | "directory" | "other";
+    /** The path itself is a symlink; the rest describes its target. */
+    symlink: boolean;
+    size: number;
+    modified: Date;
+    /** Opening it for reading succeeds. Always false for `other`, which is never opened. */
+    readable: boolean;
+  }
+);
+
+const fileKinds = {
+  FILE_KIND_MISSING: "missing",
+  FILE_KIND_INACCESSIBLE: "inaccessible",
+  FILE_KIND_REGULAR: "regular",
+  FILE_KIND_DIRECTORY: "directory",
+  FILE_KIND_OTHER: "other",
+} satisfies Record<string, WorkspaceFileStat["kind"]>;
+type FileStat = { kind: keyof typeof fileKinds; symlink?: boolean; size?: number; modifiedUnixMs?: number; readable?: boolean };
+
+function workspaceFileStat(path: string, stat: FileStat): WorkspaceFileStat {
+  const kind = fileKinds[stat.kind];
+  if (kind === "missing" || kind === "inaccessible") return { path, kind };
+  // Proto3 leaves zero values off the wire.
+  return { path, kind, symlink: stat.symlink ?? false, size: stat.size ?? 0, modified: new Date(stat.modifiedUnixMs ?? 0), readable: stat.readable ?? false };
+}
+
+/** Describes each of `paths`, all absolute, as `user` sees them, without reading them; in request order. */
+export async function statWorkspaceFiles(socketPath: string, user: WorkspaceHelperUser, paths: string[], options: { signal?: AbortSignal } = {}): Promise<WorkspaceFileStat[]> {
+  options.signal?.throwIfAborted();
+  const stats = await new Promise<FileStat[]>((resolve, reject) => {
+    const call = client(socketPath).makeUnaryRequest(statFilesMethod.path, statFilesMethod.requestSerialize, statFilesMethod.responseDeserialize, { user: users[user], paths }, (error: ServiceError | null, response?: { stats?: FileStat[] }) => {
+      options.signal?.removeEventListener("abort", abort);
+      if (error) reject(callError(error, options.signal));
+      else resolve(response!.stats ?? []);
+    });
+    const abort = () => call.cancel();
+    options.signal?.addEventListener("abort", abort, { once: true });
+  });
+  return paths.map((path, index) => workspaceFileStat(path, stats[index]!));
 }
 
 export { status as WorkspaceHelperStatus } from "@grpc/grpc-js";

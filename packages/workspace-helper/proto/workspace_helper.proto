@@ -45,6 +45,48 @@ service WorkspaceHelper {
   // Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT, and
   // FAILED_PRECONDITION when `path` is a folder or another non-regular file.
   rpc WriteFile(stream WriteFileRequest) returns (WriteFileResponse);
+
+  // Describes each of `paths` as `user` sees it, following symlinks, with what
+  // the file system reports cheaply: a stat each, and an open without reading
+  // for regular files and folders, to tell whether `user` may read them.
+  // Fails with INVALID_ARGUMENT for a relative path.
+  rpc StatFiles(StatFilesRequest) returns (StatFilesResponse);
+}
+
+message StatFilesRequest {
+  User user = 1;
+  // Absolute.
+  repeated string paths = 2;
+}
+
+message StatFilesResponse {
+  // One for each requested path, in request order.
+  repeated FileStat stats = 1;
+}
+
+message FileStat {
+  FileKind kind = 1;
+  // The rest describe what is there, so they are only set for REGULAR,
+  // DIRECTORY and OTHER.
+  // The path itself is a symlink; the other fields describe its target.
+  bool symlink = 2;
+  uint64 size = 3;
+  int64 modified_unix_ms = 4;
+  // Opening it for reading as `user` succeeds. Always false for OTHER, which
+  // is never opened: opening a device or FIFO can have side effects.
+  bool readable = 5;
+}
+
+enum FileKind {
+  FILE_KIND_UNSPECIFIED = 0;
+  // Nothing there, a dangling symlink, or a symlink loop.
+  FILE_KIND_MISSING = 1;
+  // `user` may not look into a folder on the way.
+  FILE_KIND_INACCESSIBLE = 2;
+  FILE_KIND_REGULAR = 3;
+  FILE_KIND_DIRECTORY = 4;
+  // A device, FIFO or socket.
+  FILE_KIND_OTHER = 5;
 }
 
 message ReadFileRequest {
