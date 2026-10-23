@@ -7,12 +7,7 @@ export {
 export {
   buildKillSessionCommand,
   buildListSessionsCommand,
-  buildObservableSessionCommand,
 } from "./tmux.ts";
-export {
-  attachHostObservableTerminal,
-  type ObservableTerminalConnection,
-} from "./attach.ts";
 export {
   createTerminalProcesses,
   runTerminalProcess,
