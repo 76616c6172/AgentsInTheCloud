@@ -4,14 +4,9 @@ export interface AgentSystemPromptPrepareEvent {
   lines: string[];
 }
 
-export interface AgentsInTheCloudHostStartedEvent {
-  workspaces: Array<{ id: string; parked: boolean }>;
-}
-
 export interface AgentsInTheCloudEventMap {
   agent_system_prompt_prepare: AgentSystemPromptPrepareEvent;
   agents_in_the_cloud_host_stopping: Record<string, never>;
-  agents_in_the_cloud_host_started: AgentsInTheCloudHostStartedEvent;
 }
 
 export type AgentsInTheCloudEventHandler<K extends keyof AgentsInTheCloudEventMap> = (event: AgentsInTheCloudEventMap[K]) => void | Promise<void>;
