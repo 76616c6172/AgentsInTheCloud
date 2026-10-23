@@ -1,9 +1,9 @@
 import type { JsonValue } from "@agents-in-the-cloud/core";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { renderMarkdown } from "@agents-in-the-cloud/markdown";
+import { markdownFileReferenceCandidates, renderMarkdown } from "@agents-in-the-cloud/markdown";
 import { parseWorkspaceFileTarget, type WorkspaceFileTarget, type WorkspaceModule, type WorkspaceModuleRouteContext } from "@agents-in-the-cloud/shared";
 import { jsonResponse, matchRoute, response, textResponse } from "@agents-in-the-cloud/shared/http";
-import { workspaceRoot } from "@agents-in-the-cloud/workspace";
+import { statFilesInWorkspace, workspaceRoot } from "@agents-in-the-cloud/workspace";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { fileSaveRequestSchema, type FileSaveRequest } from "../protocol.ts";
@@ -11,7 +11,7 @@ import { EditableFileError, readEditableFile, requestedEditableFilePath, writeEd
 import { deleteFile, FilesPathError, getDirectoryEntry, listFiles, searchFiles, uploadFile } from "./files.ts";
 import { filePreviewKind } from "./file-preview.ts";
 import { filesWorkViewPresentation, renderFilesDirectoryFrame, renderFilesRefreshSignal, renderFilesTreeFrame, renderFilesTreeResultsFrame, renderFilesWorkViewBody } from "./render.ts";
-import { closeFilesView, createFilesView, defaultFilesViewId, deleteFilesViewState, filesDiskChanged, filesView, listFilesViews, setFilesViewFile } from "./state.ts";
+import { closeFilesView, createFilesView, defaultFilesViewId, deleteFilesViewState, filesDiskChanged, filesView, forgetFilesPath, listFilesViews, navigateFilesViewHistory, setFilesViewFile } from "./state.ts";
 
 const filesWorkViewReferenceSchema = Type.Object({ type: Type.Literal("files"), id: Type.String() });
 type FilesWorkViewReference = Static<typeof filesWorkViewReferenceSchema>;
@@ -44,11 +44,25 @@ export async function openFileInFiles(workspaceId: string, target: WorkspaceFile
   return await openWorkView(workspaceId, { type: "files", id: viewId }, { select: requestedViewId === undefined });
 }
 
+async function historyEndpoint(workspaceId: string, request: Request, openWorkView: WorkspaceModuleRouteContext["openWorkView"]): Promise<Response> {
+  const form = await request.formData();
+  const viewId = String(form.get("filesView") ?? defaultFilesViewId);
+  const direction = form.get("direction");
+  if (direction !== "back" && direction !== "forward") return textResponse("Invalid history direction", { status: 422 });
+  navigateFilesViewHistory(workspaceId, viewId, direction);
+  return await openWorkView(workspaceId, { type: "files", id: viewId }, { select: false });
+}
+
 async function renderMarkdownEndpoint(workspaceId: string, request: Request, url: URL): Promise<Response> {
   if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });
   const sourcePath = url.searchParams.get("path");
+  const filesViewId = url.searchParams.get("filesView") ?? undefined;
+  const text = await request.text();
   const options = sourcePath?.startsWith("/") ? { sourcePath, frontmatter: true } : { frontmatter: true };
-  return response(renderMarkdown(workspaceId, await request.text(), options));
+  const stats = await statFilesInWorkspace(workspaceId, "agents-in-the-cloud", markdownFileReferenceCandidates(text, options));
+  // Only files Files can open: readable regular files, not symlinks.
+  const openable = stats.filter((stat) => stat.kind === "regular" && stat.readable && !stat.symlink).map((stat) => stat.path);
+  return response(renderMarkdown(workspaceId, text, { ...options, filesViewId, linkableFiles: new Set(openable) }));
 }
 
 async function fileContentEndpoint(workspaceId: string, request: Request, url: URL): Promise<Response> {
@@ -81,8 +95,10 @@ async function uploadEndpoint(workspaceId: string, request: Request, url: URL): 
 async function deleteEndpoint(workspaceId: string, request: Request, openWorkView: WorkspaceModuleRouteContext["openWorkView"]): Promise<Response> {
   const form = await request.formData();
   const viewId = String(form.get("filesView") ?? defaultFilesViewId);
-  await deleteFile(workspaceId, String(form.get("path") ?? ""));
+  const path = String(form.get("path") ?? "");
+  await deleteFile(workspaceId, path);
   filesDiskChanged(workspaceId);
+  forgetFilesPath(workspaceId, path);
   setFilesViewFile(workspaceId, viewId);
   return await openWorkView(workspaceId, { type: "files", id: viewId }, { select: false });
 }
@@ -126,9 +142,10 @@ const filesWorkspaceModule: WorkspaceModule = {
         match = matchRoute(url, /^\/workspaces\/([^/]+)\/files$/);
         if (match) return request.method === "GET" ? await filesEndpoint(match[0]!, url) : textResponse("Method not allowed", { status: 405 });
 
-        match = matchRoute(url, /^\/workspaces\/([^/]+)\/files-view\/(upload|delete)$/);
+        match = matchRoute(url, /^\/workspaces\/([^/]+)\/files-view\/(upload|delete|history)$/);
         if (!match) return undefined;
         const workspaceId = match[0]!;
+        if (match[1] === "history") return request.method === "POST" ? await historyEndpoint(workspaceId, request, context.openWorkView) : textResponse("Method not allowed", { status: 405 });
         if (match[1] === "upload") return request.method === "POST" ? await uploadEndpoint(workspaceId, request, url) : textResponse("Method not allowed", { status: 405 });
         return request.method === "POST" ? await deleteEndpoint(workspaceId, request, context.openWorkView) : textResponse("Method not allowed", { status: 405 });
       } catch (error) {

@@ -5,14 +5,19 @@ import MarkdownIt from "markdown-it";
 import { installMath } from "./math.ts";
 import { installDetails } from "./details.ts";
 import { installCommitLinks } from "./commit-links.ts";
-import { agentsInTheCloudFileHref, workspaceFileImageSrc } from "./agents-in-the-cloud-markdown.ts";
-import { escapeHtml, isWorkspaceAppPort, isWorkspaceLoopbackHost, workspacePortAppKey, workspaceProxyUrl } from "@agents-in-the-cloud/shared";
+import type Token from "markdown-it/lib/token.mjs";
+import { agentsInTheCloudFileHref, inlineCodeFileReference, workspaceFileImageSrc } from "./agents-in-the-cloud-markdown.ts";
+import { escapeHtml, isWorkspaceAppPort, isWorkspaceLoopbackHost, workspaceFileOpenUrl, workspacePortAppKey, workspaceProxyUrl } from "@agents-in-the-cloud/shared";
 import { renderMarkdownDiff } from "@agents-in-the-cloud/syntax/markdown-diff";
 import { highlightCodeHtml } from "@agents-in-the-cloud/syntax";
 
 export interface MarkdownRenderOptions {
   sourcePath?: string;
   frontmatter?: boolean;
+  /** Opens linked files in this Files view instead of the workspace's preferred file viewer. */
+  filesViewId?: string;
+  /** Files that inline code file references (see `markdownFileReferenceCandidates`) may link to. */
+  linkableFiles?: ReadonlySet<string>;
 }
 
 interface MarkdownEnvironment extends MarkdownRenderOptions {
@@ -88,7 +93,7 @@ const defaultLinkOpen = markdown.renderer.rules.link_open ?? ((tokens, index, op
 markdown.renderer.rules.link_open = (tokens, index, options, environment: MarkdownEnvironment, renderer) => {
   const token = tokens[index]!;
   const href = token.attrGet("href") ?? "";
-  const fileHref = agentsInTheCloudFileHref(environment.workspaceId, href, environment.sourcePath);
+  const fileHref = agentsInTheCloudFileHref(environment.workspaceId, href, environment.sourcePath, environment.filesViewId);
   if (fileHref) {
     token.attrSet("href", fileHref);
     token.attrSet("data-turbo-stream", "true");
@@ -103,6 +108,26 @@ markdown.renderer.rules.link_open = (tokens, index, options, environment: Markdo
     token.attrSet("rel", "noopener noreferrer");
   }
   return defaultLinkOpen(tokens, index, options, environment, renderer);
+};
+
+function insideLink(tokens: Token[], index: number): boolean {
+  let depth = 0;
+  for (let cursor = 0; cursor < index; cursor++) {
+    if (tokens[cursor]!.type === "link_open") depth++;
+    else if (tokens[cursor]!.type === "link_close") depth--;
+  }
+  return depth > 0;
+}
+
+const defaultCodeInline = markdown.renderer.rules.code_inline!;
+markdown.renderer.rules.code_inline = (tokens, index, options, environment: MarkdownEnvironment, renderer) => {
+  const code = defaultCodeInline(tokens, index, options, environment, renderer);
+  if (!environment.linkableFiles || insideLink(tokens, index)) return code;
+  const reference = inlineCodeFileReference(tokens[index]!.content, environment.sourcePath);
+  const path = reference?.candidates.find((candidate) => environment.linkableFiles!.has(candidate));
+  if (!path) return code;
+  const href = workspaceFileOpenUrl(environment.workspaceId, path, reference!, environment.filesViewId);
+  return `<a class="markdown-file-reference" href="${escapeHtml(href)}" data-turbo-stream="true" title="${escapeHtml(path)}">${code}</a>`;
 };
 
 const defaultImage = markdown.renderer.rules.image!;
@@ -137,6 +162,20 @@ function workspaceLocalPreviewHref(workspaceId: string, href: string): string | 
 
 function withoutFrontmatter(text: string): string {
   return text.replace(/^\uFEFF?---[ \t]*\r?\n(?:[\s\S]*?\r?\n)?(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/, "");
+}
+
+/** Absolute paths that inline code in the document may refer to; check which exist before rendering. */
+export function markdownFileReferenceCandidates(text: string, options: Pick<MarkdownRenderOptions, "sourcePath" | "frontmatter"> = {}): string[] {
+  const source = options.frontmatter ? withoutFrontmatter(text) : text;
+  const candidates = new Set<string>();
+  for (const block of markdown.parse(source, { workspaceId: "" } satisfies MarkdownEnvironment)) {
+    const children = block.children ?? [];
+    children.forEach((token, index) => {
+      if (token.type !== "code_inline" || insideLink(children, index)) return;
+      for (const candidate of inlineCodeFileReference(token.content, options.sourcePath)?.candidates ?? []) candidates.add(candidate);
+    });
+  }
+  return [...candidates];
 }
 
 export function renderMarkdown(workspaceId: string, text: string, options: MarkdownRenderOptions = {}): string {

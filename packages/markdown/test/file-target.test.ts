@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
-import { agentsInTheCloudFileHref, workspaceFileImageSrc } from "../src/agents-in-the-cloud-markdown.ts";
+import { agentsInTheCloudFileHref, inlineCodeFileReference, workspaceFileImageSrc } from "../src/agents-in-the-cloud-markdown.ts";
+import { markdownFileReferenceCandidates, renderMarkdown } from "../src/markdown.ts";
 
 function target(href: string, sourcePath?: string): URL | undefined {
   const resolved = agentsInTheCloudFileHref("workspace", href, sourcePath);
@@ -47,4 +48,23 @@ test("image file resolution leaves non-file URLs and invalid paths untouched", (
   for (const source of ["https://example.com/image.svg", "http://localhost:4000/image.svg", "//example.com/image.png", "data:image/png;base64,aGVsbG8=", "javascript:alert(1)", "file://remote/work/image.svg", "#diagram", "?v=2", "/work/%ZZ.svg", "/work/%00.svg"]) {
     expect(workspaceFileImageSrc("workspace", source)).toBeUndefined();
   }
+});
+
+test("inline code file references resolve beside the document, then from the workspace", () => {
+  expect(inlineCodeFileReference("src/main.ts:12:3", "/work/docs/guide.md")).toMatchObject({ candidates: ["/work/docs/src/main.ts", "/work/src/main.ts"], line: 12, column: 3 });
+  expect(inlineCodeFileReference("README.md")?.candidates).toEqual(["/work/README.md"]);
+  expect(inlineCodeFileReference("/etc/app.conf")?.candidates).toEqual(["/etc/app.conf"]);
+  for (const code of ["npm install", "foo()", "--flag", "https://example.com/a.ts", "value", "...", "src/", "a = b.c"]) {
+    expect(inlineCodeFileReference(code)).toBeUndefined();
+  }
+});
+
+test("only existing referenced files become links, in the requested Files view", () => {
+  const source = "See `docs/guide.md:4`, `missing.md`, and [`linked.md`](linked.md).";
+  expect(markdownFileReferenceCandidates(source)).toEqual(["/work/docs/guide.md", "/work/missing.md"]);
+  const html = renderMarkdown("workspace", source, { filesViewId: "view-1", linkableFiles: new Set(["/work/docs/guide.md", "/work/linked.md"]) });
+  expect(html).toContain('<a class="markdown-file-reference" href="/workspaces/workspace/files-view/open?path=%2Fwork%2Fdocs%2Fguide.md&amp;line=4&amp;filesView=view-1" data-turbo-stream="true" title="/work/docs/guide.md"><code>docs/guide.md:4</code></a>');
+  expect(html).toContain("<code>missing.md</code>");
+  expect(html).toContain('href="/workspaces/workspace/files-view/open?path=%2Fwork%2Flinked.md&amp;filesView=view-1"');
+  expect(html.match(/<a /g)).toHaveLength(2);
 });

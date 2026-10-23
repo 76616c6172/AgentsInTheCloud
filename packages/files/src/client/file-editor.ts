@@ -65,12 +65,13 @@ type EditorRefreshDetail = { workspaceId: string };
 
 export function createFileEditorController(Controller: WorkspaceClientControllerConstructor): WorkspaceClientControllerConstructor {
   return class FileEditorController extends Controller {
-    static values = { workspaceId: String, path: String, contentUrl: String, line: Number, column: Number, positionRequest: String };
+    static values = { workspaceId: String, path: String, filesView: String, contentUrl: String, line: Number, column: Number, positionRequest: String };
     static targets = ["host", "loading", "status", "conflict", "conflictMine", "conflictTheirs", "renderedMarkdown", "markdownDisplayOptions", "copyButton", "wrapToggle"];
 
     declare readonly element: HTMLElement;
     declare readonly workspaceIdValue: string;
     declare readonly pathValue: string;
+    declare readonly filesViewValue: string;
     declare readonly contentUrlValue: string;
     declare readonly lineValue: number;
     declare readonly columnValue: number;
@@ -323,7 +324,7 @@ export function createFileEditorController(Controller: WorkspaceClientController
       const { signal } = this.connection;
       this.setMarkdownRenderBusy(true);
       try {
-        const renderMarkdownUrl = `/workspaces/${encodeURIComponent(this.workspaceIdValue)}/files-view/render-markdown?${new URLSearchParams({ path: this.pathValue })}`;
+        const renderMarkdownUrl = `/workspaces/${encodeURIComponent(this.workspaceIdValue)}/files-view/render-markdown?${new URLSearchParams({ path: this.pathValue, filesView: this.filesViewValue })}`;
         const response = await fetch(renderMarkdownUrl, {
           method: "POST",
           signal,
