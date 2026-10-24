@@ -541,7 +541,6 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   }
 
   private workspaceRows(): HTMLElement[] {
-    // The status rail mirrors these entries; navigate the canonical list only.
     return [...document.querySelectorAll<HTMLElement>(".fixed-shell-workspace-scroll [data-workspace-entry-id]")];
   }
 

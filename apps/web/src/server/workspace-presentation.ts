@@ -2,7 +2,6 @@ import { workspaceTemplateChoiceHtml, workspaceTemplateIconHtml } from "./worksp
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { addBadgeHtml } from "@agents-in-the-cloud/design-system/add-badge";
-import { actionLinkHtml } from "@agents-in-the-cloud/design-system/action-link";
 import { buttonHtml, type ButtonVariant } from "@agents-in-the-cloud/design-system/button";
 import { buttonGroupHtml } from "@agents-in-the-cloud/design-system/button-group";
 import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
@@ -199,33 +198,12 @@ function renderWorkspaceTemplatePicker(presentation: WorkspacePanePresentation, 
   </form>${tip}`;
 }
 
-const workspaceRailEntriesDomId = "nox_workspace_rail_entries";
-
-function renderWorkspaceRailEntries(presentation: WorkspacePanePresentation): string {
-  return presentation.workspaces.map((workspace) => {
-    const status = workspaceStatus(workspace);
-    const button = buttonHtml({
-      type: workspace.parked ? "submit" : "button",
-      variant: "quiet",
-      content: { kind: "icon-only", iconHtml: status.html, label: `${workspace.title} · ${status.label}` },
-      attributesHtml: `data-workspace-entry-id="${escapeHtml(workspace.id)}"${workspace.active ? ' aria-current="page"' : ""}${workspace.parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,
-    });
-    return workspace.parked ? `<form method="post" action="/workspaces/${encodeURIComponent(workspace.id)}/unpark" data-turbo="true" data-action="submit->workspace-navigation#unparkWorkspace">${button}</form>` : button;
-  }).join("");
-}
-
 const workspacePaneScrollDomId = "fixed_shell_workspace_scroll";
 const workspacePaneNewWorkspaceDomId = "fixed_shell_new_workspace";
 const workspaceTemplateOptionsDomId = "workspace_template_options";
 
 export function renderWorkspacePane(presentation: WorkspacePanePresentation, sidebarContributionsHtml = "", moduleActionsHtml = "", launchComposerBinding?: string): string {
   const settingsAttributes = 'data-controller="settings-prefetch" data-action="pointerenter->settings-prefetch#prefetch focus->settings-prefetch#prefetch click->settings-prefetch#open"';
-  const settings = actionLinkHtml({
-    href: "/settings",
-    variant: "quiet",
-    content: { kind: "icon-only", iconHtml: Icons.Settings, label: "Settings" },
-    attributesHtml: settingsAttributes,
-  });
   const settingsRow = contentRowHtml({
     width: "fill", kind: "compact", label: { kind: "text", text: "Settings" }, leadingHtml: Icons.Settings,
     element: { tag: "a", attributesHtml: `href="/settings" ${settingsAttributes}` },
@@ -247,7 +225,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
       </section>
       <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New workspace" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
     </div></div>`,
-  })}</div></div><nav class="nox-workspace-rail" aria-label="Workspace status" data-action="${revealActions}">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Sidebar, 'data-show-workspace-pane aria-pressed="false"', "quiet")}<div id="${workspaceRailEntriesDomId}" class="nox-workspace-rail-entries">${renderWorkspaceRailEntries(presentation)}</div>${barButton("New workspace", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Plus, 'data-command-id="agent.open-launch-composer"', "quiet")}${settings}</nav><div class="nox-workspace-scrim" aria-hidden="true" data-action="click->workspace-navigation#closeWorkspacePane"></div>`;
+  })}</div></div><div class="nox-workspace-edge" aria-hidden="true" data-action="pointerenter->workspace-navigation#revealWorkspacePane pointerleave->workspace-navigation#leaveWorkspacePane"></div><div class="nox-workspace-scrim" aria-hidden="true" data-action="click->workspace-navigation#closeWorkspacePane"></div>`;
 }
 
 const agentsInTheCloudNextAttentionDomId = "fixed_shell_agents-in-the-cloud_next_attention";
@@ -550,7 +528,6 @@ export function presentWorkViewTurboStream(workspaceId: string, key: string): st
 export function workspacePaneCollectionsRegions(presentation: WorkspacePanePresentation): import("@agents-in-the-cloud/shared").LiveRegion[] {
   return [
     { target: workspacePaneScrollDomId, html: renderWorkspaceRows(presentation) },
-    { target: workspaceRailEntriesDomId, html: renderWorkspaceRailEntries(presentation) },
     { target: workspacePaneNewWorkspaceDomId, html: renderNewWorkspaceRow(presentation) },
     { target: workspaceTemplateOptionsDomId, html: renderWorkspaceTemplateOptions(presentation), action: "replace" },
   ];

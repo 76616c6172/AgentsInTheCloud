@@ -32,7 +32,8 @@ svg.brand-icon path[fill] { fill: currentColor; }
   --panel-border-width: 0px;
   --panel-radius: 0px;
 }
-.nox-workspace-rail,
+.nox-workspace-edge,
+.nox-workspace-attention,
 .nox-agent-action,
 .nox-phone-header,
 .nox-workspace-group,
@@ -233,7 +234,6 @@ svg.brand-icon path[fill] { fill: currentColor; }
     --fixed-workspace-width: 240px;
     --fixed-agent-width: 61.8%;
     --fixed-shell-gap: 4px;
-    --nox-rail-width: 40px;
     --panel-border-width: 1px;
     --panel-radius: 8px;
     --nox-pane-border: color-mix(in srgb, var(--line) 70%, var(--bg));
@@ -244,49 +244,39 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-shell-agent-pane,
   .fixed-shell-work-pane { transition: none; }
 
-  /* Hover expansion takes layout space; terminals settle at the new width. */
+  /* Unpinned, the sidebar is out of sight. Hovering the window's left edge brings it back:
+   * the content steps aside at once, so terminals resize only once, and the sidebar slides
+   * into the space. Collapsing is instant. */
   .fixed-shell-app > .fixed-shell-workspace-pane {
     z-index: 10;
     transition: none;
   }
+  .fixed-shell-app:not(.is-workspace-pane-collapsed) > .fixed-shell-workspace-pane {
+    transition: transform 160ms var(--motion-ease-out), opacity 160ms var(--motion-ease-out);
+  }
+  .fixed-shell-app > .nox-workspace-edge {
+    display: block;
+    position: absolute;
+    z-index: 9;
+    inset: 0 auto 0 0;
+    width: calc(var(--fixed-shell-gap) + 4px);
+  }
   .fixed-shell-workspace-scroll { padding: 1px 4px 4px; }
-  /* Match the collapsed rail's pin target exactly, including the panel border. */
-  .workspace-pane-header { margin-inline-start: -2px; }
-  .fixed-shell-agent-pane [data-show-workspace-pane] { display: none; }
 
-  .fixed-shell-app > .fixed-shell-app-main {
+  /* With no workspace open, the list is the page. */
+  .fixed-shell-app.is-workspace-pane-collapsed:not(:has(.workspace-detail-mount.visible)) > .fixed-shell-workspace-pane {
+    transform: none;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+  .fixed-shell-app.is-workspace-pane-collapsed:not(:has(.workspace-detail-mount.visible)) > .fixed-shell-app-main {
     margin-left: calc(var(--fixed-workspace-width) + var(--fixed-shell-gap));
   }
-  .fixed-shell-app.is-workspace-pane-collapsed > .fixed-shell-app-main {
-    margin-left: calc(var(--nox-rail-width) + var(--fixed-shell-gap));
-  }
 
-  .fixed-shell-app > .nox-workspace-rail {
-    position: absolute;
-    z-index: 1;
-    inset: var(--fixed-shell-gap) auto var(--fixed-shell-gap) var(--fixed-shell-gap);
-    width: var(--nox-rail-width);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    padding: 10px 4px;
-    background: var(--panel);
-  }
-
-  .nox-workspace-rail-entries {
-    flex: 1;
-    min-height: 0;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    overflow: hidden auto;
-    scrollbar-width: thin;
-  }
-  .nox-workspace-rail-entries > * { flex-shrink: 0; }
-  .nox-workspace-rail-entries form { margin: 0; }
+  /* Another workspace that's done or needs you puts a dot on the Agent header's sidebar button. */
+  .nox-workspace-attention { position: absolute; top: 4px; right: 4px; }
+  .fixed-shell-app:has(.fixed-shell-workspace-scroll [data-workspace-attention-at]:not([aria-current="page"])) .nox-workspace-attention { display: block; }
 
   /* Desktop view actions share the toolbar; only Follow latest floats over the content.
      Phones float Open composer too and keep the view switch in More. */
@@ -298,7 +288,7 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .fixed-shell-agent-pane:has(.fixed-shell-surface.is-active :is(.cli-transcript-mode, .cli-transcript-pending)) .nox-agent-transcript-action { display: none; }
 
   /* Focus changes visibility, never the saved split width or sidebar preference. */
-  .fixed-shell-app:has(.workspace-detail-mount.visible .is-work-pane-focused) > :is(.fixed-shell-workspace-pane, .nox-workspace-rail),
+  .fixed-shell-app:has(.workspace-detail-mount.visible .is-work-pane-focused) > :is(.fixed-shell-workspace-pane, .nox-workspace-edge),
   .fixed-workspace-presentation.is-work-pane-focused :is(.fixed-shell-agent-pane, .fixed-shell-work-resizer) {
     display: none;
   }
@@ -394,4 +384,5 @@ svg.brand-icon path[fill] { fill: currentColor; }
 @keyframes nox-chrome-settle { from { opacity: 0; transform: translateY(-4px); } }
 @media (prefers-reduced-motion: reduce) {
   .fixed-shell-work-pane .browser-toolbar { animation: none !important; }
+  .fixed-shell-app > .fixed-shell-workspace-pane { transition: none !important; }
 }

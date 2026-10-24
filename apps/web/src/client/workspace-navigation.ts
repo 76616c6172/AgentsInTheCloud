@@ -4,6 +4,8 @@ import { Controller } from "@hotwired/stimulus";
 import { registerWorkspaceControllers, workspaceSelectionController } from "./workspace-controller-registry.ts";
 import { markActiveWorkspaceRow } from "./workspace-presentation.ts";
 
+const workspacePaneRevealDelayMs = 150;
+
 /** Points from the artwork to the first-workspace action. */
 class FirstWorkspaceGuideController extends Controller<HTMLElement> {
   static targets = ["origin", "svg", "path"];
@@ -205,6 +207,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   static targets = ["scroll"];
   declare readonly scrollTarget: HTMLElement;
   private scrollTimer?: ReturnType<typeof setTimeout>;
+  private revealTimer?: ReturnType<typeof setTimeout>;
   private pinnedWorkspace?: { id: string; index: number };
   private workspacePanePinned = false;
 
@@ -224,6 +227,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     this.element.removeEventListener("agents-in-the-cloud:workspace-mobile-destination-selected", this.workspaceMobileDestinationSelected);
     document.removeEventListener("agents-in-the-cloud:workspace-pane-changed", this.workspacePaneChanged);
     if (this.scrollTimer) clearTimeout(this.scrollTimer);
+    clearTimeout(this.revealTimer);
   }
 
   closeWorkspacePane(): void {
@@ -244,17 +248,21 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   revealWorkspacePane(event: PointerEvent): void {
     if (event.pointerType !== "mouse" || window.matchMedia(phoneLayoutMediaQuery).matches) return;
-    this.setWorkspacePaneCollapsed(false);
+    if (!this.element.classList.contains("is-workspace-pane-collapsed")) return;
+    // A pointer passing the window edge on its way elsewhere shouldn't open the sidebar.
+    clearTimeout(this.revealTimer);
+    this.revealTimer = setTimeout(() => this.setWorkspacePaneCollapsed(false), workspacePaneRevealDelayMs);
   }
 
   leaveWorkspacePane(event: PointerEvent | FocusEvent): void {
+    clearTimeout(this.revealTimer);
     if (this.workspacePanePinned || window.matchMedia(phoneLayoutMediaQuery).matches) return;
     if (event instanceof PointerEvent && event.pointerType !== "mouse") return;
-    const regions = ".fixed-shell-workspace-pane, .nox-workspace-rail";
+    const regions = ".fixed-shell-workspace-pane, .nox-workspace-edge";
     if (event.relatedTarget instanceof Element && event.relatedTarget.closest(regions)) return;
     if (event instanceof PointerEvent) {
       // View transitions cover the pane briefly without the pointer actually leaving it.
-      // SAFETY: This action is attached to the workspace pane and its collapsed rail.
+      // SAFETY: This action is attached to the workspace pane and the window edge that reveals it.
       const bounds = (event.currentTarget as HTMLElement).getBoundingClientRect();
       if (event.clientX >= bounds.left && event.clientX < bounds.right
         && event.clientY >= bounds.top && event.clientY < bounds.bottom) return;
@@ -268,13 +276,10 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   }
 
   private setWorkspacePaneCollapsed(collapsed: boolean): void {
+    // Opening hides the button that pinned it; keep focus on the pane's own toggle.
+    const refocus = !collapsed && document.activeElement?.closest("[data-show-workspace-pane]");
     this.element.classList.toggle("is-workspace-pane-collapsed", collapsed);
-    const rail = this.element.querySelector<HTMLElement>(".nox-workspace-rail")!;
-    // Move focus before making the covered rail inert, so blur cannot close the pane.
-    if (!collapsed && rail.contains(document.activeElement)) {
-      this.element.querySelector<HTMLButtonElement>("[data-collapse-workspace-pane]")!.focus({ preventScroll: true });
-    }
-    rail.inert = !collapsed;
+    if (refocus) this.element.querySelector<HTMLButtonElement>("[data-collapse-workspace-pane]")!.focus({ preventScroll: true });
     for (const toggle of this.element.querySelectorAll("[data-show-workspace-pane], [data-collapse-workspace-pane]")) {
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.setAttribute("aria-pressed", String(this.workspacePanePinned));
@@ -285,7 +290,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   }
 
   private visibleWorkspacePaneToggle(): HTMLButtonElement | null {
-    return this.element.querySelector<HTMLButtonElement>(".nox-workspace-rail [data-show-workspace-pane]");
+    return this.element.querySelector<HTMLButtonElement>(".workspace-detail-mount.visible [data-show-workspace-pane]");
   }
 
   private setWorkspacePaneOpen(open: boolean): void {
