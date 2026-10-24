@@ -554,11 +554,17 @@ export function createWorkspacePresentationController(
         destination.setAttribute("aria-current", selected ? "page" : "false");
       });
       this.element.querySelector<HTMLElement>("[data-mobile-work]")!.setAttribute("aria-current", !sidebarOpen && this.state.phoneDestination.startsWith("work:") ? "page" : "false");
-      // Phone tabs show the visible pane, not the desktop split's selection.
+      // Phone tabs show the visible pane, not the desktop split's selection; Workspaces shows the list.
       this.element.querySelectorAll<HTMLElement>("[data-nox-phone-tab]").forEach((tab) => {
-        const selected = tab.dataset.noxPhoneTab === this.state.phoneDestination && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
+        const selected = tab.dataset.noxPhoneTab === "list" ? sidebarOpen
+          : tab.dataset.noxPhoneTab === this.state.phoneDestination && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
         tab.setAttribute("aria-selected", String(selected));
         tab.tabIndex = selected ? 0 : -1;
+      });
+      // The rail's sections two or more stops round the ring are off the bar.
+      const ring = sidebarOpen ? -1 : this.state.phoneDestination.startsWith("work:") ? 1 : 0;
+      this.element.querySelectorAll<HTMLElement>("[data-nox-ring-k]").forEach((section) => {
+        section.inert = Math.abs(Number(section.dataset.noxRingK) - ring) >= 2;
       });
     };
 

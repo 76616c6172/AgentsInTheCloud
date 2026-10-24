@@ -442,7 +442,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const intent = workPresentationIntents.get(workspaceId);
     const workPresentationIntent = intent && registry.surfaceState(workspaceId, intent.key).requestingAttention ? intent : undefined;
     const presentation: FixedWorkspacePresentation = {
-      workspace: { id: entry.id, title: workspaceTitle(entry) },
+      workspace: { id: entry.id, title: workspaceTitle(entry), workspaceTemplate: await presentedWorkspaceTemplate(entry) },
       agentTypes: await orderedAgentTypes(),
       agents,
       workViews: workViewPresentations(workspaceId, currentWorkViews, storedWorkViews),
@@ -452,6 +452,14 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       overlayHtml: [...attachments.flatMap((attachment) => attachment.overlayHtml ?? []), ...workspaceSshTrustRequests(workspaceId).slice(-1).map(request => sshTrustPanel(workspaceId, request.records, request.host, request.port, request.changed, `/workspaces/${encodeURIComponent(workspaceId)}/ssh-trust/${encodeURIComponent(request.id)}`))],
     };
     return { presentation, commandContributions, storedWorkViews, warningState };
+  }
+
+  /** Nox: the workspace's glyph takes its hue from the template, as in the workspace list. */
+  async function presentedWorkspaceTemplate(entry: WorkspaceEntry): Promise<WorkspacePaneWorkspaceTemplate | undefined> {
+    if (!isGitWorkspaceTemplateInit(entry.init)) return undefined;
+    const id = workspaceTemplateIdFromInit(entry.init);
+    const saved = (await listWorkspaceTemplates()).workspaceTemplates.find((workspaceTemplate) => workspaceTemplate.id === id);
+    return saved ? { id, title: saved.name, swatchColor: saved.swatchColor } : { id, title: entry.init.name };
   }
 
   function workspaceWarningsHtml(workspaceId: string, { warnings, dismissedWarnings }: WorkspaceWarningState): string {

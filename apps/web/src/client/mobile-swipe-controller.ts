@@ -22,7 +22,7 @@ interface SwipeNavigation {
 const flickVelocity = 0.3;
 // Agents preview settles this far while Work's card lifts off it.
 const loopNudge = 24;
-const loopCardProperties = ["--nox-loop-left", "--nox-loop-top", "--nox-loop-width", "--nox-loop-height", "--nox-loop-origin"];
+const loopCardProperties = ["--nox-loop-left", "--nox-loop-top", "--nox-loop-width", "--nox-loop-height"];
 const loopAppProperties = ["--nox-drawer-progress", "--nox-list-progress", "--nox-loop-nudge", "--nox-loop-progress"];
 
 /** Where an element sits before any transform, in viewport coordinates. */
@@ -43,8 +43,8 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   private readonly frameOrigins = new WeakMap<Window, string>();
   /** A pane or loop move still settling; it commits its navigation when the motion ends. */
   private motion?: { finish: () => void };
-  /** Work's card while it travels round the ring: its pane and a copy of its bar, both in the top layer. */
-  private loop?: { presentation: HTMLElement; work: HTMLElement; bar: HTMLElement };
+  /** Work's card while it travels round the ring, in the top layer. */
+  private loop?: { presentation: HTMLElement; work: HTMLElement };
 
   connect(): void {
     this.stopObserving = observeMobileSwipe(this.element, this.navigationFor, this.dragFor);
@@ -120,18 +120,33 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     };
   };
 
-  /** Work's sidebar button goes the same way round as the swipe. */
+  /** The Workspaces tab after Work goes the same way round as the swipe. */
   loopToWorkspaces(): void {
     this.navigationFor(1)?.();
   }
 
-  /** Tabs across the Agent/Work boundary play the depth swap; tabs within a side switch in place. */
+  /** Tabs across the Agent/Work boundary play the depth swap; tabs within a side switch in place.
+   * From the list, Agents is beside it and Work is round the loop, as their swipes go. */
   private readonly tabTapped = (event: MouseEvent): void => {
     if (!(event.target instanceof Element)) return;
     const tab = event.target.closest<HTMLElement>("[data-nox-phone-tab]");
     const presentation = this.presentation;
-    if (!tab || !presentation || !this.media.matches) return;
+    // The Workspaces tabs open the list with their own actions.
+    if (!tab || !presentation || !this.media.matches || tab.dataset.noxPhoneTab === "list") return;
     this.settleMotion();
+    if (this.sidebarOpen) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      const agentId = tab.dataset.agentId;
+      if (agentId) {
+        presentation.selectAgentById(agentId);
+        workspaceNavigationController()!.closeWorkspacePane();
+      } else {
+        presentation.prepareMobileTab(tab);
+        this.playLoop(-1, () => presentation.selectMobileWork());
+      }
+      return;
+    }
     const onWork = this.presentationElement!.dataset.phoneDestination!.startsWith("work:");
     const toWork = tab.dataset.noxPhoneTab!.startsWith("work:");
     if (onWork === toWork) return;
@@ -246,7 +261,8 @@ export class MobileSwipeController extends Controller<HTMLElement> {
 
   /* The loop runs between Work (progress 0) and the list (1). Work's card lifts off to the left,
    * uncovering the list and the Agents preview already in place beneath it, so the list looks
-   * exactly as it does after a reveal from Agents. Backwards, Work lays back down over them. */
+   * exactly as it does after a reveal from Agents. Backwards, Work lays back down over them.
+   * The bar stays put and turns its rail with --nox-loop-progress. */
 
   private loopDrag(direction: MobileSwipeDirection, resolved: SwipeNavigation): MobileSwipeDrag {
     const start = this.beginLoop(direction);
@@ -279,21 +295,14 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     const app = this.element;
     const presentation = this.presentationElement!;
     const start = direction === 1 ? 0 : 1;
-    const header = presentation.querySelector<HTMLElement>(":scope > .nox-phone-header")!;
     const work = presentation.querySelector<HTMLElement>(".fixed-shell-work-pane")!;
-    const bar = this.workBarCopy(header, presentation);
-    app.append(bar);
-    // The card moves as one, about the centre of its right edge.
-    const [barBox, workBox] = [layoutBox(header), layoutBox(work)];
-    const centre = (barBox.top + workBox.top + workBox.height) / 2;
-    for (const [card, box] of [[bar, barBox], [work, workBox]] as const) {
-      card.style.setProperty("--nox-loop-left", `${box.left}px`);
-      card.style.setProperty("--nox-loop-top", `${box.top}px`);
-      card.style.setProperty("--nox-loop-width", `${box.width}px`);
-      card.style.setProperty("--nox-loop-height", `${box.height}px`);
-      card.style.setProperty("--nox-loop-origin", `${centre - box.top}px`);
-      card.setAttribute("data-nox-loop-card", "");
-    }
+    // The card moves about the centre of its right edge.
+    const box = layoutBox(work);
+    work.style.setProperty("--nox-loop-left", `${box.left}px`);
+    work.style.setProperty("--nox-loop-top", `${box.top}px`);
+    work.style.setProperty("--nox-loop-width", `${box.width}px`);
+    work.style.setProperty("--nox-loop-height", `${box.height}px`);
+    work.setAttribute("data-nox-loop-card", "");
     // Beneath the card the workspace shows Agents, already stepped aside beside the list.
     this.presentation!.previewMobileSwipe();
     presentation.setAttribute("data-nox-pane-motion", "");
@@ -304,26 +313,8 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.setLoopProgress(start);
     work.setAttribute("popover", "manual");
     work.showPopover();
-    // The bar goes on top, so it covers the shadow Work casts upwards.
-    bar.showPopover();
-    this.loop = { presentation, work, bar };
+    this.loop = { presentation, work };
     return start;
-  }
-
-  /** The workspace keeps its real bar for the Agents preview; the card carries a still copy showing Work. */
-  private workBarCopy(header: HTMLElement, presentation: HTMLElement): HTMLElement {
-    // SAFETY: A deep clone of an HTML element is an HTML element.
-    const bar = header.cloneNode(true) as HTMLElement;
-    for (const element of [bar, ...bar.querySelectorAll("*")]) {
-      for (const name of ["id", "data-controller", "data-action"]) element.removeAttribute(name);
-    }
-    const workKey = presentation.querySelector<HTMLElement>("[data-workspace-pane-role='work'].is-active")?.dataset.workspacePaneId;
-    bar.querySelectorAll<HTMLElement>("[data-nox-phone-tab]").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.workViewKey !== undefined && tab.dataset.workViewKey === workKey)));
-    bar.style.setProperty("--nox-pane-progress", "1");
-    bar.inert = true;
-    bar.setAttribute("aria-hidden", "true");
-    bar.setAttribute("popover", "manual");
-    return bar;
   }
 
   private setLoopProgress(progress: number): void {
@@ -349,14 +340,13 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   /** Lands without transitions: where the card settles, the workspace now looks the same. */
   private endLoop(navigate: (() => void) | undefined): void {
     const app = this.element;
-    const { presentation, work, bar } = this.loop!;
+    const { presentation, work } = this.loop!;
     this.loop = undefined;
     app.setAttribute("data-nox-drawer-drag", "");
     work.hidePopover();
     work.removeAttribute("popover");
     work.removeAttribute("data-nox-loop-card");
     for (const name of loopCardProperties) work.style.removeProperty(name);
-    bar.remove();
     presentation.removeAttribute("data-nox-pane-motion");
     presentation.style.removeProperty("--nox-pane-progress");
     if (navigate) navigate();

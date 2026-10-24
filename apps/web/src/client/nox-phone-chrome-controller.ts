@@ -7,10 +7,14 @@ import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
  * Nox phone chrome. Tapping an already selected Browser tab opens that Browser's toolbar over
  * the page instead of keeping it on screen. Navigating, using a toolbar button, tapping
  * elsewhere, Escape or moving to another pane closes it again.
+ *
+ * The visible workspace's bar also tells the app its height, so the workspace list opens
+ * below it (nox-layout.css).
  */
 export class NoxPhoneChromeController extends Controller<HTMLElement> {
   private readonly media = matchMedia(phoneLayoutMediaQuery);
   private destination?: string;
+  private readonly resizeObserver = new ResizeObserver(() => this.publishHeight());
 
   connect(): void {
     this.destination = this.presentation.dataset.phoneDestination;
@@ -22,6 +26,7 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
     document.addEventListener("keydown", this.keyPressed);
     window.addEventListener("blur", this.closeTools);
     this.media.addEventListener("change", this.closeTools);
+    this.resizeObserver.observe(this.element);
   }
 
   disconnect(): void {
@@ -33,6 +38,13 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
     document.removeEventListener("keydown", this.keyPressed);
     window.removeEventListener("blur", this.closeTools);
     this.media.removeEventListener("change", this.closeTools);
+    this.resizeObserver.disconnect();
+  }
+
+  /** Hidden workspaces' bars measure nothing; the visible one reports again as it appears. */
+  private publishHeight(): void {
+    if (!this.element.closest(".workspace-detail-mount.visible")) return;
+    this.element.closest<HTMLElement>(".fixed-shell-app")!.style.setProperty("--nox-phone-header-height", `${this.element.offsetHeight}px`);
   }
 
   private get presentation(): HTMLElement {

@@ -68,12 +68,16 @@ export function templateHue(color: string): number | undefined {
   return (Math.atan2(bAxis, a) * 180 / Math.PI + 360) % 360;
 }
 
-/** Attributes and contents for the row's "new workspace from this template" button. */
-export function noxWorkspaceGlyph(workspace: GlyphWorkspace) {
+/** The template gives a hue; a little seeded lightness keeps same-template siblings from looking stamped out. */
+function glyphTint(workspace: Pick<GlyphWorkspace, "id" | "workspaceTemplate">) {
   const { workspaceTemplate } = workspace;
   const hue = workspaceTemplate && templateHue(workspaceTemplate.swatchColor ?? workspaceTemplateSwatchColor(workspaceTemplate.id));
-  // A little seeded lightness keeps same-template siblings from looking stamped out.
-  const lightness = (random(`${workspace.id}:lightness`)() - 0.5) * 0.06;
+  return { hue, lightness: (random(`${workspace.id}:lightness`)() - 0.5) * 0.06 };
+}
+
+/** Attributes and contents for the row's "new workspace from this template" button. */
+export function noxWorkspaceGlyph(workspace: GlyphWorkspace) {
+  const { hue, lightness } = glyphTint(workspace);
   const attributes = [
     hue === undefined ? "" : ` data-tinted style="--glyph-hue: ${hue.toFixed(1)}; --glyph-l: ${lightness.toFixed(3)}"`,
     workspace.busy ? " data-busy" : "",
@@ -81,4 +85,16 @@ export function noxWorkspaceGlyph(workspace: GlyphWorkspace) {
   ];
   const mark = workspace.requestingAttention ? '<i class="status-dot attention" aria-hidden="true"></i>' : workspaceGlyphSvg(workspace.id);
   return { attributesHtml: attributes.join(""), html: `${mark}<span class="nox-workspace-glyph__plus">${Icons.Plus}</span>` };
+}
+
+/** Busy agents in a workspace show its glyph instead of a spinner (nox-layout.css). The rule scopes
+ * the glyph, as a mask, and its tint to the workspace's presentation. */
+export function noxWorkspaceGlyphStyle(selector: string, workspace: Pick<GlyphWorkspace, "id" | "workspaceTemplate">): string {
+  const dots = workspaceGlyphDots(workspace.id).flatMap((row, y) => row.map((lit, x) => lit
+    ? `<circle cx="${dotPositions[x]}" cy="${dotPositions[y]}" r="2.05"/>`
+    : `<circle cx="${dotPositions[x]}" cy="${dotPositions[y]}" r="1.2" opacity=".2"/>`));
+  const mask = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">${dots.join("")}</svg>`;
+  const { hue, lightness } = glyphTint(workspace);
+  const tint = hue === undefined ? "" : ` --nox-glyph-color: oklch(from var(--nox-glyph-key) calc(l + ${lightness.toFixed(3)}) c ${hue.toFixed(1)});`;
+  return `<style>${selector} { --nox-glyph-mask: url("data:image/svg+xml,${encodeURIComponent(mask)}");${tint} }</style>`;
 }
