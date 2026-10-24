@@ -9,10 +9,11 @@ import { toggleHtml } from "@agents-in-the-cloud/design-system/toggle";
 import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-banner";
 import { buttonConfirmationHtml } from "@agents-in-the-cloud/design-system/button-confirmation";
 import { escapeHtml } from "@agents-in-the-cloud/shared";
-import { formatWorkspaceTemplateSpec, getConfiguration, getWorkspaceTemplateConfiguration, globalWorkspaceConfiguration, isGlobalScope, workspaceTemplateSecretAllowsPath, type ConfigurationScope, type ScopeConfiguration, type WorkspaceTemplateEnvironmentVariable, type WorkspaceTemplateSecretSummary, type WorkspaceTemplateSshKeySummary } from "@agents-in-the-cloud/workspace-templates";
+import { formatWorkspaceTemplateSpec, getChangeBuckets, getConfiguration, getWorkspaceTemplateConfiguration, globalWorkspaceConfiguration, isGlobalScope, workspaceTemplateSecretAllowsPath, type ConfigurationScope, type ScopeConfiguration, type WorkspaceTemplateEnvironmentVariable, type WorkspaceTemplateSecretSummary, type WorkspaceTemplateSshKeySummary } from "@agents-in-the-cloud/workspace-templates";
 
 import { workspaceTemplateSwatchColor } from "./workspace-template-presentation.ts";
 
+export type ConfigurationSectionName = "secrets" | "ssh" | "environment" | "network" | "buckets";
 export const templateSettingsHostId = "template_settings_host";
 export const templateSettingsFrameId = "template_settings_detail";
 export const templateSettingsErrorId = "template_settings_error";
@@ -37,7 +38,7 @@ function sectionFor(value?: string): TemplateSettingsSection | undefined {
     default: throw invalidArguments("Unknown template settings section");
   }
 }
-const sections = ["general", "global-secrets", "global-ssh", "global-environment", "global-network", "secrets", "ssh", "environment", "network", "container", "developer"] as const;
+const sections = ["general", "global-secrets", "global-ssh", "global-environment", "global-network", "global-buckets", "secrets", "ssh", "environment", "network", "buckets", "container", "developer"] as const;
 const recordSections: readonly TemplateSettingsSection[] = sections.filter(section => section !== "general" && section !== "developer");
 const captionButton = (caption: string, attributesHtml: string, variant: "secondary" | "primary" = "secondary") => buttonHtml({ type: "button", variant, content: { kind: "caption", caption }, attributesHtml });
 const paragraph = (text: string) => `<p class="template-settings-note">${escapeHtml(text)}</p>`;
@@ -61,7 +62,7 @@ const editorKey = (section: TemplateSettingsSection, editor?: string) => `${sect
 /** Renders the editors for one scope's records: where their forms post and which editor is open or just saved. */
 interface Editors {
   /** Global sections are prefixed so their editors stay distinct within a template's settings. */
-  section(name: "secrets" | "ssh" | "environment" | "network"): TemplateSettingsSection;
+  section(name: ConfigurationSectionName): TemplateSettingsSection;
   form(path: string, contents: string, options: EditorFormOptions): string;
   disclosure(section: TemplateSettingsSection, editor: string | undefined, label: string, contents: string, description?: string, attributesHtml?: string): string;
   removeForm(path: string, section: TemplateSettingsSection, label: string): string;
@@ -161,14 +162,28 @@ function privateNetworkSection(e: Editors, destinations: string[]): string {
   return e.disclosure(section, undefined, "Private network access", `${paragraph("Workspaces can reach the public internet, but not your private network. List the hosts they may also reach, like an internal API or database. Changes apply to running workspaces too.")}${form}`);
 }
 
+function changeBucketsSection(e: Editors, text: string): string {
+  const section = e.section("buckets");
+  const form = e.form("/change-buckets", `${textarea("Buckets, one per line", "changeBuckets", text, 5, `spellcheck="false" autocomplete="off" placeholder="Tests: *Test.* *.test.* tests/"`)}${paragraph("Write a name, a colon, then patterns separated by spaces. A pattern without a slash matches file names anywhere, one ending in a slash matches a folder anywhere, and ! leaves files out. Files go in the first bucket they match.")}`, { section });
+  const intro = "Changes counts lines in these buckets separately, so the main work stands out from tests and the like.";
+  return e.disclosure(section, undefined, "Change buckets", `${paragraph(section === "buckets" ? `${intro} A bucket here replaces a shared one with the same name, and a name without patterns turns the shared one off.` : intro)}${form}`);
+}
+
 function assertRecordExists(e: Editors, records: ScopeConfiguration, { section, editor }: EditorLocation): void {
   if (!editor || editor === "new") return;
-  if (section === e.section("network")) throw invalidArguments("Settings record not found");
+  if (section === e.section("network") || section === e.section("buckets")) throw invalidArguments("Settings record not found");
   if (section === e.section("secrets") && !records.secrets.some(secret => secret.id === editor) || section === e.section("environment") && !records.environment.some(variable => variable.id === editor) || section === e.section("ssh") && editor !== "known-hosts" && !records.sshKeys.some(key => key.id === editor)) throw invalidArguments("Settings record not found");
 }
 
-function configurationSections(e: Editors, records: ScopeConfiguration, counterpart?: Counterpart): string {
-  return `<div class="template-settings-inline-records">${secretsSection(e, records.secrets, counterpart)}${sshSection(e, records.sshKeys, records.sshKnownHosts)}${environmentSection(e, records.environment, counterpart)}${privateNetworkSection(e, records.privateNetworkAccess)}</div>`;
+/** Every setting of one scope, including its change bucket text. */
+type ScopeSettings = ScopeConfiguration & { changeBuckets: string };
+async function scopeSettings(scope: ConfigurationScope): Promise<ScopeSettings> {
+  const [records, changeBuckets] = await Promise.all([getConfiguration(scope), getChangeBuckets(scope)]);
+  return { ...records, changeBuckets };
+}
+
+function configurationSections(e: Editors, records: ScopeSettings, counterpart?: Counterpart): string {
+  return `<div class="template-settings-inline-records">${secretsSection(e, records.secrets, counterpart)}${sshSection(e, records.sshKeys, records.sshKnownHosts)}${environmentSection(e, records.environment, counterpart)}${privateNetworkSection(e, records.privateNetworkAccess)}${changeBucketsSection(e, records.changeBuckets)}</div>`;
 }
 
 export function templateSettingsErrorHtml(message: string): string {
@@ -188,7 +203,7 @@ function editorContentAttributes(location: string, focus: string | undefined, su
 
 
 export async function renderTemplateSettingsFrame(id: string, location: TemplateSettingsLocation, references: TemplateSettingsReference[], saved = false, submittedPath?: string): Promise<string> {
-  const [t, own, global] = await Promise.all([getWorkspaceTemplateConfiguration(id), getConfiguration(id), getConfiguration(globalWorkspaceConfiguration)]);
+  const [t, own, global] = await Promise.all([getWorkspaceTemplateConfiguration(id), scopeSettings(id), scopeSettings(globalWorkspaceConfiguration)]);
   const section = sectionFor(location.section) ?? "index";
   const editor = location.editor ?? (location.section === "privileged" ? "docker" : location.section === "preload-images" ? "images" : location.section === "dockerfile" ? "dockerfile" : undefined);
   if (editor && !recordSections.includes(section)) throw invalidArguments("This settings section has no record editor");
@@ -200,7 +215,7 @@ export async function renderTemplateSettingsFrame(id: string, location: Template
   assertRecordExists(globalEditors, global, current);
   const general = ownEditors.form("", `<div class="template-settings-inline-fields">${field("Display name", "name", t.name, 'required autocomplete="off" data-1p-ignore="true"')}${field("Repository", "gitUrl", formatWorkspaceTemplateSpec(t), "required")}</div><label class="template-settings-color"><span>Swatch color</span><input type="hidden" name="swatchColor" value="${escapeHtml(t.swatchColor ?? "")}"><span class="template-settings-color-control"><span class="workspace-template-icon" style="--workspace-template-swatch: ${escapeHtml(t.swatchColor ?? workspaceTemplateSwatchColor(t.id))}" aria-hidden="true"></span><input type="color" name="swatchColorPicker" aria-label="Swatch color" data-settings-editor-target="colorPicker" data-default-color="${workspaceTemplateSwatchColor(t.id)}" data-action="input->settings-editor#colorChanged change->settings-editor#colorChanged"></span></label>`, { section: "general", autosave: true });
   const shared = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Shared with all templates" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(globalEditors, global, { records: own, describe: name => `Overridden by per-template ${name} with the same name` })}</div>`, open: section.startsWith("global-") });
-  const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` })}</div>`, open: ["secrets", "ssh", "environment", "network"].includes(section) });
+  const onlyHere = disclosureHtml({ summary: { kind: "compact", width: "fit", label: { kind: "text", text: "Only for this template" } }, bodyHtml: `<div class="template-settings-inline-body">${configurationSections(ownEditors, own, { records: global, describe: name => `Overrides global ${name} with the same name` })}</div>`, open: ["secrets", "ssh", "environment", "network", "buckets"].includes(section) });
   const dockerSupport = ownEditors.form("/privileged", `${selection("Docker support", "privileged", String(t.privileged ?? false), [{ value: "false", label: "Off" }, { value: "true", label: "On" }])}${paragraph("Privileged workspaces can access host devices and data. Enable only for templates and agents you trust.")}`, { section: "container", editor: "docker", autosave: true });
   const images = ownEditors.disclosure("container", "images", "Preloaded images", ownEditors.form("/preload-images", `${t.privileged ? "" : paragraph("Turn on Docker support to edit preloaded images. Saved references are kept while Docker is off.")}${textarea("Image references, one per line", "preloadImages", (t.preloadImages ?? []).join("\n"), 6, `spellcheck="false"${t.privileged ? "" : " readonly"}`)}`, { section: "container", editor: "images", available: Boolean(t.privileged) }));
   const dockerfile = ownEditors.disclosure("container", "dockerfile", "Custom Dockerfile", ownEditors.form("/dockerfile", `${textarea("Dockerfile override", "dockerfile", t.dockerfile ?? "", 14, 'spellcheck="false" placeholder="FROM agents-in-the-cloud-workspace"')}${paragraph("Leave blank to use the repository Dockerfile or default image. An override must start with FROM agents-in-the-cloud-workspace.")}`, { section: "container", editor: "dockerfile" }));
@@ -227,7 +242,7 @@ export async function renderTemplateSettings(id: string, location: TemplateSetti
 
 /** Global workspace settings as their own editor frame, shown in app Settings. */
 export async function renderGlobalWorkspaceSettingsFrame(location: TemplateSettingsLocation = {}, saved = false, submittedPath?: string): Promise<string> {
-  const records = await getConfiguration(globalWorkspaceConfiguration);
+  const records = await scopeSettings(globalWorkspaceConfiguration);
   const section = sectionFor(location.section);
   const current = { section: section ?? "index", editor: location.editor };
   const e = editors(globalWorkspaceConfiguration, current, saved);

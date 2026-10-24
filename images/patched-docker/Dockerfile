@@ -5,7 +5,7 @@ FROM docker:29.6.1-dind@sha256:66d292e5c26bd33a6f6f61cacb880de2186339a524ecba1ce
 FROM ubuntu:26.04@sha256:513c074113a871b51a8d16ab445c88779d6452d937a164fb5cc479f32668a41d AS ubuntu
 
 # Compile natively, including CGO/seccomp, even when targeting the other CPU.
-FROM --platform=$BUILDPLATFORM golang:1.26.0@sha256:fb612b7831d53a89cbc0aaa7855b69ad7b0caf603715860cf538df854d047b84 AS build
+FROM --platform=$BUILDPLATFORM golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82 AS build
 ARG TARGETARCH
 RUN dpkg --add-architecture "$TARGETARCH" \
     && apt-get update && apt-get install -y --no-install-recommends \
@@ -39,19 +39,19 @@ RUN --mount=type=cache,id=patched-docker-go-${TARGETARCH},target=/root/.cache/go
     && /usr/local/go/bin/go version -m /out/dockerd > /out/build-info.txt
 
 # The transfer helper uses the same containerd release as the runtime below.
-FROM --platform=$BUILDPLATFORM golang:1.26.0@sha256:fb612b7831d53a89cbc0aaa7855b69ad7b0caf603715860cf538df854d047b84 AS image-transfer
+FROM --platform=$BUILDPLATFORM golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82 AS image-transfer
 WORKDIR /src
 COPY image-transfer/go.mod image-transfer/go.sum ./
-RUN GOTOOLCHAIN=go1.26.8 go mod download
+RUN GOTOOLCHAIN=go1.26.10 go mod download
 COPY image-transfer/*.go ./
 ARG TARGETARCH
 RUN --mount=type=cache,id=agents-in-the-cloud-image-transfer-go,target=/root/.cache/go-build \
-    GOTOOLCHAIN=go1.26.8 go test ./... \
-    && GOTOOLCHAIN=go1.26.8 CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" go build -trimpath -o /out/agents-in-the-cloud-image-transfer .
+    GOTOOLCHAIN=go1.26.10 go test ./... \
+    && GOTOOLCHAIN=go1.26.10 CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" go build -trimpath -o /out/agents-in-the-cloud-image-transfer .
 
 # Patch ctr cache leases and the daemon's empty-mount EROFS differ dispatch.
 # Keep the shims from the matching upstream release.
-FROM --platform=$BUILDPLATFORM golang:1.26.0@sha256:fb612b7831d53a89cbc0aaa7855b69ad7b0caf603715860cf538df854d047b84 AS containerd-patched
+FROM --platform=$BUILDPLATFORM golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82 AS containerd-patched
 ADD --checksum=sha256:110aba8239bedd0efc7d359fa211b7ed1634713c3c05da3dd43a5b33d4a40194 \
     https://codeload.github.com/containerd/containerd/tar.gz/58e6cee9dee67ee87ee2f727d3570009050f9954 /tmp/containerd.tar.gz
 WORKDIR /src
@@ -63,8 +63,8 @@ COPY patches/0006-containerd-loop-device-node.patch /tmp/loop-device-node.patch
 RUN git apply /tmp/lease.patch /tmp/empty-mounts.patch /tmp/cache-reuse.patch /tmp/loop-device-node.patch
 ARG TARGETARCH
 RUN --mount=type=cache,id=agents-in-the-cloud-ctr-go,target=/root/.cache/go-build \
-    GOTOOLCHAIN=go1.26.8 go test -mod=vendor ./internal/erofsutils \
-    && GOTOOLCHAIN=go1.26.8 CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" go build -mod=vendor -trimpath \
+    GOTOOLCHAIN=go1.26.10 go test -mod=vendor ./internal/erofsutils \
+    && GOTOOLCHAIN=go1.26.10 CGO_ENABLED=0 GOOS=linux GOARCH="$TARGETARCH" go build -mod=vendor -trimpath \
       -ldflags '-X github.com/containerd/containerd/v2/version.Version=v2.4.0-beta.0-agents-in-the-cloud -X github.com/containerd/containerd/v2/version.Revision=58e6cee9dee67ee87ee2f727d3570009050f9954+cache-lease+mount-root+cache-reuse+loop-node' \
       -o /out/ ./cmd/ctr ./cmd/containerd
 

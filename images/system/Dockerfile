@@ -1,5 +1,5 @@
-ARG RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:149efe3189255442091157921511b6c122b0254bb07e24d08d24408b4b79deda
-FROM oven/bun:1.3.14@sha256:e10577f0db68676a7024391c6e5cb4b879ebd17188ab750cf10024a6d700e5c4 AS bun
+ARG RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:aad5d19c57d57e670508b44e4cbf9cb3f41082e92c1a1e09858f35010b39a820
+FROM oven/bun:1.4.4@sha256:1d22548f177f4ff38e0c15baa3c2c46c6c2060ba2d1bc573bb4720b407548f1d AS bun
 FROM ghcr.io/tailscale/tailscale:v1.102.3@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680 AS tailscale
 FROM ${RUNTIME_IMAGE}
 # Keep incident-response tools in the System image, not the shared Docker runtime.
@@ -8,7 +8,7 @@ FROM ${RUNTIME_IMAGE}
 RUN apt-get update && apt-get install -y --no-install-recommends \
     atop bpfcc-tools bpftrace btop coreutils dnsutils htop iftop \
     iotop-c iproute2 iputils-ping linux-perf lsof mtr-tiny ncdu nethogs \
-    nftables procps psmisc smem strace sysstat systemd tcpdump tmux util-linux \
+    nftables procps psmisc smem strace sysstat systemd tcpdump util-linux \
     && rm -rf /var/lib/apt/lists/*
 LABEL org.opencontainers.image.source="https://github.com/lucasmeijer/atelier" \
       org.opencontainers.image.title="AgentsInTheCloud System"

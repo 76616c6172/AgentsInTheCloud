@@ -1,5 +1,6 @@
 .file-editor-pane { display: grid; grid-template-rows: 38px minmax(0, 1fr); width: 100%; height: 100%; min-height: 0; overflow: hidden; color: var(--text-bright); background: var(--bg); }
 .file-editor-toolbar { justify-content: space-between; min-width: 0; background: color-mix(in srgb, var(--panel) 88%, var(--bg)); font: var(--text-body) var(--font-sans); }
+.file-editor-toolbar-leading { display: flex; flex: 1 1 auto; align-items: center; gap: 8px; min-width: 0; }
 .file-editor-path { min-width: 0; overflow: hidden; color: var(--text); text-overflow: ellipsis; white-space: nowrap; }
 .file-editor-toolbar-actions { display: flex; flex: none; align-items: center; gap: 8px; }
 .file-editor-status { flex: none; color: var(--text-muted); }
@@ -60,7 +61,7 @@
   .file-editor-pane { grid-template-rows: 84px minmax(0, 1fr); }
   .files-navigator { grid-template-rows: 52px minmax(0, 1fr); }
   .file-editor-toolbar { flex-direction: column; align-items: stretch; justify-content: center; gap: 2px; }
-  .file-editor-path { flex: none; }
+  .file-editor-toolbar-leading { flex: none; }
   .file-editor-toolbar-actions { justify-content: space-between; gap: 4px; overflow-x: auto; }
   .file-editor-toolbar-actions > * { flex: none; }
   .file-editor-toolbar-actions > [data-files-navigator-expand] { order: -1; }
@@ -83,3 +84,5 @@
 .file-media-preview :is(img, video) { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
 
 .file-media-preview audio { width: min(100%, 640px); }
+
+.markdown-file-reference { text-decoration: underline dotted; text-underline-offset: 3px; }

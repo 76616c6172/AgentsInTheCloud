@@ -20,7 +20,7 @@
 .host-reading-warning, .host-diagnostics-table .host-reading-warning { color: var(--warning); }
 .host-probes { max-height: 440px; overflow: auto; }
 .host-probe-state { color: var(--text-muted); }
-.host-probe pre { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: var(--text-code)/var(--leading-standard) var(--font-mono); }
+.host-probe pre { margin: 0; font: var(--text-code)/var(--leading-standard) var(--font-mono); }
 .host-error { display: flex; align-items: start; gap: 8px; color: var(--danger); }
 .host-error p { flex: 1; }
 @media (max-width: 540px) {

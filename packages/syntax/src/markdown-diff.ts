@@ -27,7 +27,7 @@ export function renderMarkdownDiff(code: string, provisional = false): string {
   const html = patches.map((patch) => {
     const metadata = patch.patchMetadata ? renderSnippet(patch.patchMetadata) : "";
     return metadata + patch.files.map((file) => {
-      const renderer = new DiffHunksRenderer({ ...toolDiffOptions, overflow: "wrap", diffIndicators: "classic", hunkSeparators: "metadata", lineDiffType: "word-alt" });
+      const renderer = new DiffHunksRenderer({ ...toolDiffOptions, diffIndicators: "classic", hunkSeparators: "metadata", lineDiffType: "word-alt" });
       const result = renderer.renderDiff({ ...file, lang: "text" })!;
       const rendered = renderHTML([
         createStyleElement(result.css, true),

@@ -2,6 +2,8 @@ module agents-in-the-cloud/workspace-helper
 
 go 1.26.0
 
+toolchain go1.26.10
+
 require (
 	github.com/creack/pty v1.1.24
 	google.golang.org/grpc v1.84.0

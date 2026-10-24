@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -243,4 +244,83 @@ func TestFilesUseTheUsersPermissions(t *testing.T) {
 			t.Fatalf("%s belongs to %d, want %d", created, owner, uid)
 		}
 	}
+}
+
+func TestStatsFilesWithoutReadingThem(t *testing.T) {
+	directory := t.TempDir()
+	file := filepath.Join(directory, "file")
+	if err := os.WriteFile(file, []byte("hello"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(directory, "link")
+	if err := os.Symlink(file, link); err != nil {
+		t.Fatal(err)
+	}
+	dangling := filepath.Join(directory, "dangling")
+	if err := os.Symlink(filepath.Join(directory, "missing"), dangling); err != nil {
+		t.Fatal(err)
+	}
+	unreadable := filepath.Join(directory, "unreadable")
+	if err := os.WriteFile(unreadable, nil, 0); err != nil {
+		t.Fatal(err)
+	}
+	locked := filepath.Join(directory, "locked")
+	if err := os.Mkdir(locked, 0); err != nil {
+		t.Fatal(err)
+	}
+	modified := time.UnixMilli(1_700_000_000_000)
+	if err := os.Chtimes(file, modified, modified); err != nil {
+		t.Fatal(err)
+	}
+	type want struct {
+		kind              pb.FileKind
+		symlink, readable bool
+		size              uint64
+	}
+	type statCase struct {
+		path string
+		want want
+	}
+	cases := []statCase{
+		{file, want{kind: pb.FileKind_FILE_KIND_REGULAR, readable: true, size: 5}},
+		{link, want{kind: pb.FileKind_FILE_KIND_REGULAR, symlink: true, readable: true, size: 5}},
+		{directory, want{kind: pb.FileKind_FILE_KIND_DIRECTORY, readable: true}},
+		{"/dev/null", want{kind: pb.FileKind_FILE_KIND_OTHER}},
+		{filepath.Join(directory, "missing"), want{kind: pb.FileKind_FILE_KIND_MISSING}},
+		{dangling, want{kind: pb.FileKind_FILE_KIND_MISSING}},
+		{filepath.Join(file, "below"), want{kind: pb.FileKind_FILE_KIND_MISSING}},
+	}
+	// Root may read and look into anything.
+	if os.Geteuid() != 0 {
+		cases = append(cases,
+			statCase{unreadable, want{kind: pb.FileKind_FILE_KIND_REGULAR}},
+			statCase{filepath.Join(locked, "file"), want{kind: pb.FileKind_FILE_KIND_INACCESSIBLE}})
+	}
+	paths := make([]string, len(cases))
+	for index, c := range cases {
+		paths[index] = c.path
+	}
+	helper := client(t)
+	response, err := helper.StatFiles(context.Background(), &pb.StatFilesRequest{User: pb.User_USER_AGENT, Paths: paths})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(response.Stats) != len(cases) {
+		t.Fatalf("got %d stats for %d paths", len(response.Stats), len(cases))
+	}
+	for index, c := range cases {
+		stat := response.Stats[index]
+		got := want{kind: stat.Kind, symlink: stat.Symlink, readable: stat.Readable}
+		if c.want.kind == pb.FileKind_FILE_KIND_REGULAR {
+			got.size = stat.Size
+		}
+		if got != c.want {
+			t.Errorf("%s: got %+v, want %+v", c.path, got, c.want)
+		}
+	}
+	if got := response.Stats[0].ModifiedUnixMs; got != modified.UnixMilli() {
+		t.Errorf("modified %d, want %d", got, modified.UnixMilli())
+	}
+	_, err = helper.StatFiles(context.Background(), &pb.StatFilesRequest{User: pb.User_USER_AGENT, Paths: []string{file, "relative"}})
+	expectCode(t, err, codes.InvalidArgument)
 }

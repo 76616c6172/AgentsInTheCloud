@@ -2,46 +2,16 @@ import { createServer } from "node:net";
 import { createInterface } from "node:readline";
 import { chmod, mkdir, rm } from "node:fs/promises";
 import { dirname } from "node:path";
-import { attachHostObservableTerminal, buildObservableSessionCommand, type ObservableTerminalConnection } from "@agents-in-the-cloud/observable-terminal/server";
-import { parseObservableTerminalMessage } from "@agents-in-the-cloud/observable-terminal/shared";
-import { hostSocketPath, parseHostRequest, parseHostInput, terminalSize, validTerminalId, type HostReply, type HostResult, type HostCommand, type HostSample, type HostTerminal, type PrivateNetworkFirewallEntry } from "../protocol.ts";
-import { command } from "./command.ts";
+import { hostSocketPath, parseHostRequest, type HostReply, type HostResult, type HostCommand, type HostSample, type PrivateNetworkFirewallEntry } from "../protocol.ts";
 import { sampleHost } from "./sampler.ts";
-
-const tmux = (socketName: string, ...args: string[]) => command(["tmux", "-L", socketName, ...args]);
 
 export class HostService {
   private lastSample?: HostSample;
   private sampling?: Promise<HostSample>;
-  constructor(private readonly sample: () => Promise<HostSample>, private readonly privateNetworkAccess: (destinations: PrivateNetworkFirewallEntry[]) => Promise<void>, private readonly socketName = "agents-in-the-cloud-host") {}
+  constructor(private readonly sample: () => Promise<HostSample>, private readonly privateNetworkAccess: (destinations: PrivateNetworkFirewallEntry[]) => Promise<void>) {}
 
-  private async list(): Promise<HostTerminal[]> {
-    // The dedicated host tmux server is started once and kept alive with no sessions.
-    const text = await tmux(this.socketName, "list-sessions", "-F", "#{session_id}|#{session_name}");
-    return text.split("\n").filter(Boolean)
-      .map(line => { const [number, id] = line.split("|"); return { number: Number(number!.slice(1)) + 1, id: id! }; })
-      .filter(session => validTerminalId(session.id))
-      .sort((a, b) => a.number - b.number)
-      .map(({ id, number }) => ({ id, title: `Terminal ${number}` }));
-  }
-  async require(id: string): Promise<HostTerminal> {
-    const terminal = (await this.list()).find(item => item.id === id);
-    if (!terminal) throw new Error("Host terminal no longer exists");
-    return terminal;
-  }
   async handle(request: HostCommand): Promise<HostResult> {
     switch (request.operation) {
-      case "list": return this.list();
-      case "create": {
-        const id = `host-${crypto.randomUUID()}`;
-        await command(["sh", "-c", buildObservableSessionCommand({ session: id, socketName: this.socketName, cwd: "/", command: "/bin/bash", remainOnExit: true, historyLimit: 10000 })]);
-        return this.require(id);
-      }
-      case "terminate": {
-        const terminal = await this.require(request.id);
-        await tmux(this.socketName, "kill-session", "-t", terminal.id);
-        return null;
-      }
       case "sample": {
         if (this.sampling) return this.sampling;
         if (!request.fresh && this.lastSample) return this.lastSample;
@@ -56,49 +26,19 @@ export class HostService {
   }
 }
 
-/** Only the app receives this socket mount. No privileged API on the public supervisor listener. */
-export async function startHostService(options: { root: string; effectiveMemory: number; privateNetworkAccess: (destinations: PrivateNetworkFirewallEntry[]) => Promise<void>; socketPath?: string; tmuxSocketName?: string }) {
+/** Only the app receives this socket mount. No privileged API on the public supervisor listener. Each connection carries one request. */
+export async function startHostService(options: { root: string; effectiveMemory: number; privateNetworkAccess: (destinations: PrivateNetworkFirewallEntry[]) => Promise<void>; socketPath?: string }) {
   const socketPath = options.socketPath ?? hostSocketPath;
-  const socketName = options.tmuxSocketName ?? "agents-in-the-cloud-host";
   await mkdir(dirname(socketPath), { recursive: true });
-  // Keep the server alive even after explicitly terminating the final terminal.
-  await tmux(socketName, "-f", "/dev/null", "start-server", ";", "set-option", "-g", "exit-empty", "off");
-  const service = new HostService(() => sampleHost(options.root, options.effectiveMemory), options.privateNetworkAccess, socketName);
+  const service = new HostService(() => sampleHost(options.root, options.effectiveMemory), options.privateNetworkAccess);
   const server = createServer(socket => {
-    let terminal: ObservableTerminalConnection | undefined;
-    let initialized = false;
-    let closed = false;
-    const send = (reply: HostReply) => { if (!closed) socket.write(`${JSON.stringify(reply)}\n`); };
+    const reply = (value: HostReply) => socket.end(`${JSON.stringify(value)}\n`);
     const lines = createInterface({ input: socket, crlfDelay: Infinity });
-    socket.on("close", () => { closed = true; terminal?.close(); lines.close(); });
+    socket.on("close", () => lines.close());
     socket.on("error", error => { console.error("Host connection failed", error); socket.destroy(); });
-    let pending = Promise.resolve();
-    lines.on("line", line => {
-      pending = pending.then(async () => {
-        if (closed) return;
-        if (initialized) {
-          if (!terminal) throw new Error("Host connection is not interactive");
-          const input = parseHostInput(line);
-          const control = parseObservableTerminalMessage(input);
-          if (control?.type === "resize") terminal.resize(terminalSize(control.cols, 80), terminalSize(control.rows, 24));
-          else if (!control) terminal.write(input);
-          return;
-        }
-        initialized = true;
-        const request = parseHostRequest(line);
-        if (request.operation === "attach") {
-          const session = await service.require(request.id);
-          if (closed) return;
-          terminal = attachHostObservableTerminal({ session: session.id, socketName, cols: request.cols ?? 80, rows: request.rows ?? 24 }, {
-            onData: data => send({ type: "output", data: Buffer.from(data).toString("base64") }),
-            onExit: () => { send({ type: "exit" }); socket.end(); },
-          });
-          send({ type: "result", value: null });
-        } else {
-          send({ type: "result", value: await service.handle(request) });
-          socket.end();
-        }
-      }).catch(error => { send({ type: "error", message: String(error) }); terminal?.close(); socket.end(); });
+    lines.once("line", line => {
+      void (async () => reply({ type: "result", value: await service.handle(parseHostRequest(line)) }))()
+        .catch(error => reply({ type: "error", message: String(error) }));
     });
   });
   await rm(socketPath, { force: true });

@@ -33,6 +33,8 @@ describe("Agent pane visibility", () => {
     expect(agentComposerPrimaryAction(true, "", 1)).toBe("steer");
     expect(agentComposerPrimaryAction(true, "Follow up", 0)).toBe("steer");
     expect(agentComposerPrimaryAction(false, "", 0)).toBe("send");
+    expect(agentComposerPrimaryAction(true, "Later", 0, true, "followUp")).toBe("followUp");
+    expect(agentComposerPrimaryAction(true, "", 0, true, "followUp")).toBe("abort");
   });
 });
 

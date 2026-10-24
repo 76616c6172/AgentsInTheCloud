@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withCommandSignal } from "@agents-in-the-cloud/core";
 import { clearLocalTerminalProcesses, localTerminalProcesses, runLocally } from "../../src/server/local-terminal-processes.ts";
-import { runTerminalProcess } from "../../src/server/terminal-process.ts";
+import { runTerminalProcess, terminalProcessSession } from "../../src/server/terminal-process.ts";
 
 const directories: string[] = [];
 afterEach(async () => {
@@ -62,3 +62,29 @@ test("clearing forgets every process and stops those still running", async () =>
   expect(await processes.state(id)).toEqual({ state: "missing" });
   expect((await tmux("has-session", "-t", `=aitc-process-${id}`)).exitCode).not.toBe(0);
 });
+
+test("a run already cancelled when it starts the tmux server doesn't break later runs", async () => {
+  const { directory, processes } = await place();
+  const cancel = new AbortController();
+  cancel.abort(new Error("Preparation cancelled"));
+  // The very first command, the one that starts the server, runs under a cancelled signal.
+  await expect(withCommandSignal(cancel.signal, () => runTerminalProcess(processes, { command: "echo first", cwd: directory }, () => {}))).rejects.toThrow("Preparation cancelled");
+  const result = await runTerminalProcess(processes, { command: "echo second", cwd: directory }, () => {});
+  expect(result.output.text).toBe("second");
+});
+
+test("cancelling a wait for a local process stops waiting promptly, leaving the process running", async () => {
+  const { directory, processes } = await place();
+  const id = crypto.randomUUID();
+  await processes.start({ id, command: "sleep 30", cwd: directory });
+  const cancel = new AbortController();
+  const waited = withCommandSignal(cancel.signal, () => processes.waitForEnd(id));
+  // Cancel only once the wait is blocked in tmux, whose client holds the pipes.
+  const waiter = ["pgrep", "-f", `wait-for ${terminalProcessSession(id)}$`];
+  while (Bun.spawnSync(waiter).exitCode !== 0) await Bun.sleep(50);
+  const cancelled = Date.now();
+  cancel.abort(new Error("Run cancelled"));
+  await expect(waited).rejects.toThrow("Run cancelled");
+  expect(Date.now() - cancelled).toBeLessThan(5_000);
+  expect((await processes.state(id)).state).toBe("running");
+}, 70_000);

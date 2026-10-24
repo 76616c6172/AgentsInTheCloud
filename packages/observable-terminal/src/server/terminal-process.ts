@@ -65,6 +65,8 @@ export interface TerminalProcesses {
    */
   start(options: TerminalProcessStart): Promise<void>;
   state(id: string): Promise<TerminalProcessState>;
+  /** Waits until the process is no longer running; the ambient command signal cancels waiting, not the process. */
+  waitForEnd(id: string): Promise<Exclude<TerminalProcessState, { state: "running" }>>;
   /** Waits until the process exits; the ambient command signal cancels waiting, not the process. */
   waitForExit(id: string): Promise<Extract<TerminalProcessState, { state: "exited" }>>;
   /**
@@ -331,6 +333,16 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
     };
   }
 
+  async function waitForEnd(id: string): Promise<Exclude<TerminalProcessState, { state: "running" }>> {
+    const signal = commandSignal();
+    for (;;) {
+      signal?.throwIfAborted();
+      const current = await state(id);
+      if (current.state !== "running") return current;
+      await sh(waitScript, [directory(id), terminalProcessSession(id)]);
+    }
+  }
+
   return {
     async start(start) {
       const dir = directory(start.id);
@@ -348,15 +360,11 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
       ], start.command);
     },
     state,
+    waitForEnd,
     async waitForExit(id) {
-      const signal = commandSignal();
-      for (;;) {
-        signal?.throwIfAborted();
-        const current = await state(id);
-        if (current.state === "exited") return current;
-        if (current.state !== "running") throw new AgentsInTheCloudCoreError("terminal_process_failed", `Terminal process ${id} is ${current.state}`);
-        await sh(waitScript, [directory(id), terminalProcessSession(id)]);
-      }
+      const ended = await waitForEnd(id);
+      if (ended.state !== "exited") throw new AgentsInTheCloudCoreError("terminal_process_failed", `Terminal process ${id} is ${ended.state}`);
+      return ended;
     },
     async stop(id) {
       await sh(stopScript, [options.root, directory(id), terminalProcessSession(id)]);

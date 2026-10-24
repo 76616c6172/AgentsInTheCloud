@@ -1,7 +1,7 @@
 import { mkdir, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { AgentsInTheCloudCoreError, agentsInTheCloudDataPath, commandSignal, getAgentsInTheCloudRuntimeContext, requireDocker, runCommand, type CommandInput } from "@agents-in-the-cloud/core";
-import { closeWorkspaceHelper, readWorkspaceFile, readWorkspaceFileStream, runWorkspaceProcess, startWorkspaceProcess, WorkspaceHelperError, WorkspaceHelperStatus, writeWorkspaceFile, type WorkspaceExecStart, type WorkspaceFile, type WorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
+import { closeWorkspaceHelper, readWorkspaceFile, readWorkspaceFileStream, runWorkspaceProcess, startWorkspaceProcess, statWorkspaceFiles, WorkspaceHelperError, WorkspaceHelperStatus, writeWorkspaceFile, type WorkspaceExecStart, type WorkspaceFile, type WorkspaceFileStat, type WorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
 
 /** Shared with the app's ingress and egress sockets; the helper listens here as well. */
 export const workspaceParentSocketDirectory = "/run/agents-in-the-cloud-parent";
@@ -104,6 +104,17 @@ export async function checkFileInWorkspace(id: string, file: WorkspaceFile): Pro
   } finally {
     await reader.cancel().catch(() => {});
   }
+}
+
+/** Describes each of these absolute paths without reading them; in request order. */
+export async function statFilesInWorkspace(id: string, user: WorkspaceFile["user"], paths: string[]): Promise<WorkspaceFileStat[]> {
+  if (paths.length === 0) return [];
+  return await describingFailure(id, statWorkspaceFiles(workspaceHelperSocketPath(id), user, paths, { signal: commandSignal() }));
+}
+
+/** Which of these absolute paths are regular files `user` can read, following symlinks; in request order. */
+export async function existingFilesInWorkspace(id: string, user: WorkspaceFile["user"], paths: string[]): Promise<string[]> {
+  return (await statFilesInWorkspace(id, user, paths)).filter((stat) => stat.kind === "regular" && stat.readable).map((stat) => stat.path);
 }
 
 /** Replaces or creates a file atomically, along with any missing folders. */

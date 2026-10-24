@@ -22,8 +22,8 @@ export const Delegation = defineDoc<{
   receipts: Record<string, Receipt>;
   assignments: Record<string, { recipient: ConversationId; status: "pending" | "completed" | "failed" | "interrupted"; result?: string }>;
   operations: Record<string, { child?: string; previous?: import("@earendil-works/chord").JsonValue }>;
-}>({ kind: "agents-in-the-cloud.delegation", version: 1, scope: "session", initial: () => ({ receipts: {}, assignments: {}, operations: {} }) });
-export const Mailbox = defineDoc<{ receipts: Receipt[] }>({ kind: "agents-in-the-cloud.mailbox", version: 1, scope: "conversation", history: "latest", fork: "initial", initial: () => ({ receipts: [] }) });
+}>({ kind: "agents-in-the-cloud.delegation", version: 1, scope: "session", initial: () => ({ receipts: {}, assignments: {}, operations: {} }), checkpointWhen: () => false, });
+export const Mailbox = defineDoc<{ receipts: Receipt[] }>({ kind: "agents-in-the-cloud.mailbox", version: 1, scope: "conversation", history: "latest", fork: "initial", initial: () => ({ receipts: [] }), checkpointWhen: () => false, });
 
 /** Keep routing state, the recipient mailbox and transcript evidence in one commit. */
 export async function updateReceipt(tx: Tx, id: string, change: Partial<Receipt>) {

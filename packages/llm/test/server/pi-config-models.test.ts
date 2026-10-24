@@ -65,30 +65,14 @@ describe("enabled model storage", () => {
 });
 
 describe("custom Pi model configuration", () => {
-  test("review the Codex Sol override when Pi's bundled context limit changes", async () => {
-    // No app configuration, stored catalogue restoration, or network refresh:
-    // this must inspect the default shipped by the installed Pi dependency.
-    const upstream = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
-    expect(
-      upstream.getModel("openai-codex", "gpt-6.1-sol")?.contextWindow,
-      "Upstream changed Codex Sol's context limit. Review or remove our 500k override in pi-config-models.ts.",
-    ).toBe(272000);
-  });
-
-  test("Codex Sol defaults to 500k through catalogue refresh without changing other models", async () => {
+  test("without custom configuration, the catalogue is Pi's own, through refresh too", async () => {
     await setCustomModelsJson("");
     expect(await getCustomModelsJson()).toBe("");
     const runtime = await ModelRuntime.create({ modelsPath: join(dataDir, "pi-config", "models.json"), allowModelNetwork: false, refreshOnCreate: false });
     const official = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
-    const expected = { ...official.getModel("openai-codex", "gpt-6.1-sol")!, contextWindow: 500000 };
-    expect(runtime.getModel("openai-codex", "gpt-6.1-sol")).toEqual(expected);
-    for (const model of official.getModels()) {
-      if (model.provider === "openai-codex" && model.id === "gpt-6.1-sol") continue;
-      expect(runtime.getModel(model.provider, model.id)).toEqual(model);
-    }
+    for (const model of official.getModels()) expect(runtime.getModel(model.provider, model.id)).toEqual(model);
     await runtime.refresh({ allowNetwork: false });
-    expect(runtime.getModel("openai-codex", "gpt-6.1-sol")).toEqual(expected);
-    expect(runtime.getModels("openai-codex").find(model => model.id === "gpt-6.1-sol")).toEqual(expected);
+    for (const model of official.getModels()) expect(runtime.getModel(model.provider, model.id)).toEqual(model);
   });
 
   test("explicit Sol overrides and other provider settings are preserved", async () => {
@@ -116,7 +100,7 @@ describe("custom Pi model configuration", () => {
       providers: {
         "openai-codex": {
           models: [
-            { id: "gpt-5.5", name: "Stale custom copy" },
+            { id: "gpt-6.1-sol", name: "Stale custom copy" },
             { id: "future-model", name: "Future model" },
           ],
         },
@@ -126,7 +110,7 @@ describe("custom Pi model configuration", () => {
     const result = await setCustomModelsJson(source);
     const effective = JSON.parse(await readFile(join(dataDir, "pi-config", "models.json"), "utf8"));
 
-    expect(result.skippedOfficialModels).toEqual([{ provider: "openai-codex", id: "gpt-5.5" }]);
+    expect(result.skippedOfficialModels).toEqual([{ provider: "openai-codex", id: "gpt-6.1-sol" }]);
     expect(effective.providers["openai-codex"].models).toEqual([{ id: "future-model", name: "Future model" }]);
     expect(JSON.parse(await getCustomModelsJson()).providers["openai-codex"].models).toHaveLength(2);
   });

@@ -12,19 +12,14 @@ export interface ObservableTerminalEvents {
   onExit(exitCode: number, reason?: "session-missing"): void;
 }
 
-export interface HostObservableTerminalAttachOptions {
+export interface ObservableTerminalAttachOptions {
   session: string;
-  /** Optional isolated tmux server, for System-owned host sessions. */
-  socketName?: string;
   /** Attach only; never start a replacement server for a missing execution. */
   requireExistingServer?: boolean;
   cols: number;
   rows: number;
   readonly?: boolean;
-}
-
-export interface ObservableTerminalAttachOptions extends HostObservableTerminalAttachOptions {
-  /** Starts the tmux client in the workspace. */
+  /** Starts the tmux client, in a workspace or on this machine. */
   start: StartWorkspaceProcess;
   user?: WorkspaceHelperUser;
   workdir?: string;
@@ -32,9 +27,8 @@ export interface ObservableTerminalAttachOptions extends HostObservableTerminalA
   reportSessionMissing?: boolean;
 }
 
-function tmuxAttachArgs(options: HostObservableTerminalAttachOptions): string[] {
+function tmuxAttachArgs(options: Omit<ObservableTerminalAttachOptions, "start">): string[] {
   const args: string[] = options.requireExistingServer ? ["-N"] : [];
-  if (options.socketName) args.push("-L", options.socketName);
   if (!options.readonly) {
     // History belongs to tmux, not the browser terminal. Configure each attachment
     // so new and existing sessions work without caller-specific preparation.
@@ -69,44 +63,10 @@ export function buildAttachStart(options: Omit<ObservableTerminalAttachOptions, 
   };
 }
 
-export function attachHostObservableTerminal(options: HostObservableTerminalAttachOptions, events: ObservableTerminalEvents): ObservableTerminalConnection {
-  const env = { ...process.env, ...observableTerminalEnvironment, TMUX: undefined, TMUX_PANE: undefined };
-  const terminal = new Bun.Terminal({
-    name: "xterm-256color",
-    cols: options.cols,
-    rows: options.rows,
-    data: (_terminal, data) => events.onData(data),
-  });
-  const subprocess = Bun.spawn({ cmd: ["tmux", ...tmuxAttachArgs(options)], env, terminal });
-
-  let closed = false;
-  void subprocess.exited.then((exitCode) => {
-    if (!closed) terminal.close();
-    closed = true;
-    events.onExit(exitCode);
-  });
-
-  return {
-    write: (data) => { if (!closed) terminal.write(data); },
-    resize: (cols, rows) => {
-      if (closed) return;
-      terminal.resize(cols, rows);
-      // Bun's PTY resize updates dimensions without notifying the client.
-      subprocess.kill("SIGWINCH");
-    },
-    close: () => {
-      if (closed) return;
-      closed = true;
-      subprocess.kill("SIGHUP");
-      terminal.close();
-    },
-  };
-}
-
 /** Whether the session exists, without starting a tmux server. Unexpected tmux failures are errors. */
 async function sessionExists(options: ObservableTerminalAttachOptions): Promise<boolean> {
   const check = options.start({
-    argv: ["tmux", "-N", ...(options.socketName ? ["-L", options.socketName] : []), "has-session", "-t", `=${options.session}`],
+    argv: ["tmux", "-N", "has-session", "-t", `=${options.session}`],
     user: options.user ?? "agents-in-the-cloud",
   });
   const [, diagnostic, exit] = await Promise.all([new Response(check.stdout).arrayBuffer(), new Response(check.stderr).text(), check.exited]);

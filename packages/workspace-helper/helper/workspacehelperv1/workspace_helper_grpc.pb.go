@@ -25,6 +25,7 @@ const (
 	WorkspaceHelper_Attach_FullMethodName    = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/Attach"
 	WorkspaceHelper_ReadFile_FullMethodName  = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/ReadFile"
 	WorkspaceHelper_WriteFile_FullMethodName = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/WriteFile"
+	WorkspaceHelper_StatFiles_FullMethodName = "/agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper/StatFiles"
 )
 
 // WorkspaceHelperClient is the client API for WorkspaceHelper service.
@@ -68,6 +69,11 @@ type WorkspaceHelperClient interface {
 	// Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT, and
 	// FAILED_PRECONDITION when `path` is a folder or another non-regular file.
 	WriteFile(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[WriteFileRequest, WriteFileResponse], error)
+	// Describes each of `paths` as `user` sees it, following symlinks, with what
+	// the file system reports cheaply: a stat each, and an open without reading
+	// for regular files and folders, to tell whether `user` may read them.
+	// Fails with INVALID_ARGUMENT for a relative path.
+	StatFiles(ctx context.Context, in *StatFilesRequest, opts ...grpc.CallOption) (*StatFilesResponse, error)
 }
 
 type workspaceHelperClient struct {
@@ -136,6 +142,16 @@ func (c *workspaceHelperClient) WriteFile(ctx context.Context, opts ...grpc.Call
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type WorkspaceHelper_WriteFileClient = grpc.ClientStreamingClient[WriteFileRequest, WriteFileResponse]
 
+func (c *workspaceHelperClient) StatFiles(ctx context.Context, in *StatFilesRequest, opts ...grpc.CallOption) (*StatFilesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(StatFilesResponse)
+	err := c.cc.Invoke(ctx, WorkspaceHelper_StatFiles_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkspaceHelperServer is the server API for WorkspaceHelper service.
 // All implementations must embed UnimplementedWorkspaceHelperServer
 // for forward compatibility.
@@ -177,6 +193,11 @@ type WorkspaceHelperServer interface {
 	// Fails with NOT_FOUND, PERMISSION_DENIED, INVALID_ARGUMENT, and
 	// FAILED_PRECONDITION when `path` is a folder or another non-regular file.
 	WriteFile(grpc.ClientStreamingServer[WriteFileRequest, WriteFileResponse]) error
+	// Describes each of `paths` as `user` sees it, following symlinks, with what
+	// the file system reports cheaply: a stat each, and an open without reading
+	// for regular files and folders, to tell whether `user` may read them.
+	// Fails with INVALID_ARGUMENT for a relative path.
+	StatFiles(context.Context, *StatFilesRequest) (*StatFilesResponse, error)
 	mustEmbedUnimplementedWorkspaceHelperServer()
 }
 
@@ -198,6 +219,9 @@ func (UnimplementedWorkspaceHelperServer) ReadFile(*ReadFileRequest, grpc.Server
 }
 func (UnimplementedWorkspaceHelperServer) WriteFile(grpc.ClientStreamingServer[WriteFileRequest, WriteFileResponse]) error {
 	return status.Error(codes.Unimplemented, "method WriteFile not implemented")
+}
+func (UnimplementedWorkspaceHelperServer) StatFiles(context.Context, *StatFilesRequest) (*StatFilesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method StatFiles not implemented")
 }
 func (UnimplementedWorkspaceHelperServer) mustEmbedUnimplementedWorkspaceHelperServer() {}
 func (UnimplementedWorkspaceHelperServer) testEmbeddedByValue()                         {}
@@ -252,13 +276,36 @@ func _WorkspaceHelper_WriteFile_Handler(srv interface{}, stream grpc.ServerStrea
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type WorkspaceHelper_WriteFileServer = grpc.ClientStreamingServer[WriteFileRequest, WriteFileResponse]
 
+func _WorkspaceHelper_StatFiles_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(StatFilesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkspaceHelperServer).StatFiles(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkspaceHelper_StatFiles_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkspaceHelperServer).StatFiles(ctx, req.(*StatFilesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkspaceHelper_ServiceDesc is the grpc.ServiceDesc for WorkspaceHelper service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var WorkspaceHelper_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "agents_in_the_cloud.workspace_helper.v1.WorkspaceHelper",
 	HandlerType: (*WorkspaceHelperServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "StatFiles",
+			Handler:    _WorkspaceHelper_StatFiles_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Exec",

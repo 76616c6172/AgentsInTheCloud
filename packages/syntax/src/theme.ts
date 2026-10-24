@@ -13,6 +13,8 @@ export const agentsInTheCloudTheme: Theme = {
   style: {
     foreground: "foreground",
     background: "background",
+    // Pierre's editor paints selections in the first player's colour.
+    players: [{ selection: "selection" }],
     syntax: {
       attribute: "attribute",
       boolean: "literal",
@@ -46,5 +48,5 @@ export const agentsInTheCloudTheme: Theme = {
       variant: "type",
     },
   },
-  cssVariables: { prefix: "--syntax-", defaults: { foreground: "var(--text-bright)", background: "transparent" } },
+  cssVariables: { prefix: "--syntax-", defaults: { foreground: "var(--text-bright)", background: "transparent", selection: "color-mix(in srgb, var(--accent) 32%, transparent)" } },
 };

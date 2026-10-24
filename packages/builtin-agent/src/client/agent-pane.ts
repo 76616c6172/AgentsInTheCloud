@@ -6,6 +6,7 @@ import { agentComposerPrimaryAction, agentComposerTextStorageKey, PromptHistoryN
 import { TranscriptNavigation } from "@agents-in-the-cloud/agent/client/transcript-navigation";
 import { transcriptTargetSelector } from "./turn-controller.ts";
 
+const steerResponseSchema = Type.Object({ input: Type.Object({ steered: Type.Boolean() }) });
 const admissionSchema = Type.Object({ payload: Type.String(), requestId: Type.String({ pattern: "^[a-zA-Z0-9_-]{1,128}$" }) });
 
 type TurboSubmitEndEvent = CustomEvent<{ success: boolean; fetchResponse?: { response: Response } }>;
@@ -34,7 +35,7 @@ export function agentConnectionShouldRun(logicallyVisible: boolean, documentVisi
 export function createAgentPaneController(Controller: StimulusControllerConstructor) {
   return class AgentPaneController extends Controller implements AgentPaneControllerInstance {
     static values = { workspaceId: String, agentId: String, moduleChannel: String };
-    static targets = ["transcript", "transcriptContent", "transcriptEnd", "input", "form", "sendStop"];
+    static targets = ["transcript", "transcriptContent", "transcriptEnd", "input", "form", "sendStop", "queuedSteer"];
     declare readonly element: HTMLElement;
     declare readonly application: StimulusApplication;
     declare readonly workspaceIdValue: string;
@@ -54,7 +55,9 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     private hasBeenReady = false;
     private composerMutationObserver?: MutationObserver;
     private connected = false;
-    private submittedComposer?: { text: string; attachmentIds: string[]; requestId: string };
+    private submittedComposer?: { text: string; attachmentIds: string[]; requestId: string; busy: boolean };
+    private steerWhenAdmitted = false;
+    private sentSubmissionId?: string;
     private readonly identifySubmission = (event: FormDataEvent): void => {
       const body = event.formData;
       // Mode may change from send to steer while an uncertain request retries.
@@ -112,6 +115,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         text: submittedText,
         attachmentIds: body.getAll("attachment").map(String),
         requestId: String(body.get("requestId")),
+        busy: this.busy,
       };
       this.scrollToTranscriptEnd();
     };
@@ -129,7 +133,7 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["data-agent-busy", "data-agent-stoppable", "data-agent-abort-form-id"],
+        attributeFilter: ["data-agent-busy", "data-agent-busy-mode", "data-agent-stoppable", "data-agent-abort-form-id"],
       });
       const promptDraft = localStorage.getItem(this.composerTextStorageKey);
       if (promptDraft !== null) this.inputTarget.value = promptDraft;
@@ -292,8 +296,13 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       if (composerSubmitKey(event)) {
         event.preventDefault();
         if (this.inputTarget.value.trim() || this.formTarget.querySelector(".agent-chip")) {
-          const submitter = this.formTarget.querySelector<HTMLButtonElement>('button[value="send"], button[value="steer"]');
+          const submitter = this.formTarget.querySelector<HTMLButtonElement>('button[name="mode"]');
           this.formTarget.requestSubmit(submitter ?? undefined);
+        } else if (!event.repeat) {
+          // Sending twice steers: the second press, in the now empty composer, promotes the newest follow-up,
+          // or, while the first is still being sent, that one once it's admitted.
+          if (this.submittedComposer) this.steerWhenAdmitted = true;
+          else this.steerNewestFollowUp();
         }
       }
     }
@@ -326,7 +335,8 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
       const button = this.sendStopTarget;
       const busy = button.dataset.agentBusy === "true";
       if (this.connected) this.navigation.setStreaming(busy);
-      const action = agentComposerPrimaryAction(busy, this.inputTarget.value, this.formTarget.querySelectorAll('input[name="attachment"]').length, button.dataset.agentStoppable === "true");
+      const busyMode = button.dataset.agentBusyMode === "followUp" ? "followUp" : "steer";
+      const action = agentComposerPrimaryAction(busy, this.inputTarget.value, this.formTarget.querySelectorAll('input[name="attachment"]').length, button.dataset.agentStoppable === "true", busyMode);
       if (action === "abort") {
         setActivityButtonState(button, "active");
         button.type = "submit";
@@ -345,6 +355,8 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     async sendPrompt(event: CustomEvent<AgentComposerSendPromptDetail>): Promise<void> {
       const body = new FormData();
       body.set("text", event.detail.text);
+      // Like a typed prompt: while the agent works, it waits for the turn to end.
+      body.set("mode", "send");
       body.set("requestId", crypto.randomUUID());
       body.set("attachmentDraft", String(new FormData(this.formTarget).get("attachmentDraft")));
       const response = await fetch(this.formTarget.action, { method: "POST", body, headers: { Accept: "text/vnd.turbo-stream.html" } });
@@ -367,6 +379,8 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
     submitted(event: TurboSubmitEndEvent): void {
       const submission = this.submittedComposer;
       this.submittedComposer = undefined;
+      const steer = this.steerWhenAdmitted;
+      this.steerWhenAdmitted = false;
       if (!event.detail.success) {
         // Sending never discards the draft.
         if (submission && !this.inputTarget.value) this.setInputValue(submission.text);
@@ -383,6 +397,34 @@ export function createAgentPaneController(Controller: StimulusControllerConstruc
         });
       }
       this.element.dispatchEvent(new Event("agent-composer:sent"));
+      const submissionId = event.detail.fetchResponse?.response.headers.get("x-agents-in-the-cloud-submission-id") ?? undefined;
+      // Only input sent while the agent works is queued, and its row may already be shown.
+      const queued = submission?.busy && submissionId && !this.transcriptTarget.querySelector(`[data-agent-queued-steer="${CSS.escape(submissionId)}"]`) ? submissionId : undefined;
+      this.sentSubmissionId = steer ? undefined : queued;
+      if (steer && submissionId) void this.steerQueuedInput(submissionId);
+    }
+
+    /** Until the follow-up just sent appears, the newest one on screen is an older one. */
+    private steerNewestFollowUp(): void {
+      const sent = this.sentSubmissionId;
+      this.sentSubmissionId = undefined;
+      if (sent) void this.steerQueuedInput(sent).then(steered => { if (!steered) this.clickNewestSteer(); });
+      else this.clickNewestSteer();
+    }
+
+    private clickNewestSteer(): void {
+      [...this.transcriptTarget.querySelectorAll<HTMLButtonElement>("button[data-agent-queued-steer]")].at(-1)?.click();
+    }
+
+    queuedSteerTargetConnected(button: HTMLButtonElement): void {
+      if (button.dataset.agentQueuedSteer === this.sentSubmissionId) this.sentSubmissionId = undefined;
+    }
+
+    /** Whether it was still a queued follow-up; the live view shows the change. */
+    private async steerQueuedInput(submissionId: string): Promise<boolean> {
+      const response = await fetch(new URL(`queued-inputs/${encodeURIComponent(submissionId)}/steer`, this.formTarget.action), { method: "POST", headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error(`Could not steer the follow-up: HTTP ${response.status}`);
+      return Value.Parse(steerResponseSchema, await response.json()).input.steered;
     }
   };
 }

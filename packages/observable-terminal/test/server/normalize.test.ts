@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildListSessionsCommand, buildObservableSessionCommand, terminalProcessSession } from "../../src/server/index.ts";
+import { buildListSessionsCommand, terminalProcessSession } from "../../src/server/index.ts";
 import { normalizeCarriageReturns, stripTerminalControls } from "../../src/server/text.ts";
 import { buildAttachStart } from "../../src/server/attach.ts";
 
@@ -23,9 +23,9 @@ describe("observable terminal normalization", () => {
   });
 
   test("interactive attachments configure tmux-owned scrollback before attaching", () => {
-    const start = buildAttachStart({ session: "s", cols: 80, rows: 24, socketName: "isolated" });
+    const start = buildAttachStart({ session: "s", cols: 80, rows: 24 });
     expect(start.argv).toEqual([
-      "tmux", "-L", "isolated",
+      "tmux",
       "set-option", "-t", "s", "mouse", "on", ";",
       "set-option", "-t", "s", "set-clipboard", "on", ";",
       "bind-key", "-n", "S-PPage", "copy-mode -e ; send-keys -X page-up", ";",
@@ -40,12 +40,6 @@ describe("observable terminal normalization", () => {
   test("read-only attachments do not configure scrollback", () => {
     const start = buildAttachStart({ session: "s", cols: 80, rows: 24, readonly: true });
     expect(start.argv).toEqual(["tmux", "attach-session", "-r", "-t", "s"]);
-  });
-
-  test("hides tmux dead-pane footer when panes remain on exit", () => {
-    const command = buildObservableSessionCommand({ session: "s", cwd: "/work", command: "/bin/bash", remainOnExit: true });
-    expect(command).toContain("remain-on-exit on");
-    expect(command).toContain("remain-on-exit-format ''");
   });
 
   test("terminal process viewers attach read-only to the existing server", () => {

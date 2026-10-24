@@ -17,17 +17,19 @@ import { collectUnchangedPaths, maxUnchangedMediaBytes, readUnchangedContents, r
 import { canEditFile } from "../editing.ts";
 import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff, noticeId, renderNotice } from "./render.ts";
 import type { DiffEndpoints } from "../history.ts";
+import { workspaceChangeBuckets, type ChangeBucket } from "./buckets.ts";
 import { captureChanges, commitHistory, InvalidDiffEndpoints, workingTree, type ChangesSnapshot } from "./snapshot.ts";
 
 const reference = { type: "changes" } as const;
 const referenceSchema = Type.Object({ type: Type.Literal("changes") });
-interface ChangesState { snapshot: ChangesSnapshot; request: number; clients: Map<string, number> }
+/** Buckets are re-read whenever the whole view or a new comparison renders, so saved settings show up on the next refresh. */
+interface ChangesState { snapshot: ChangesSnapshot; buckets: readonly ChangeBucket[]; request: number; clients: Map<string, number> }
 let invalidateWorkspace: (workspaceId: string) => void;
 const states = new Map<string, Promise<ChangesState>>();
 function current(workspaceId: string): Promise<ChangesState> {
   let state = states.get(workspaceId);
   if (!state) {
-    state = captureChanges(workspaceRepository(workspaceId)).then(snapshot => ({ snapshot, request: 0, clients: new Map<string, number>() }));
+    state = Promise.all([captureChanges(workspaceRepository(workspaceId)), workspaceChangeBuckets(workspaceId)]).then(([snapshot, buckets]) => ({ snapshot, buckets, request: 0, clients: new Map<string, number>() }));
     states.set(workspaceId, state);
     void state.catch(() => { if (states.get(workspaceId) === state) states.delete(workspaceId); });
   }
@@ -61,8 +63,8 @@ const commentSaveSchema = Type.Object({
 });
 const commentVersionSchema = Type.Object({ id: Type.String({ minLength: 1, maxLength: 64 }), revision: Type.Integer({ minimum: 1 }) });
 const copiedSchema = Type.Array(commentVersionSchema);
-function commentRegions(workspaceId: string, snapshot: ChangesSnapshot, key: string): LiveRegion[] {
-  if (key !== snapshot.id) return [{ target: domId("changes", key, "diff"), html: renderDiff(workspaceId, snapshot, true), action: "replace", morph: false }];
+function commentRegions(workspaceId: string, { snapshot, buckets }: ChangesState, key: string): LiveRegion[] {
+  if (key !== snapshot.id) return [{ target: domId("changes", key, "diff"), html: renderDiff(workspaceId, snapshot, buckets, true), action: "replace", morph: false }];
   const comments = placeReviewComments(reviewComments.list(workspaceId), snapshot);
   return [
     { target: commentsModelId(key), html: renderCommentsModel(key, comments), action: "replace", morph: false },
@@ -70,14 +72,14 @@ function commentRegions(workspaceId: string, snapshot: ChangesSnapshot, key: str
     { target: commentsActionsId(key), html: renderCommentActions(workspaceId, key, comments), action: "replace", morph: false },
   ];
 }
-function commentsResponse(workspaceId: string, snapshot: ChangesSnapshot, key: string): Response {
-  return turboStreamResponse(commentRegions(workspaceId, snapshot, key).map(region => replace(region.target, region.html)).join(""));
+function commentsResponse(workspaceId: string, state: ChangesState, key: string): Response {
+  return turboStreamResponse(commentRegions(workspaceId, state, key).map(region => replace(region.target, region.html)).join(""));
 }
 
 export const agentsInTheCloudServerModule: WorkspaceModule = {
   id: "changes",
   deletionReview: changesDeletionReview,
-  liveSurfaces: [{ name: "review-comments", async load({ workspaceId, key }) { return commentRegions(workspaceId, (await current(workspaceId)).snapshot, key); } }],
+  liveSurfaces: [{ name: "review-comments", async load({ workspaceId, key }) { return commentRegions(workspaceId, await current(workspaceId), key); } }],
   workViews: [{
     type: "changes",
     parseReference(value: JsonValue) {
@@ -85,7 +87,11 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
       return reference;
     },
     identity: () => "workspace",
-    async render({ workspaceId }) { return renderChanges(workspaceId, (await current(workspaceId)).snapshot); },
+    async render({ workspaceId }) {
+      const state = await current(workspaceId);
+      state.buckets = await workspaceChangeBuckets(workspaceId);
+      return renderChanges(workspaceId, state.snapshot, state.buckets);
+    },
   }],
   commands: [{ id: "changes.open", execute: () => ({ createdWorkView: reference }) }],
   staticFiles: { "/deletion.css": { url: new URL("../client/deletion.css", import.meta.url), contentType: "text/css; charset=utf-8" }, "/changes.css": { url: new URL("../client/style.css", import.meta.url), contentType: "text/css; charset=utf-8" } },
@@ -148,7 +154,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         state.snapshot = next; state.clients.clear();
         invalidateWorkspace(workspaceId);
         const previousId = comparisonId(workspaceId, next.history.id);
-        return turboStreamResponse(replace(previousId, renderComparison(workspaceId, next)) + replace(historyContentId(next.history), renderHistory(next)));
+        return turboStreamResponse(replace(previousId, renderComparison(workspaceId, next, state.buckets)) + replace(historyContentId(next.history), renderHistory(next)));
       } catch (error) {
         if (!(error instanceof EditError)) throw error;
         return textResponse(error.message, { status: error.status });
@@ -159,7 +165,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
       if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });
       const workspaceId = commentRoute[0]!, operation = commentRoute[1]!;
       const data = await request.formData();
-      const { snapshot } = await current(workspaceId);
+      const state = await current(workspaceId), { snapshot } = state;
       const key = String(data.get("snapshot") ?? snapshot.id);
       try {
         if (operation === "copied" || operation === "delete-many") {
@@ -189,7 +195,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         return textResponse(error.message, { status: error instanceof CommentConflict ? 409 : 422 });
       }
       invalidateWorkspace(workspaceId);
-      return operation === "copied" ? turboStreamResponse(replace(deletionCommentsId(workspaceId), renderDeletionComments(workspaceId, reviewComments.list(workspaceId)))) : commentsResponse(workspaceId, snapshot, key);
+      return operation === "copied" ? turboStreamResponse(replace(deletionCommentsId(workspaceId), renderDeletionComments(workspaceId, reviewComments.list(workspaceId)))) : commentsResponse(workspaceId, state, key);
     }
     let match = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/deletion\/file$/);
     if (match) return request.method === "GET" ? await deletionReviewFileResponse(match[0]!, url) : textResponse("Method not allowed", { status: 405 });
@@ -256,14 +262,16 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     const ticket = ++state.request;
     // Existing HTTP field names map to the canonical Diff endpoints model.
     const requestedEndpoints = { target: data.get("end"), base: data.has("start") ? data.get("start") === "" ? null : data.get("start") : undefined };
-    let next: ChangesSnapshot;
+    let next: ChangesSnapshot, buckets: readonly ChangeBucket[];
     try {
       if (!Value.Check(diffEndpointsSchema, requestedEndpoints)) throw new InvalidDiffEndpoints("Invalid comparison endpoints.");
       const endpoints: DiffEndpoints = requestedEndpoints;
       const root = workspaceRepository(workspaceId);
-      if (match[1] === "compare") next = await captureChanges(root, endpoints, previous.history);
       // A browser still showing an older history (say, before a commit link replaced it) refreshes what the server shows now.
-      else next = await refreshChanges(root, previous, data.get("history") === previous.history.id ? endpoints : previous.endpoints);
+      [next, buckets] = await Promise.all([
+        match[1] === "compare" ? captureChanges(root, endpoints, previous.history) : refreshChanges(root, previous, data.get("history") === previous.history.id ? endpoints : previous.endpoints),
+        workspaceChangeBuckets(workspaceId),
+      ]);
     } catch (thrown) {
       const error = thrown instanceof Error ? thrown : new Error(String(thrown));
       const invalid = error instanceof InvalidDiffEndpoints;
@@ -274,12 +282,13 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     // Last request wins. A slow earlier capture must not publish or overwrite a newer selection.
     if (ticket !== state.request) return new Response(null, { status: 204 });
     state.snapshot = next;
+    state.buckets = buckets;
     invalidateWorkspace(workspaceId);
     if (match[1] === "refresh") {
       state.clients.clear();
-      return turboStreamResponse(replace(changesBodyId(workspaceId, previous.history.id), renderChanges(workspaceId, next, data.get("pickerOpen") === "true")));
+      return turboStreamResponse(replace(changesBodyId(workspaceId, previous.history.id), renderChanges(workspaceId, next, state.buckets, data.get("pickerOpen") === "true")));
     }
-    return turboStreamResponse(replace(comparisonId(workspaceId, previous.history.id), renderComparison(workspaceId, next, true)) + replace(errorId(workspaceId, previous.history.id), renderError(workspaceId, previous.history.id)));
+    return turboStreamResponse(replace(comparisonId(workspaceId, previous.history.id), renderComparison(workspaceId, next, state.buckets, true)) + replace(errorId(workspaceId, previous.history.id), renderError(workspaceId, previous.history.id)));
   } }],
   initialize(context) {
     invalidateWorkspace = context.invalidateWorkspace;

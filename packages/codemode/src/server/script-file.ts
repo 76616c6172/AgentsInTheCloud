@@ -10,6 +10,7 @@ const ScriptFileDoc = defineDoc<{ file?: ScriptFileView }>({
   version: 1,
   scope: "task",
   initial: () => ({}),
+  checkpointWhen: () => false,
 });
 
 /** The script file a code mode call ran, by the call's ID, for the transcript; the task's document is gone once it ends. */

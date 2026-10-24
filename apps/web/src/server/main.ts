@@ -324,10 +324,6 @@ const server = Bun.serve<SocketData>({
 });
 const serverPort = server.port ?? requestedPort;
 
-void agentsInTheCloudEvents.emit("agents_in_the_cloud_host_started", {
-  workspaces: persistedWorkspaces.map(({ id, parked }) => ({ id, parked: Boolean(parked) })),
-}).catch((error) => console.error("AgentsInTheCloud startup handlers failed", error));
-
 console.log(`${agentsInTheCloudName} is available at ${displayUrl(hostname, serverPort)}`);
 
 void reprovisionWorkspaces(registry, workspaceStartupOperations).catch((error) => console.error("Workspace reprovisioning failed", error));

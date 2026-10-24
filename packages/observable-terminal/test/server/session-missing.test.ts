@@ -105,7 +105,8 @@ test("callers that do not request session detection retain their existing exit b
 
 test("a missing session on real tmux is reported without starting a replacement server", async () => {
   const socketName = `missing-${crypto.randomUUID()}`;
-  expect(await attach({ session: "missing", socketName, requireExistingServer: true, reportSessionMissing: true, start: localStart() })).toEqual({ code: 1, reason: "session-missing", output: "" });
+  const start = localStart();
+  expect(await attach({ session: "missing", requireExistingServer: true, reportSessionMissing: true, start: options => start({ ...options, argv: ["tmux", "-L", socketName, ...options.argv.slice(1)] }) })).toEqual({ code: 1, reason: "session-missing", output: "" });
   const server = Bun.spawnSync(["tmux", "-L", socketName, "-N", "list-sessions"], { stderr: "pipe" });
   expect(server.exitCode).not.toBe(0);
 });
