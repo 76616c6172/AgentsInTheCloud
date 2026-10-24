@@ -1,4 +1,5 @@
-import { workspaceTemplateChoiceHtml, workspaceTemplateIconHtml } from "./workspace-template-presentation.ts";
+import { workspaceTemplateChoiceHtml } from "./workspace-template-presentation.ts";
+import { noxWorkspaceGlyph } from "./nox-workspace-glyph.ts";
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { addBadgeHtml } from "@agents-in-the-cloud/design-system/add-badge";
@@ -29,7 +30,7 @@ export interface WorkspacePaneEntry {
   title: string;
   active?: boolean;
   parked: boolean;
-  workspaceTemplate?: { id: string; title: string };
+  workspaceTemplate?: { id: string; title: string; swatchColor?: string };
   busy?: boolean;
   requestingAttention?: boolean;
   attentionAt?: number;
@@ -87,18 +88,14 @@ function workspaceStatusSlot(content: string): string {
   return `<span class="fixed-shell-workspace-status content-row__status">${content}</span>`;
 }
 
+/* Busy and attention live in the row's glyph (nox-workspace-glyph.ts); warnings stay trailing. */
 function workspaceStatus(workspace: WorkspacePaneEntry) {
-  if (workspace.busy || workspace.requestingAttention) {
-    return {
-      label: [workspace.busy && "Working", workspace.requestingAttention && "Needs attention"].filter(Boolean).join(" · "),
-      html: workspaceStatusSlot(busyAttentionIndicator(workspace)),
-    };
-  }
   const warnings = (workspace.warnings ?? []).map((warning) => warning.message);
   if (workspace.outdated) warnings.push(outdatedImageMessage);
-  const label = warnings.join("\n") || (workspace.parked ? "Parked" : "Idle");
-  const iconClass = warnings.length ? "fixed-shell-workspace-warning" : "fixed-shell-workspace-idle";
-  return { label, html: workspaceStatusSlot(`<i class="${iconClass}" role="img" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${warnings.length ? "⚠︎" : workspace.parked ? Icons.Park : Icons.Ready}</i>`) };
+  const activity = [workspace.busy && "Working", workspace.requestingAttention && "Needs attention"].filter(Boolean).join(" · ");
+  const label = activity || warnings.join("\n") || (workspace.parked ? "Parked" : "Idle");
+  const html = warnings.length ? workspaceStatusSlot(`<i class="fixed-shell-workspace-warning" role="img" aria-label="${escapeHtml(warnings.join("\n"))}" title="${escapeHtml(warnings.join("\n"))}">⚠︎</i>`) : "";
+  return { label, html };
 }
 
 function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): string {
@@ -112,13 +109,14 @@ function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): strin
   const status = workspaceStatus(workspace);
   const tooltip = [workspaceTemplate?.title, label, status.label].filter(Boolean).join(" · ");
   const newFromTemplate = workspaceTemplate ? `New workspace from ${workspaceTemplate.title}` : "New empty workspace";
+  const glyph = noxWorkspaceGlyph(workspace);
   const row = contentRowHtml({
     width: "fill",
     kind: "compact",
     container: parked ? undefined : { attributesHtml: `data-workspace-order="${index}"` },
     label: { kind: "text", text: workspace.title },
     trailingHtml: status.html,
-    leadingActionsHtml: `<button type="button" class="workspace-template-icon-button" title="${escapeHtml(newFromTemplate)}" aria-label="${escapeHtml(newFromTemplate)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(workspaceTemplate?.id ?? "")}">${workspaceTemplateIconHtml(workspaceTemplate)}</button>`,
+    leadingActionsHtml: `<button type="button" class="workspace-template-icon-button nox-workspace-glyph"${glyph.attributesHtml} title="${escapeHtml(newFromTemplate)}" aria-label="${escapeHtml(newFromTemplate)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(workspaceTemplate?.id ?? "")}">${glyph.html}</button>`,
     primary: {
       tag: "button",
       attributesHtml: `${parked ? 'data-workspace-parked' : `id="${id}"`} type="${parked ? "submit" : "button"}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${label} · ${status.label}`)}"${workspace.active ? ' aria-current="page"' : ""} data-workspace-entry-id="${escapeHtml(workspace.id)}"${attentionAt}${lastActivityAt}${busyAgents}${workspaceTemplateAttribute}${parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,

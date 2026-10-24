@@ -43,6 +43,32 @@ svg.brand-icon path[fill] { fill: currentColor; }
 .nox-agent-composer-action > .agent-composer-draft-dot { display: none; }
 .fixed-workspace-presentation:has(.fixed-shell-surface.is-active .agent-composer-opener[data-draft]) .nox-agent-composer-action > .agent-composer-draft-dot { display: block; }
 
+/* Workspace glyphs (nox-workspace-glyph.ts): the row's "new workspace from this template"
+ * button moves to the end of the row and shows the workspace's braille mark, or "+" while
+ * hovered. The template gives the hue; lightness and chroma are the average of the theme's
+ * colorful tokens, so glyphs follow whichever theme is active. */
+.fixed-shell-workspace-scroll .content-row:has(> .content-row__actions--leading) { padding-inline: 8px 2px; }
+.fixed-shell-workspace-scroll .content-row:has(> .content-row__actions--leading) > .content-row__primary { padding-inline-end: 4px; }
+.fixed-shell-workspace-scroll .content-row__actions--leading { order: 1; margin-inline: 0; }
+.nox-workspace-glyph { color: var(--text-muted); }
+.nox-workspace-glyph[data-tinted] {
+  --nox-glyph-key: color-mix(in oklch,
+    color-mix(in oklch, var(--accent), var(--success)) 40%,
+    color-mix(in oklch, var(--warning) 33.3%, color-mix(in oklch, var(--danger), var(--decorative))));
+  color: oklch(from var(--nox-glyph-key) calc(l + var(--glyph-l)) c var(--glyph-hue));
+}
+.nox-workspace-glyph__svg { display: block; width: 17px; height: 17px; }
+.nox-workspace-glyph[data-parked] .nox-workspace-glyph__svg { opacity: .4; }
+.nox-workspace-glyph__plus { display: none; color: var(--text-bright); }
+.nox-workspace-glyph:is(:hover, :focus-visible) > :not(.nox-workspace-glyph__plus) { display: none; }
+.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__plus { display: grid; }
+/* Busy: a ripple crosses the dots, column by column. */
+.nox-workspace-glyph[data-busy] .nox-workspace-glyph__dot { animation: nox-workspace-glyph-ripple 1.1s ease-in-out infinite; animation-delay: calc(var(--x) * 140ms); }
+@keyframes nox-workspace-glyph-ripple { 50% { opacity: .18; } }
+@media (max-width: 700px), (pointer: coarse) {
+  .nox-workspace-glyph__svg { width: 20px; height: 20px; }
+}
+
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active [data-cli-transcript-button="transcript"]) .nox-phone-header .nox-agent-transcript-action,
   .fixed-workspace-presentation[data-phone-destination="agents"]:has(.fixed-shell-surface.is-active .cli-transcript-mode) .nox-phone-header .nox-agent-terminal-action,
@@ -133,7 +159,7 @@ svg.brand-icon path[fill] { fill: currentColor; }
    * the DOM so counters hold each group's total; order places them above their rows. */
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll { counter-reset: nox-attention nox-busy nox-idle; }
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order] { order: 31; counter-increment: nox-idle; }
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner) { order: 21; counter-increment: nox-busy; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.nox-workspace-glyph[data-busy]) { order: 21; counter-increment: nox-busy; }
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) { order: 11; counter-increment: nox-attention; }
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > #workspace_pane_parked { order: 40; }
   .nox-workspace-group { align-items: center; gap: 10px; margin: 12px 8px 2px; color: var(--text-muted); font-size: 13px; }
@@ -147,8 +173,8 @@ svg.brand-icon path[fill] { fill: currentColor; }
   .nox-workspace-group[data-nox-workspace-group="idle"]::after { content: counter(nox-idle); }
   /* A heading shows only when an earlier sibling row belongs to its group. */
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) ~ [data-nox-workspace-group="attention"],
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-spinner):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.status-spinner, .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.nox-workspace-glyph[data-busy]):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.nox-workspace-glyph[data-busy], .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
 
   /* Phone chrome lives at the top: one bar with the sidebar button, the pane's tabs and More.
    * Swipes and tabs replace the bottom bar, which stays in the markup for its status slots. */
@@ -385,4 +411,5 @@ svg.brand-icon path[fill] { fill: currentColor; }
 @media (prefers-reduced-motion: reduce) {
   .fixed-shell-work-pane .browser-toolbar { animation: none !important; }
   .fixed-shell-app > .fixed-shell-workspace-pane { transition: none !important; }
+  .nox-workspace-glyph__dot { animation: none !important; }
 }
