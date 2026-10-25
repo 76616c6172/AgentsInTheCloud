@@ -119,7 +119,7 @@ html[data-theme] {
 }
 
 /* The phone's workspace list is a card the workspace steps aside from; the spread lays it out as a page. */
-@media (max-width: 700px) and (not ((hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px))), (hover: none) and (pointer: coarse) and (not ((min-width: 600px) and (min-height: 480px))) {
+@media (max-width: 700px) and (not ((hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) and (orientation: landscape))), (hover: none) and (pointer: coarse) and (not ((min-width: 600px) and (min-height: 480px) and (orientation: landscape))) {
   /* Ready, preparing and deleting workspaces share the same sidebar reveal. The workspace
    * steps aside into a live preview on the right, uncovering the list card beneath it. With a
    * phone bar, the bar stays put and only the body beneath it steps aside (see below).
@@ -133,6 +133,10 @@ html[data-theme] {
     --nox-reveal-transform: translateX(calc(var(--nox-drawer-progress, 0) * (var(--nox-drawer-width) + 2 * var(--nox-drawer-gap)) + var(--nox-loop-nudge, 0px))) scale(calc(1 - var(--nox-drawer-progress, 0) * 0.1));
   }
   .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) { --nox-drawer-progress: 1; }
+  /* Upright, an unfolded foldable or tablet keeps the single page, and the list opens to half of it. */
+  @media (hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) {
+    .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) { --nox-drawer-width: calc(50vw - 2 * var(--nox-drawer-gap)); }
+  }
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane {
     position: absolute; grid-area: 1 / 1 / -1 / -1; z-index: 0;
     inset: calc(env(safe-area-inset-top, 0px) + var(--nox-drawer-gap)) auto calc(env(safe-area-inset-bottom, 0px) + var(--nox-drawer-gap)) var(--nox-drawer-gap);
@@ -376,7 +380,7 @@ html[data-theme] {
 /* Depth swap between the Agent (progress 0) and Work (1): the Agent sinks back while Work
  * rises in from the right as a rounded live card. A drag sets --nox-pane-progress on the
  * presentation; [data-nox-pane-motion] keeps both panes visible until navigation commits. */
-@media (max-width: 700px) and (not ((hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px))), (hover: none) and (pointer: coarse) and (not ((min-width: 600px) and (min-height: 480px))) {
+@media (max-width: 700px) and (not ((hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) and (orientation: landscape))), (hover: none) and (pointer: coarse) and (not ((min-width: 600px) and (min-height: 480px) and (orientation: landscape))) {
   .fixed-workspace-presentation { --nox-pane-progress: 0; }
   .fixed-workspace-presentation[data-phone-destination^="work:"] { --nox-pane-progress: 1; }
   /* Outside a swipe, panes switch in place; the motion is the depth swap's alone. */
@@ -447,12 +451,12 @@ html[data-theme] {
   }
 }
 @keyframes nox-chrome-settle { from { opacity: 0; transform: translateY(-4px); } }
-/* Nox spread (nox-spread.ts): an unfolded foldable or a tablet shows the phone's ring two pages at a
- * time. --nox-spread is the stop: Workspaces | Agent (0), Agent | Work (1), Work on its own (2).
+/* Nox spread (nox-spread.ts): an unfolded foldable or a tablet held wide shows the phone's ring two
+ * pages at a time; upright it keeps the phone's single page. --nox-spread is the stop: Workspaces | Agent (0), Agent | Work (1), Work on its own (2).
  * -a runs 0 → 1 over the first step and -b over the second; every page and every rail section is
  * placed from them, so a swipe (inline --nox-spread) and a tap (the stop changing) move alike.
  * The agent page's width at Agent | Work is --nox-spread-split, which the presentation sets. */
-@media (hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) {
+@media (hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) and (orientation: landscape) {
   .fixed-shell-app {
     --nox-spread: 1;
     --nox-spread-a: clamp(0, var(--nox-spread), 1);
