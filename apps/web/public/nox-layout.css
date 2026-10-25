@@ -457,7 +457,8 @@ html[data-theme] {
     --nox-spread: 1;
     --nox-spread-a: clamp(0, var(--nox-spread), 1);
     --nox-spread-b: clamp(0, var(--nox-spread) - 1, 1);
-    --nox-spread-list: min(42%, 380px);
+    /* The list is the left half, mirroring the agent beside it. */
+    --nox-spread-list: 50%;
     --nox-spread-duration: var(--motion-enter);
     --nox-spread-motion: left var(--nox-spread-duration) var(--motion-ease-out), right var(--nox-spread-duration) var(--motion-ease-out), width var(--nox-spread-duration) var(--motion-ease-out), margin-left var(--nox-spread-duration) var(--motion-ease-out), opacity var(--nox-spread-duration) var(--motion-ease-out), transform var(--nox-spread-duration) var(--motion-ease-out), translate var(--nox-spread-duration) var(--motion-ease-out);
   }
