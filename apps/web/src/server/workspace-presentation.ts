@@ -443,7 +443,8 @@ function renderPhoneNewTabOptions(presentation: WorkspacePresentation): string {
  * Agents, each at its place on the ring (--nox-ring-k); --nox-ring turns the belt (nox-layout.css),
  * and the copies at either end let it wrap. Tabs select by the visible pane (see
  * syncMobileNavigationSelection), not by the desktop selection. Tapping a selected Browser tab
- * (data-nox-tools) opens that Browser's toolbar (see nox-phone-chrome). */
+ * (data-nox-tools) opens that Browser's toolbar (see nox-phone-chrome). The spread (nox-spread.ts)
+ * places Workspaces, Agents and Work over their own pages; the rail's counts size their folded icons. */
 function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean): string {
   const workspaceId = presentation.workspace.id;
   const agentTab = (agent: AgentPaneContribution) => tabHtml({
@@ -485,7 +486,7 @@ function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean):
     section(3, "agents", presentation.agents.length, agents("_ring")),
   ].join("");
   return `<header class="nox-phone-header" aria-label="Workspace" data-controller="nox-phone-chrome"${inert ? " inert" : ""}>
-    <div class="nox-phone-header__row"><div class="nox-phone-rail">${rail}</div>${renderMobileMoreMenu(presentation)}</div>
+    <div class="nox-phone-header__row"><div class="nox-phone-rail" style="--nox-agents-count: ${presentation.agents.length}; --nox-work-count: ${workCount}">${rail}</div>${renderMobileMoreMenu(presentation)}</div>
   </header>`;
 }
 

@@ -5,6 +5,7 @@ import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { prepareLiveSurface, selectLiveSurface } from "./live-surface.ts";
 import { workspaceSelectionController } from "./workspace-controller-registry.ts";
+import { noxSpreadMediaQuery, noxSpreadSplits, noxSpreadSplitStorageKey } from "./nox-spread.ts";
 import type { MobileSwipeDirection } from "@agents-in-the-cloud/shared/mobile-swipe";
 
 type PresentationPane = HTMLElement & { dataset: DOMStringMap & { workspacePaneRole?: string; workspacePaneId?: string; workspaceLogicallyVisible?: string } };
@@ -90,6 +91,9 @@ export function createWorkspacePresentationController(
     declare readonly workspaceIdValue: string;
     private state!: PersonalNavigationState;
     private media?: MediaQueryList;
+    private spreadMedia?: MediaQueryList;
+    /** Nox spread: Work fills the screen (its third stop, see nox-spread.ts). */
+    private workAlone = false;
     private sizeObserver?: ResizeObserver;
     private preferredAgentWidth?: number;
     private workPaneFocused = false;
@@ -103,6 +107,9 @@ export function createWorkspacePresentationController(
       this.state = this.restoreState();
       this.media = window.matchMedia(phoneLayoutMediaQuery);
       this.media.addEventListener("change", this.viewportChanged);
+      this.spreadMedia = window.matchMedia(noxSpreadMediaQuery);
+      this.spreadMedia.addEventListener("change", this.spreadChanged);
+      document.addEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.workspaceListChanged);
       this.element.addEventListener("agents-in-the-cloud:workspace-mount-visible", this.mountVisible);
       this.element.addEventListener("live:structure", this.structureChanged);
       this.element.addEventListener("agents-in-the-cloud:workspace-mount-hidden", this.mountHidden);
@@ -126,6 +133,8 @@ export function createWorkspacePresentationController(
 
     disconnect(): void {
       this.media?.removeEventListener("change", this.viewportChanged);
+      this.spreadMedia?.removeEventListener("change", this.spreadChanged);
+      document.removeEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.workspaceListChanged);
       this.element.removeEventListener("agents-in-the-cloud:workspace-mount-visible", this.mountVisible);
       this.element.removeEventListener("live:structure", this.structureChanged);
       this.element.removeEventListener("agents-in-the-cloud:workspace-mount-hidden", this.mountHidden);
@@ -145,6 +154,7 @@ export function createWorkspacePresentationController(
       if (!id) return;
       this.state.activeAgentId = id;
       this.workPaneFocused = false;
+      this.workAlone = false;
       this.state.phoneDestination = "agents";
       this.persistAndApply();
     }
@@ -152,6 +162,7 @@ export function createWorkspacePresentationController(
     selectAgentById(agentId: string): void {
       this.state.activeAgentId = agentId;
       this.workPaneFocused = false;
+      this.workAlone = false;
       this.state.phoneDestination = "agents";
       this.persistAndApply();
     }
@@ -253,6 +264,12 @@ export function createWorkspacePresentationController(
 
     mobileSwipeNavigation(direction: MobileSwipeDirection): (() => void) | undefined {
       if (!this.isPhone) return;
+      // In the spread both panes are on screen; past them Work takes the whole screen.
+      if (this.isSpread) {
+        if (direction === 1 && !this.workAlone && this.state.activeWorkViewKey) return () => this.setWorkAlone(true);
+        if (direction === -1 && this.workAlone) return () => this.setWorkAlone(false);
+        return;
+      }
       // Swipe between panes, not Work tabs. Keep the existing Work selection.
       let destination: PhoneDestination | undefined;
       if (this.state.phoneDestination === "agents") {
@@ -270,6 +287,10 @@ export function createWorkspacePresentationController(
 
     /** Lets a finger-tracked swipe show the incoming pane live before navigation commits. */
     previewMobileSwipe(): void {
+      if (this.isSpread) {
+        if (this.workAlone) this.element.querySelectorAll<PresentationPane>("[data-workspace-pane-role='agent'].is-active").forEach((pane) => this.emitVisible(pane));
+        return;
+      }
       const role = this.state.phoneDestination === "agents" ? "work" : "agent";
       this.element.querySelectorAll<PresentationPane>(`[data-workspace-pane-role='${role}'].is-active`).forEach((pane) => this.emitVisible(pane));
     }
@@ -297,6 +318,15 @@ export function createWorkspacePresentationController(
         this.state.phoneDestination = "work:";
         this.state.workPaneVisible = true;
       }
+      this.moreOpen = false;
+      this.persistAndApply();
+    }
+
+    private setWorkAlone(alone: boolean): void {
+      this.workAlone = alone;
+      // Folding the device keeps showing Work.
+      const key = this.state.activeWorkViewKey;
+      if (alone && key) this.selectWorkViewState(key, this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)?.dataset.workViewKind === "contextual");
       this.moreOpen = false;
       this.persistAndApply();
     }
@@ -339,6 +369,8 @@ export function createWorkspacePresentationController(
       // SAFETY: The server-rendered DOM and connected controller contract establish this element shape.
       const handle = event.currentTarget as HTMLElement;
       this.resize = { startX: event.clientX, startAgentWidth: this.agentPane.getBoundingClientRect().width };
+      // The spread's pages follow the handle without transitions, and its swipes leave this touch alone.
+      if (this.isSpread) this.app.setAttribute("data-nox-spread-resize", "");
       handle.setPointerCapture(event.pointerId);
       window.addEventListener("pointermove", this.resizeWork);
       window.addEventListener("pointerup", this.finishWorkResize, { once: true });
@@ -377,6 +409,11 @@ export function createWorkspacePresentationController(
       if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
       event.preventDefault();
       const direction = event.key === "ArrowLeft" ? -1 : 1;
+      if (this.isSpread) {
+        const index = noxSpreadSplits.indexOf(this.spreadSplit) + direction;
+        this.setSpreadSplit(noxSpreadSplits[Math.max(0, Math.min(noxSpreadSplits.length - 1, index))]!, true);
+        return;
+      }
       this.setAgentWidth(this.agentPane.getBoundingClientRect().width + direction * (event.shiftKey ? 80 : 24), true);
     }
 
@@ -398,6 +435,8 @@ export function createWorkspacePresentationController(
     }
 
     private get isPhone(): boolean { return this.media?.matches ?? window.matchMedia(phoneLayoutMediaQuery).matches; }
+    private get isSpread(): boolean { return this.spreadMedia?.matches ?? window.matchMedia(noxSpreadMediaQuery).matches; }
+    private get app(): HTMLElement { return this.element.closest<HTMLElement>(".fixed-shell-app")!; }
     private get agentPane(): HTMLElement { return this.element.querySelector<HTMLElement>("[data-workspace-presentation-target='agentPane']")!; }
     private get storageKey(): string { return workspaceNavigationStorageKey(this.workspaceIdValue); }
 
@@ -427,6 +466,9 @@ export function createWorkspacePresentationController(
         if (workViews.includes(intent.work)) delete intent.work;
       } else if (!this.state.activeWorkViewKey || !workViews.includes(this.state.activeWorkViewKey)) this.state.activeWorkViewKey = workViews[0];
       if (!intent?.work && this.state.phoneDestination.startsWith("work:") && !workViews.includes(this.state.phoneDestination.slice(5))) this.state.phoneDestination = `work:${this.state.activeWorkViewKey ?? ""}`;
+      // The spread always shows Work beside the agent; with nothing left to show, Work can't be alone.
+      if (this.isSpread) this.state.workPaneVisible = true;
+      if (!this.state.activeWorkViewKey) this.workAlone = false;
       this.persist();
     }
 
@@ -492,6 +534,7 @@ export function createWorkspacePresentationController(
       focusToggle.setAttribute("title", focusLabel);
       focusToggle.setAttribute("aria-pressed", String(workFocused));
       this.element.dataset.phoneDestination = this.state.phoneDestination;
+      this.element.toggleAttribute("data-nox-work-alone", this.isSpread && this.workAlone);
       this.element.dataset.navigationReady = "true";
       selectLiveSurface(this.element.closest<HTMLElement>(".workspace-detail-mount")!, this.state.activeAgentId ?? "", this.state.workPaneVisible ? this.state.activeWorkViewKey ?? "" : "");
       const selectedAgentChanged = this.element.dataset.workspaceSelectedAgent !== this.state.activeAgentId;
@@ -555,14 +598,18 @@ export function createWorkspacePresentationController(
       });
       this.element.querySelector<HTMLElement>("[data-mobile-work]")!.setAttribute("aria-current", !sidebarOpen && this.state.phoneDestination.startsWith("work:") ? "page" : "false");
       // Phone tabs show the visible pane, not the desktop split's selection; Workspaces shows the list.
+      const spread = this.isSpread;
       this.element.querySelectorAll<HTMLElement>("[data-nox-phone-tab]").forEach((tab) => {
+        // The spread shows both panes, so each side keeps its own selection.
         const selected = tab.dataset.noxPhoneTab === "list" ? sidebarOpen
-          : tab.dataset.noxPhoneTab === this.state.phoneDestination && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
+          : spread ? tab.dataset.agentId !== undefined ? tab.dataset.agentId === this.state.activeAgentId : tab.dataset.workViewKey === this.state.activeWorkViewKey
+            : tab.dataset.noxPhoneTab === this.state.phoneDestination && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
         tab.setAttribute("aria-selected", String(selected));
         tab.tabIndex = selected ? 0 : -1;
       });
-      // The rail's sections two or more stops round the ring are off the bar.
-      const ring = sidebarOpen ? -1 : this.state.phoneDestination.startsWith("work:") ? 1 : 0;
+      // The rail's sections two or more stops round the ring are off the bar. The spread keeps
+      // Workspaces, Agents and Work on it, each over its page, and drops the copies that wrap.
+      const ring = spread ? 0 : sidebarOpen ? -1 : this.state.phoneDestination.startsWith("work:") ? 1 : 0;
       this.element.querySelectorAll<HTMLElement>("[data-nox-ring-k]").forEach((section) => {
         section.inert = Math.abs(Number(section.dataset.noxRingK) - ring) >= 2;
       });
@@ -587,10 +634,12 @@ export function createWorkspacePresentationController(
 
     private visiblePanes(): PresentationPane[] {
       if (!this.element.closest(".workspace-detail-mount.visible")) return [];
-      const selector = this.isPhone
-        ? this.state.phoneDestination === "agents" ? `[data-workspace-pane-role='agent'].is-active` : `[data-workspace-pane-role='work'].is-active`
-        : this.workPaneFocused ? `[data-workspace-pane-role='work'].is-active`
-          : `[data-workspace-pane-role='agent'].is-active${this.state.workPaneVisible ? ", [data-workspace-pane-role='work'].is-active" : ""}`;
+      const agent = "[data-workspace-pane-role='agent'].is-active";
+      const work = "[data-workspace-pane-role='work'].is-active";
+      const selector = this.isSpread ? this.workAlone ? work : `${agent}, ${work}`
+        : this.isPhone ? this.state.phoneDestination === "agents" ? agent : work
+          : this.workPaneFocused ? work
+            : `${agent}${this.state.workPaneVisible ? `, ${work}` : ""}`;
       return [...this.element.querySelectorAll<PresentationPane>(selector)];
     }
 
@@ -652,6 +701,7 @@ export function createWorkspacePresentationController(
     }
 
     private restorePreferences(): void {
+      this.element.style.setProperty("--nox-spread-split", `${this.spreadSplit * 100}%`);
       if (this.workPaneFocused) return;
       if (this.preferredAgentWidth === undefined) {
         const stored = Number(localStorage.getItem(agentPaneWidthStorageKey));
@@ -659,6 +709,20 @@ export function createWorkspacePresentationController(
       }
       // Keep the default proportional; only an explicit resize pins a pixel width.
       this.setAgentWidth(this.preferredAgentWidth ?? this.element.clientWidth * 0.618);
+    }
+
+    private spreadSplitValue?: number;
+    private get storedSpreadSplit(): number {
+      const stored = Number(localStorage.getItem(noxSpreadSplitStorageKey));
+      return noxSpreadSplits.find((split) => split === stored) ?? 0.5;
+    }
+    private get spreadSplit(): number { return this.spreadSplitValue ?? this.storedSpreadSplit; }
+    private get spreadWidth(): number { return this.element.querySelector<HTMLElement>(".fixed-shell-main")!.clientWidth; }
+
+    private setSpreadSplit(fraction: number, persist = false): void {
+      this.spreadSplitValue = persist ? undefined : fraction;
+      if (persist) localStorage.setItem(noxSpreadSplitStorageKey, String(fraction));
+      this.element.style.setProperty("--nox-spread-split", `${fraction * 100}%`);
     }
 
     private setAgentWidth(width: number, persist = false): void {
@@ -674,12 +738,25 @@ export function createWorkspacePresentationController(
 
     private resizeWork = (event: PointerEvent): void => {
       if (!this.resize) return;
-      this.setAgentWidth(this.resize.startAgentWidth + event.clientX - this.resize.startX);
+      const width = this.resize.startAgentWidth + event.clientX - this.resize.startX;
+      if (this.isSpread) this.setSpreadSplit(Math.max(0.1, Math.min(0.9, width / this.spreadWidth)));
+      else this.setAgentWidth(width);
     };
 
     private finishWorkResize = (): void => {
       if (!this.resize) return;
       window.removeEventListener("pointermove", this.resizeWork);
+      if (this.app.hasAttribute("data-nox-spread-resize")) {
+        this.app.removeAttribute("data-nox-spread-resize");
+        const fraction = this.spreadSplit;
+        // Off the left edge is the stop a swipe past Agent | Work reaches; the split it had comes back with the agent.
+        if (fraction < 0.2) {
+          this.setSpreadSplit(this.storedSpreadSplit, false);
+          this.setWorkAlone(true);
+        } else this.setSpreadSplit(noxSpreadSplits.reduce((best, split) => Math.abs(split - fraction) < Math.abs(best - fraction) ? split : best), true);
+        this.resize = undefined;
+        return;
+      }
       this.preferredAgentWidth = this.agentPane.getBoundingClientRect().width;
       localStorage.setItem(agentPaneWidthStorageKey, String(this.preferredAgentWidth));
       this.resize = undefined;
@@ -694,6 +771,18 @@ export function createWorkspacePresentationController(
     };
     private structureChanged = (): void => { this.presentationChanged(); };
     private viewportChanged = (): void => { this.applyState({ emit: true }); };
+    /** Unfolding reveals the other pane beside the one you were on, and folding keeps the one in view. */
+    private spreadChanged = (): void => {
+      this.workAlone = false;
+      this.normalizeState();
+      this.applyState({ emit: true });
+    };
+    /** The list opens beside the agent, so Work steps off with Work alone or not. */
+    private workspaceListChanged = (): void => {
+      if (!this.workAlone || !this.app.classList.contains("is-mobile-workspace-pane-open")) return;
+      this.workAlone = false;
+      this.applyState({ emit: true });
+    };
     private mountVisible = (event: Event): void => {
       // Restore the visible pane's width before transcript navigation measures it.
       this.restorePreferences();

@@ -103,6 +103,9 @@ html[data-theme] {
 
   /* Keep horizontal sidebar gestures with the app; native vertical scrolling stays available. */
   .fixed-shell-workspace-pane { touch-action: pan-y pinch-zoom; }
+  /* A sideways swipe the app doesn't take (a dialog is open, or the spread is at its end) must not
+   * turn into the browser's back navigation. */
+  html { overscroll-behavior-x: none; }
 
   /* Let the resident bar sit above the sidebar without lifting its content.
    * Container queries stay on the content region; terminals keep their dimensions. */
@@ -113,6 +116,10 @@ html[data-theme] {
   .agents-in-the-cloud-fullscreen-open .fixed-shell-main { container-type: normal; isolation: auto; }
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-agents-in-the-cloud-bar { display: none; }
 
+}
+
+/* The phone's workspace list is a card the workspace steps aside from; the spread lays it out as a page. */
+@media (max-width: 700px) and (not ((hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px))), (hover: none) and (pointer: coarse) and (not ((min-width: 600px) and (min-height: 480px))) {
   /* Ready, preparing and deleting workspaces share the same sidebar reveal. The workspace
    * steps aside into a live preview on the right, uncovering the list card beneath it. With a
    * phone bar, the bar stays put and only the body beneath it steps aside (see below).
@@ -176,6 +183,9 @@ html[data-theme] {
     box-shadow: 0 0 0 1px var(--line-strong);
   }
   .fixed-shell-app[data-nox-drawer-drag]:has(.workspace-detail-mount.visible > .fixed-workspace-presentation > .nox-phone-header) .workspace-detail-mount.visible > .fixed-workspace-presentation > .fixed-shell-main { transition: none; }
+}
+
+@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
   /* The bar's lit Workspaces tab already names the list; the card keeps only its actions. */
   .fixed-shell-app:has(.workspace-detail-mount.visible > .fixed-workspace-presentation > .nox-phone-header) > .fixed-shell-workspace-pane .workspace-pane-header > .panel__title { visibility: hidden; }
 
@@ -366,7 +376,7 @@ html[data-theme] {
 /* Depth swap between the Agent (progress 0) and Work (1): the Agent sinks back while Work
  * rises in from the right as a rounded live card. A drag sets --nox-pane-progress on the
  * presentation; [data-nox-pane-motion] keeps both panes visible until navigation commits. */
-@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
+@media (max-width: 700px) and (not ((hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px))), (hover: none) and (pointer: coarse) and (not ((min-width: 600px) and (min-height: 480px))) {
   .fixed-workspace-presentation { --nox-pane-progress: 0; }
   .fixed-workspace-presentation[data-phone-destination^="work:"] { --nox-pane-progress: 1; }
   /* Outside a swipe, panes switch in place; the motion is the depth swap's alone. */
@@ -437,9 +447,133 @@ html[data-theme] {
   }
 }
 @keyframes nox-chrome-settle { from { opacity: 0; transform: translateY(-4px); } }
+/* Nox spread (nox-spread.ts): an unfolded foldable or a tablet shows the phone's ring two pages at a
+ * time. --nox-spread is the stop: Workspaces | Agent (0), Agent | Work (1), Work on its own (2).
+ * -a runs 0 → 1 over the first step and -b over the second; every page and every rail section is
+ * placed from them, so a swipe (inline --nox-spread) and a tap (the stop changing) move alike.
+ * The agent page's width at Agent | Work is --nox-spread-split, which the presentation sets. */
+@media (hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) {
+  .fixed-shell-app {
+    --nox-spread: 1;
+    --nox-spread-a: clamp(0, var(--nox-spread), 1);
+    --nox-spread-b: clamp(0, var(--nox-spread) - 1, 1);
+    --nox-spread-list: min(42%, 380px);
+    --nox-spread-duration: var(--motion-enter);
+    --nox-spread-motion: left var(--nox-spread-duration) var(--motion-ease-out), right var(--nox-spread-duration) var(--motion-ease-out), width var(--nox-spread-duration) var(--motion-ease-out), margin-left var(--nox-spread-duration) var(--motion-ease-out), opacity var(--nox-spread-duration) var(--motion-ease-out), transform var(--nox-spread-duration) var(--motion-ease-out), translate var(--nox-spread-duration) var(--motion-ease-out);
+  }
+  .fixed-shell-app:not(.is-mobile-workspace-pane-open):has(.workspace-detail-mount.visible > .fixed-workspace-presentation[data-nox-work-alone]) { --nox-spread: 2; }
+  .fixed-shell-app.is-mobile-workspace-pane-open { --nox-spread: 0; }
+
+  /* Pages. The agent's right edge is Work's left edge at every stop. */
+  /* The pages sit above the list (1) and below the bar (4); between them the list shows through.
+   * Past either end, a swipe moves them by --nox-spread-give and they spring back. */
+  .fixed-workspace-presentation > .fixed-shell-main { z-index: 2; overflow: clip; pointer-events: none; }
+  .fixed-workspace-presentation > .fixed-shell-main > :is(.fixed-shell-agent-pane, .fixed-shell-work-pane),
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane { translate: var(--nox-spread-give, 0px) 0; }
+  .fixed-workspace-presentation > .fixed-shell-main > :is(.fixed-shell-agent-pane, .fixed-shell-work-pane) {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transition: var(--nox-spread-motion);
+  }
+  .fixed-workspace-presentation > .fixed-shell-main > .fixed-shell-agent-pane {
+    left: calc((1 - var(--nox-spread-a)) * var(--nox-spread-list) - var(--nox-spread-b) * var(--nox-spread-split, 50%));
+    right: auto;
+    width: calc((1 - var(--nox-spread-a)) * (100% - var(--nox-spread-list)) + var(--nox-spread-a) * var(--nox-spread-split, 50%));
+    border-inline-end: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  }
+  .fixed-workspace-presentation > .fixed-shell-main > .fixed-shell-work-pane {
+    left: calc((1 - var(--nox-spread-a)) * 100% + (var(--nox-spread-a) - var(--nox-spread-b)) * var(--nox-spread-split, 50%));
+    right: auto;
+    width: calc(100% - (1 - var(--nox-spread-b)) * var(--nox-spread-split, 50%));
+  }
+  /* Under the finger the pages follow at once. */
+  .fixed-shell-app:is([data-nox-spread-drag], [data-nox-spread-resize]) { --nox-spread-duration: 0s; }
+
+  /* The split handle sits on the agent's edge while both pages are settled on screen. */
+  .fixed-workspace-presentation > .fixed-shell-main .fixed-shell-work-resizer {
+    display: grid; place-items: center; left: -14px; width: 28px; z-index: 5;
+  }
+  .fixed-workspace-presentation > .fixed-shell-main .fixed-shell-work-resizer::after {
+    position: static; width: 4px; height: 44px; border-radius: var(--radius-round); background: var(--line-strong);
+  }
+  .fixed-shell-app[data-nox-spread-resize] .fixed-workspace-presentation > .fixed-shell-main .fixed-shell-work-resizer::after { background: var(--text-bright); }
+  .fixed-shell-app:is(.is-mobile-workspace-pane-open, [data-nox-spread-motion]) .fixed-workspace-presentation > .fixed-shell-main .fixed-shell-work-resizer,
+  .fixed-workspace-presentation[data-nox-work-alone] > .fixed-shell-main .fixed-shell-work-resizer { display: none; }
+
+  /* The workspace list is the left page, under the bar; its Workspaces tab names it. */
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane {
+    position: absolute; grid-area: 1 / 1 / -1 / -1; z-index: 0;
+    inset: var(--nox-spread-list-top, 0px) auto env(safe-area-inset-bottom, 0px) 0;
+    width: var(--nox-spread-list); height: auto;
+    border: 0; border-inline-end: 1px solid color-mix(in srgb, var(--line) 80%, transparent); border-radius: 0;
+    opacity: calc(1 - var(--nox-spread-a) * 0.7);
+    transform: translateX(calc(var(--nox-spread-a) * -30%));
+    /* Stay visible until the pages have covered it again. */
+    transition: var(--nox-spread-motion), visibility 0s linear var(--motion-enter);
+  }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > .fixed-workspace-presentation > .nox-phone-header) { --nox-spread-list-top: var(--nox-phone-header-height); }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > .fixed-workspace-presentation > .nox-phone-header) > .fixed-shell-workspace-pane { z-index: 1; }
+  .fixed-shell-app:is(.is-mobile-workspace-pane-open, [data-nox-spread-motion]):has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane {
+    visibility: visible;
+    transition: var(--nox-spread-motion), visibility 0s;
+  }
+  .fixed-shell-app[data-nox-spread-motion]:not(.is-mobile-workspace-pane-open) > .fixed-shell-workspace-pane { pointer-events: none; }
+  /* Without the bar (preparing or deleting), the whole workspace steps aside for the list. */
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)):not(:has(.workspace-detail-mount.visible > .fixed-workspace-presentation > .nox-phone-header)) > .fixed-shell-app-main {
+    margin-left: calc((1 - var(--nox-spread-a)) * var(--nox-spread-list));
+    transition: var(--nox-spread-motion);
+  }
+
+  /* The bar: Workspaces, Agents and Work each sit over their own page, open while it's on screen.
+   * A page off screen folds its section to dim icons at the edge it comes back from; F is the
+   * width of each folded icon, M leaves room for More. The copies that let the phone's ring
+   * wrap stay off the bar. */
+  .nox-phone-header .nox-phone-rail {
+    --nox-spread-unit: 2.875rem;
+    --nox-spread-more: 52px;
+    --nox-spread-agents-folded: calc(var(--nox-agents-count) * var(--nox-spread-unit));
+    --nox-spread-work-folded: calc(var(--nox-work-count) * var(--nox-spread-unit));
+    --nox-spread-list-end: calc(4px + (1 - var(--nox-spread-a)) * (var(--nox-spread-list) - 8px) + var(--nox-spread-a) * var(--nox-spread-unit));
+    --nox-spread-agent-start: calc((1 - var(--nox-spread-a)) * var(--nox-spread-list) - var(--nox-spread-b) * var(--nox-spread-split, 50%));
+    --nox-spread-agent-end: calc((1 - var(--nox-spread-a)) * 100% + (var(--nox-spread-a) - var(--nox-spread-b)) * var(--nox-spread-split, 50%));
+  }
+  .nox-phone-header .nox-phone-rail > .nox-phone-rail__divider,
+  .nox-phone-header .nox-phone-rail > .nox-phone-fold:not([data-nox-ring-k="-1"], [data-nox-ring-k="0"], [data-nox-ring-k="1"]) { display: none; }
+  .nox-phone-header .nox-phone-rail > .nox-phone-fold {
+    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 2px); bottom: 4px;
+    align-items: center; flex: none; max-width: none; margin: 0;
+  }
+  .nox-phone-header .nox-phone-rail > .nox-phone-fold > .tab-strip { flex: 1; }
+  .nox-phone-header .nox-phone-rail > .nox-phone-fold[data-nox-ring-k="-1"] {
+    --nox-ring-far: var(--nox-spread-a);
+    left: 4px; right: calc(100% - var(--nox-spread-list-end));
+  }
+  .nox-phone-header .nox-phone-rail > .nox-phone-fold[data-nox-ring-k="0"] {
+    --nox-ring-far: var(--nox-spread-b);
+    left: max(var(--nox-spread-agent-start) + 4px, var(--nox-spread-list-end) + 4px);
+    right: calc(100% - max(var(--nox-spread-agent-end) - (1 - var(--nox-spread-a)) * (var(--nox-spread-work-folded) + var(--nox-spread-more)) - 4px, var(--nox-spread-list-end) + 4px + var(--nox-spread-agents-folded)));
+  }
+  .nox-phone-header .nox-phone-rail > .nox-phone-fold[data-nox-ring-k="1"] {
+    --nox-ring-far: calc(1 - var(--nox-spread-a));
+    left: max(min(var(--nox-spread-agent-end) + 4px, 100% - var(--nox-spread-more) - var(--nox-spread-work-folded)), var(--nox-spread-list-end) + 8px + var(--nox-spread-agents-folded));
+    right: var(--nox-spread-more);
+  }
+  /* A short rule marks where each page starts. */
+  .nox-phone-header .nox-phone-rail > .nox-phone-fold:is([data-nox-ring-k="0"], [data-nox-ring-k="1"])::before {
+    content: ""; position: absolute; left: -4px; top: 12px; bottom: 12px; width: 1px; background: var(--line-strong);
+  }
+  .fixed-shell-app:not([data-nox-drawer-drag]) .fixed-workspace-presentation:not([data-nox-pane-drag]) .nox-phone-header .nox-phone-rail > .nox-phone-fold {
+    transition-property: left, right, gap, column-gap, padding, opacity, background-color;
+  }
+  .fixed-shell-app:is([data-nox-spread-drag], [data-nox-spread-resize]):not([data-nox-drawer-drag]) .fixed-workspace-presentation:not([data-nox-pane-drag]) .nox-phone-header .nox-phone-rail :is(.nox-phone-fold, .nox-phone-fold *) { transition: none; }
+
+  /* Both panes are on screen, so More offers new tabs for either. */
+  .fixed-workspace-presentation[data-phone-destination] .nox-phone-more-section[data-nox-more-pane] { display: grid; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .fixed-shell-work-pane .browser-toolbar { animation: none !important; }
   .fixed-shell-app > .fixed-shell-workspace-pane { transition: none !important; }
   .nox-workspace-glyph__dot { animation: none !important; }
   .tab-strip__status .status-dot.running { animation: none !important; }
+  .fixed-shell-app { --nox-spread-duration: 0s !important; }
 }

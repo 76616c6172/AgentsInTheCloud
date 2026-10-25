@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
 import { isMobileSwipeMessage, mobileSwipeMessage, observeMobileSwipe, type MobileSwipeDirection, type MobileSwipeDrag } from "@agents-in-the-cloud/shared/mobile-swipe";
 import { controllerForElement, workspaceNavigationController } from "./workspace-controller-registry.ts";
+import { noxSpreadMediaQuery } from "./nox-spread.ts";
 
 interface SwipePresentation {
   mobileSwipeNavigation(direction: MobileSwipeDirection): (() => void) | undefined;
@@ -14,12 +15,17 @@ interface SwipePresentation {
 
 interface SwipeNavigation {
   navigate: () => void;
-  /** The workspace list reveal, the Agent↔Work depth swap, or Work round the ring to the list. */
-  motion: "drawer" | "pane" | "loop";
+  /** The workspace list reveal, the Agent↔Work depth swap, Work round the ring to the list, or a
+   * step between the spread's stops. */
+  motion: "drawer" | "pane" | "loop" | "spread";
+  /** Past either end of the spread, a swipe only gives a little; claiming it keeps the browser from going back. */
+  stay?: true;
 }
 
 // A flick commits regardless of distance; a slow drag commits past halfway.
 const flickVelocity = 0.3;
+// Past the spread's ends the pages give at most this far.
+const spreadGive = 40;
 // Agents preview settles this far while Work's card lifts off it.
 const loopNudge = 24;
 const loopCardProperties = ["--nox-loop-left", "--nox-loop-top", "--nox-loop-width", "--nox-loop-height"];
@@ -40,6 +46,7 @@ function layoutBox(element: HTMLElement) {
 export class MobileSwipeController extends Controller<HTMLElement> {
   private stopObserving?: () => void;
   private readonly media = matchMedia(phoneLayoutMediaQuery);
+  private readonly spreadMedia = matchMedia(noxSpreadMediaQuery);
   private readonly frameOrigins = new WeakMap<Window, string>();
   /** A pane or loop move still settling; it commits its navigation when the motion ends. */
   private motion?: { finish: () => void };
@@ -90,8 +97,10 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   }
 
   private resolveNavigation(direction: MobileSwipeDirection): SwipeNavigation | undefined {
+    // The overlay scrollbars are popovers too, shown while touch scrolling; they don't hold swipes.
     if (!this.media.matches || !this.workspaceElement
-      || document.querySelector("dialog[open], :popover-open, .workspace-ssh-trust-overlay")) return;
+      || document.querySelector("dialog[open], :popover-open:not(.scrollbar), .workspace-ssh-trust-overlay")) return;
+    if (this.spreadMedia.matches) return this.resolveSpreadNavigation(direction);
     const presentation = this.presentation;
     // The list, Agents and Work form a ring: Work → list → Agents → Work.
     if (this.sidebarOpen) {
@@ -106,10 +115,25 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     return toAgents ? { navigate: () => { toAgents(); workspaceNavigationController()!.showWorkspacePane(); }, motion: "loop" } : undefined;
   }
 
+  /* The spread's stops run Workspaces | Agent → Agent | Work → Work on its own (nox-spread.ts).
+   * A swipe moves one stop, and neither end loops round. */
+  private resolveSpreadNavigation(direction: MobileSwipeDirection): SwipeNavigation | undefined {
+    // A touch on the split handle is resizing the pages.
+    if (this.element.hasAttribute("data-nox-spread-resize")) return;
+    const navigation = workspaceNavigationController()!;
+    const stay: SwipeNavigation = { navigate: () => {}, motion: "spread", stay: true };
+    if (this.sidebarOpen) return direction === 1 ? { navigate: () => navigation.closeWorkspacePane(), motion: "spread" } : stay;
+    const navigate = this.presentation?.mobileSwipeNavigation(direction);
+    if (navigate) return { navigate, motion: "spread" };
+    if (direction === -1 && !this.presentationElement?.hasAttribute("data-nox-work-alone")) return { navigate: () => navigation.showWorkspacePane(), motion: "spread" };
+    return stay;
+  }
+
   private readonly navigationFor = (direction: MobileSwipeDirection): (() => void) | undefined => {
     const resolved = this.resolveNavigation(direction);
     if (!resolved) return;
-    if (resolved.motion === "drawer") return resolved.navigate;
+    // The spread's pages transition by themselves when the stop changes.
+    if (resolved.motion === "drawer" || resolved.motion === "spread") return resolved.navigate;
     // Frames navigate in one step: play the same motion a drag would.
     return () => {
       this.settleMotion();
@@ -134,6 +158,16 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     // The Workspaces tabs open the list with their own actions.
     if (!tab || !presentation || !this.media.matches || tab.dataset.noxPhoneTab === "list") return;
     this.settleMotion();
+    // The spread has every tab's pane on screen, so tabs select in place. Beside the list, an agent closes it.
+    if (this.spreadMedia.matches) {
+      if (this.sidebarOpen && tab.dataset.agentId) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        presentation.selectAgentById(tab.dataset.agentId);
+        workspaceNavigationController()!.closeWorkspacePane();
+      }
+      return;
+    }
     if (this.sidebarOpen) {
       event.preventDefault();
       event.stopImmediatePropagation();
@@ -171,8 +205,63 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     const resolved = this.resolveNavigation(direction);
     if (!resolved) return;
     if (resolved.motion === "drawer") return this.drawerDrag(resolved);
+    if (resolved.motion === "spread") return this.spreadDrag(direction, resolved);
     return resolved.motion === "pane" ? this.paneDrag(direction, resolved) : this.loopDrag(direction, resolved);
   };
+
+  /* The finger moves --nox-spread from one stop towards the next. Between Workspaces and Agent | Work
+   * a full swipe is the list's width; between Agent | Work and Work alone, the agent's. While the
+   * pages settle, [data-nox-spread-motion] keeps the list on screen; the stop changes on landing. */
+  private spreadDrag(direction: MobileSwipeDirection, resolved: SwipeNavigation): MobileSwipeDrag {
+    const app = this.element;
+    if (resolved.stay) {
+      app.setAttribute("data-nox-spread-motion", "");
+      app.setAttribute("data-nox-spread-drag", "");
+      const give = (distance: number) => app.style.setProperty("--nox-spread-give", `${Math.max(-spreadGive, Math.min(spreadGive, distance * 0.25))}px`);
+      return { move: give, end: () => this.settleSpread(undefined, undefined), cancel: () => this.settleSpread(undefined, undefined) };
+    }
+    const presentation = this.presentationElement;
+    const start = this.sidebarOpen ? 0 : presentation?.hasAttribute("data-nox-work-alone") ? 2 : 1;
+    const travel = Math.min(start, start + direction) === 0
+      ? app.querySelector<HTMLElement>(":scope > .fixed-shell-workspace-pane")!.offsetWidth
+      : presentation!.querySelector<HTMLElement>(".fixed-shell-agent-pane")!.offsetWidth;
+    this.presentation?.previewMobileSwipe();
+    app.setAttribute("data-nox-spread-motion", "");
+    app.setAttribute("data-nox-spread-drag", "");
+    app.style.setProperty("--nox-spread", String(start));
+    let progress = 0;
+    return {
+      move: (distance) => {
+        progress = Math.min(1, Math.max(0, -direction * distance / travel));
+        app.style.setProperty("--nox-spread", String(start + direction * progress));
+      },
+      end: (_distance, velocity) => {
+        const flick = Math.abs(velocity) >= flickVelocity;
+        const commit = flick ? Math.sign(velocity) === -direction : progress > 0.5;
+        this.settleSpread(commit ? start + direction : start, commit ? resolved.navigate : undefined);
+      },
+      cancel: () => this.settleSpread(start, undefined),
+    };
+  }
+
+  /** Without a target the pages only spring back from the give past an end. */
+  private settleSpread(target: number | undefined, navigate: (() => void) | undefined): void {
+    const app = this.element;
+    app.removeAttribute("data-nox-spread-drag");
+    app.style.removeProperty("--nox-spread-give");
+    if (target !== undefined) app.style.setProperty("--nox-spread", String(target));
+    const finish = (): void => {
+      clearTimeout(timer);
+      this.motion = undefined;
+      if (navigate) navigate();
+      else if (target !== undefined) this.presentation?.endMobileSwipePreview();
+      // The new stop holds the same --nox-spread, so dropping the inline value doesn't move anything.
+      app.style.removeProperty("--nox-spread");
+      app.removeAttribute("data-nox-spread-motion");
+    };
+    const timer = setTimeout(finish, this.motionDuration);
+    this.motion = { finish };
+  }
 
   private drawerDrag(resolved: SwipeNavigation): MobileSwipeDrag {
     const opening = !this.sidebarOpen;
