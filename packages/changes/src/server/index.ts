@@ -56,7 +56,7 @@ const diffEndpointsSchema = Type.Object({ target: Type.String(), base: Type.Opti
 const requestSchema = Type.Object({ client: Type.String({ minLength: 1, maxLength: 64 }), sequence: Type.Integer({ minimum: 1 }), history: Type.String({ minLength: 1, maxLength: 64 }) });
 
 const editedRangesSchema = Type.Array(Type.Object({ id: Type.String({ minLength: 1, maxLength: 64 }), revision: Type.Integer({ minimum: 1 }), start: Type.Integer({ minimum: 1, maximum: maxChangesTextLines + 1 }), end: Type.Integer({ minimum: 1, maximum: maxChangesTextLines + 1 }) }), { maxItems: 10000 });
-const editSaveSchema = Type.Object({ token: Type.String({ minLength: 1, maxLength: 64 }), contents: Type.String({ maxLength: maxChangesTextBytes }), ranges: editedRangesSchema });
+const editSaveSchema = Type.Object({ token: Type.String({ minLength: 1, maxLength: 64 }), contents: Type.String({ maxLength: maxChangesTextBytes }), ranges: editedRangesSchema, history: Type.String({ minLength: 1, maxLength: 64 }) });
 const commentSaveSchema = Type.Object({
   id: Type.String({ minLength: 1, maxLength: 64 }), revision: Type.Integer({ minimum: 0 }), body: Type.String({ maxLength: 10000 }),
   path: Type.Optional(Type.String({ minLength: 1 })), side: Type.Optional(Type.Union([Type.Literal("additions"), Type.Literal("deletions")])),
@@ -140,18 +140,19 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         let ranges: unknown;
         try { ranges = JSON.parse(String(data.get("ranges"))); }
         catch (error) { if (!(error instanceof SyntaxError)) throw error; throw new EditError("Invalid comment positions.", 400); }
-        const input = { token, contents: data.get("contents"), ranges };
+        const input = { token, contents: data.get("contents"), ranges, history: data.get("history") };
         if (!Value.Check(editSaveSchema, input) || input.ranges.some(range => range.end < range.start)) throw new EditError("Invalid file edit.", 400);
-        const state = await current(workspaceId);
-        state.select();
-        const next = await changesEdits.save(workspaceId, workspaceRepository(workspaceId), input.token, input.contents, input.ranges,
-          (snapshot, path, contents, positions) => reviewComments.relocate(workspaceId, snapshot, path, contents, positions));
-        // The save's response owns this browser's comparison. Never publish an older in-flight capture.
-        state.select();
-        state.snapshot = next; state.clients.clear();
+        const state = await current(workspaceId), root = workspaceRepository(workspaceId), ticket = state.select();
+        let saved: ChangesSnapshot | undefined;
+        // The save owns this browser's comparison; a later selection (say, from another browser) still wins.
+        const next = await state.publishSelection(ticket, async () => saved = saved
+          ? await refreshChanges(root, saved)
+          : await changesEdits.save(workspaceId, root, input.token, input.contents, input.ranges,
+            (snapshot, path, contents, positions) => reviewComments.relocate(workspaceId, snapshot, path, contents, positions))) ?? state.snapshot;
+        state.clients.clear();
         invalidateWorkspace(workspaceId);
-        const previousId = comparisonId(workspaceId, next.history.id);
-        return turboStreamResponse(replace(previousId, renderComparison(workspaceId, next, state.buckets)) + replace(historyContentId(next.history), renderHistory(next)));
+        // Saving captures a new history, with this edit's Working tree and whatever changed in the workspace meanwhile.
+        return turboStreamResponse(replace(changesBodyId(workspaceId, input.history), renderChanges(workspaceId, next, state.buckets)));
       } catch (error) {
         if (!(error instanceof EditError)) throw error;
         return textResponse(error.message, { status: error.status });

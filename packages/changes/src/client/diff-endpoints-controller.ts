@@ -83,6 +83,9 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
         shell.dataset.changesDiffEndpointsOpenValue = String(this.isOpen);
         shell.dataset.changesLayout = this.element.dataset.changesLayout ?? "unified";
         shell.dataset.changesWrap = this.element.dataset.changesWrap ?? "false";
+        // A saved code edit hands its file disclosure and scroll position to the refreshed Changes.
+        if (this.element.dataset.changesFileCollapse !== undefined) shell.dataset.changesFileCollapse = this.element.dataset.changesFileCollapse;
+        if (this.element.dataset.changesScroll !== undefined) shell.dataset.changesScroll = this.element.dataset.changesScroll;
       }
     }
 

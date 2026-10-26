@@ -204,6 +204,7 @@ export function createChangesEditController(Controller: WorkspaceClientControlle
       try {
         const data = new FormData();
         data.set("token", this.model.token); data.set("contents", this.text); data.set("ranges", JSON.stringify(this.ranges));
+        data.set("history", shell.dataset.changesDiffEndpointsHistoryIdValue!);
         const html = await this.request("save", data);
         this.finish(true);
         this.confirmationTarget.close();
