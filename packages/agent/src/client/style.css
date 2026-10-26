@@ -333,3 +333,6 @@
 .agent-body-controls { position: absolute; z-index: 3; top: 4px; right: 12px; }
 
 .agent-tool-abort-actions { display: flex; justify-content: flex-end; margin-top: 16px; }
+
+/* Placed under the selection by the transcript-quote controller. */
+.transcript-quote-action { position: fixed; z-index: 30; }

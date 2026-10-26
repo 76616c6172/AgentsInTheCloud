@@ -391,6 +391,15 @@ export const mobileComposerMediaQuery = "(max-width: 700px)";
 export const agentComposerSendPromptEvent = "agent-composer:send-prompt";
 export interface AgentComposerSendPromptDetail { text: string }
 
+/** Adds a quote to the end of an Agent's draft, leaving the caret under it, after the comment's first typed text. */
+export const agentComposerQuoteEvent = "agent-composer:quote";
+export interface ComposerQuote { source: string; text: string; code: boolean }
+export interface AgentComposerQuoteDetail { quote: ComposerQuote; comment: string }
+
+/** Text selected inside an embedded frame, or null once it is deselected. The rectangle is in the frame's own viewport. */
+export const frameSelectionEvent = "agents-in-the-cloud:frame-selection";
+export type FrameSelectionDetail = { text: string; code: boolean; rect: { left: number; top: number; right: number; bottom: number } } | null;
+
 /** Scrolling over an embedded frame, which never reaches this document. A
  * synthetic wheel event would do, but iOS Chrome scrolls for those. */
 export const frameScrollEvent = "agents-in-the-cloud:frame-scroll";

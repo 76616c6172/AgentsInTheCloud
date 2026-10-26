@@ -102,7 +102,24 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
       : renderMarkdownRow(ctx, item.text, `markdown agent-note ${escapeHtml(item.tone)}`);
   }
   else body = transcriptRow(`<div class="agent-error">${escapeHtml(item.text)}</div>`);
-  return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}${item.type === "tool" ? ` data-tool-call-id="${escapeHtml(item.tool.callId)}"` : ""}>${body}</div>`;
+  return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}" data-quote-source="${escapeHtml(quoteSource(item))}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}${item.type === "tool" ? ` data-tool-call-id="${escapeHtml(item.tool.callId)}"` : ""}>${body}</div>`;
+}
+
+/** The Comment button for selected transcript text; the pane's `transcript-quote` controller places it. */
+export function renderTranscriptQuoteAction(): string {
+  return `<div class="transcript-quote-action" data-transcript-quote-target="action" hidden>${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Comment, label: "Comment on selection" }, attributesHtml: 'data-popular-button="touch" data-action="mousedown->transcript-quote#keepSelection pointerdown->transcript-quote#press pointerup@window->transcript-quote#release pointercancel->transcript-quote#release click->transcript-quote#quote"' })}</div>`;
+}
+
+/** Where a quoted selection came from, as the user tells the Agent. */
+function quoteSource(item: Exclude<TranscriptItem, { type: "working" }>): string {
+  switch (item.type) {
+    case "user": return "From my prompt";
+    case "text": return "From your reply";
+    case "thinking": return "From your thinking";
+    case "tool": return `From the \`${item.tool.name}\` tool call`;
+    case "message": return `From the message from ${item.sender}`;
+    default: return "From the transcript";
+  }
 }
 
 /** A JSON final answer, formatted once it parses. A streaming answer shows as written; one that isn't JSON, as markdown. */
