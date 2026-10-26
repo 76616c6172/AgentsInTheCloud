@@ -70,7 +70,6 @@
 /* User message: matches the Composer surface, right aligned. */
 .agent-user { display: flex; justify-content: flex-end; }
 .agent-user-bubble {
-  --markdown-block-spacing: 6px;
   max-width: 100%; width: fit-content; margin-left: auto; color: var(--text-bright); background: var(--elev); border: 1px solid var(--line); border-radius: var(--radius-surface);
   padding: 8px 12px;
 }
