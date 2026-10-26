@@ -297,6 +297,8 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
         const result = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/changes/${operation}`, { method: "POST", body: data, signal: request.signal, headers: { Accept: "text/vnd.turbo-stream.html" } });
         const html = await result.text();
         if (request.signal.aborted) return;
+        // A later selection, maybe from another browser, superseded this one; Changes updates live to show it.
+        if (result.status === 204) return;
         const contentType = result.headers.get("Content-Type") ?? "";
         // Only plain-text bodies are readable messages; an HTML error page would show up as markup.
         if (!contentType.includes("text/vnd.turbo-stream.html")) throw new Error(contentType.startsWith("text/plain") && html ? html : `The server responded with ${result.status}.`);

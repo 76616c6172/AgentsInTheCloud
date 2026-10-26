@@ -18,18 +18,19 @@ import { canEditFile } from "../editing.ts";
 import { renderEditModel, renderUnchangedFile, renderUnchangedPaths, changesBodyId, comparisonId, errorId, historyContentId, renderChanges, renderChangesTitle, renderChangesFile, renderComparison, renderError, renderHistory, renderDiff, noticeId, renderNotice } from "./render.ts";
 import type { DiffEndpoints } from "../history.ts";
 import { workspaceChangeBuckets, type ChangeBucket } from "./buckets.ts";
+import { ChangesPublication } from "./publication.ts";
 import { captureChanges, commitHistory, InvalidDiffEndpoints, workingTree, type ChangesSnapshot } from "./snapshot.ts";
 
 const reference = { type: "changes" } as const;
 const referenceSchema = Type.Object({ type: Type.Literal("changes") });
 /** Buckets are re-read whenever the whole view or a new comparison renders, so saved settings show up on the next refresh. */
-interface ChangesState { snapshot: ChangesSnapshot; buckets: readonly ChangeBucket[]; request: number; clients: Map<string, number> }
+type ChangesState = ChangesPublication<ChangesSnapshot> & { buckets: readonly ChangeBucket[]; clients: Map<string, number> };
 let invalidateWorkspace: (workspaceId: string) => void;
 const states = new Map<string, Promise<ChangesState>>();
 function current(workspaceId: string): Promise<ChangesState> {
   let state = states.get(workspaceId);
   if (!state) {
-    state = Promise.all([captureChanges(workspaceRepository(workspaceId)), workspaceChangeBuckets(workspaceId)]).then(([snapshot, buckets]) => ({ snapshot, buckets, request: 0, clients: new Map<string, number>() }));
+    state = Promise.all([captureChanges(workspaceRepository(workspaceId)), workspaceChangeBuckets(workspaceId)]).then(([snapshot, buckets]) => Object.assign(new ChangesPublication(snapshot), { buckets, clients: new Map<string, number>() }));
     states.set(workspaceId, state);
     void state.catch(() => { if (states.get(workspaceId) === state) states.delete(workspaceId); });
   }
@@ -106,13 +107,9 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         const label = await commitLinkLabel(root, link);
         return label === undefined ? response("Commit not found", { status: 404 }) : response(label, { headers: { "Cache-Control": "private, max-age=31536000, immutable" } });
       }
-      const state = await current(workspaceId), ticket = ++state.request;
-      const next = await openCommitLink(root, state.snapshot, link);
+      const state = await current(workspaceId), ticket = state.select(), previous = state.snapshot;
       // A later selection owns the comparison; still bring Changes forward.
-      if (ticket === state.request) {
-        state.snapshot = next;
-        state.clients.clear();
-      }
+      if (await state.publishSelection(ticket, () => openCommitLink(root, previous, link))) state.clients.clear();
       return await context.openWorkView(workspaceId, reference);
     }
     const noticeRoute = matchRoute(url, /^\/workspaces\/([^/]+)\/changes\/notice\/dismiss$/);
@@ -146,11 +143,11 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         const input = { token, contents: data.get("contents"), ranges };
         if (!Value.Check(editSaveSchema, input) || input.ranges.some(range => range.end < range.start)) throw new EditError("Invalid file edit.", 400);
         const state = await current(workspaceId);
-        ++state.request;
+        state.select();
         const next = await changesEdits.save(workspaceId, workspaceRepository(workspaceId), input.token, input.contents, input.ranges,
           (snapshot, path, contents, positions) => reviewComments.relocate(workspaceId, snapshot, path, contents, positions));
         // The save's response owns this browser's comparison. Never publish an older in-flight capture.
-        ++state.request;
+        state.select();
         state.snapshot = next; state.clients.clear();
         invalidateWorkspace(workspaceId);
         const previousId = comparisonId(workspaceId, next.history.id);
@@ -258,32 +255,36 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     if (!Value.Check(requestSchema, order)) return textResponse("Invalid comparison request", { status: 400 });
     if (order.sequence <= (state.clients.get(order.client) ?? 0)) return new Response(null, { status: 204 });
     state.clients.set(order.client, order.sequence);
-    const ticket = ++state.request;
+    const ticket = state.select();
+    let buckets: readonly ChangeBucket[] = state.buckets;
     // The browser's own history; it is older than the server's when, say, an open code edit kept a refresh out.
     const shown = order.history, upToDate = shown === previous.history.id;
     // Existing HTTP field names map to the canonical Diff endpoints model.
     const requestedEndpoints = { target: data.get("end"), base: data.has("start") ? data.get("start") === "" ? null : data.get("start") : undefined };
-    let next: ChangesSnapshot, buckets: readonly ChangeBucket[];
+    let next: ChangesSnapshot | undefined;
     try {
       if (!Value.Check(diffEndpointsSchema, requestedEndpoints)) throw new InvalidDiffEndpoints("Invalid comparison endpoints.");
       const endpoints: DiffEndpoints = requestedEndpoints;
       const root = workspaceRepository(workspaceId);
       // An older history is refreshed. A comparison picked there still wins when its commits survived; a plain
       // refresh shows what the server shows now (say, after a commit link replaced it).
-      [next, buckets] = await Promise.all([
-        match[1] === "compare" && upToDate ? captureChanges(root, endpoints, previous.history) : refreshChanges(root, previous, match[1] === "compare" || upToDate ? endpoints : previous.endpoints),
-        workspaceChangeBuckets(workspaceId),
-      ]);
+      next = await state.publishSelection(ticket, async outdated => {
+        let snapshot: ChangesSnapshot;
+        [snapshot, buckets] = await Promise.all([
+          match[1] === "compare" && upToDate && !outdated ? captureChanges(root, endpoints, previous.history) : refreshChanges(root, previous, match[1] === "compare" || upToDate ? endpoints : previous.endpoints),
+          workspaceChangeBuckets(workspaceId),
+        ]);
+        return snapshot;
+      });
     } catch (thrown) {
       const error = thrown instanceof Error ? thrown : new Error(String(thrown));
       const invalid = error instanceof InvalidDiffEndpoints;
       if (!invalid) console.error(`Could not ${match[1]} Changes for workspace ${workspaceId}`, error);
-      if (ticket !== state.request) return new Response(null, { status: 204 });
+      if (state.superseded(ticket)) return new Response(null, { status: 204 });
       return turboStreamResponse(replace(errorId(workspaceId, shown), renderError(workspaceId, shown, invalid ? error.message : `Couldn’t generate this comparison: ${error.message}`)), { status: invalid ? 422 : 500 });
     }
     // Last request wins. A slow earlier capture must not publish or overwrite a newer selection.
-    if (ticket !== state.request) return new Response(null, { status: 204 });
-    state.snapshot = next;
+    if (!next) return new Response(null, { status: 204 });
     state.buckets = buckets;
     invalidateWorkspace(workspaceId);
     if (next.history.id !== shown) {
@@ -296,11 +297,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     invalidateWorkspace = context.invalidateWorkspace;
     context.events.on("workspace_agent_turn_finished", async ({ workspaceId }) => {
       const state = await current(workspaceId);
-      const ticket = ++state.request;
-      const next = await refreshChanges(workspaceRepository(workspaceId), state.snapshot);
-      // A later user selection owns the comparison; don't overwrite it with this capture.
-      if (ticket !== state.request || !states.has(workspaceId)) return;
-      state.snapshot = next;
+      if (!await state.refreshAfterTurn(previous => refreshChanges(workspaceRepository(workspaceId), previous)) || !states.has(workspaceId)) return;
       state.clients.clear();
       invalidateWorkspace(workspaceId);
     });
