@@ -52,7 +52,7 @@ function editableUnchangedFile(snapshot: ChangesSnapshot, path: string, file: Un
 }
 const replace = (target: string, html: string) => `<turbo-stream action="replace" target="${escapeHtml(target)}"><template>${html}</template></turbo-stream>`;
 const diffEndpointsSchema = Type.Object({ target: Type.String(), base: Type.Optional(Type.Union([Type.String(), Type.Null()])) });
-const requestSchema = Type.Object({ client: Type.String({ minLength: 1, maxLength: 64 }), sequence: Type.Integer({ minimum: 1 }) });
+const requestSchema = Type.Object({ client: Type.String({ minLength: 1, maxLength: 64 }), sequence: Type.Integer({ minimum: 1 }), history: Type.String({ minLength: 1, maxLength: 64 }) });
 
 const editedRangesSchema = Type.Array(Type.Object({ id: Type.String({ minLength: 1, maxLength: 64 }), revision: Type.Integer({ minimum: 1 }), start: Type.Integer({ minimum: 1, maximum: maxChangesTextLines + 1 }), end: Type.Integer({ minimum: 1, maximum: maxChangesTextLines + 1 }) }), { maxItems: 10000 });
 const editSaveSchema = Type.Object({ token: Type.String({ minLength: 1, maxLength: 64 }), contents: Type.String({ maxLength: maxChangesTextBytes }), ranges: editedRangesSchema });
@@ -254,12 +254,13 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
     if (request.method !== "POST") return textResponse("Method not allowed", { status: 405 });
     const workspaceId = match[0]!, state = await current(workspaceId), previous = state.snapshot;
     const data = await request.formData();
-    if (match[1] !== "refresh" && data.get("history") !== previous.history.id) return textResponse("This history has been refreshed. Reopen Changes.", { status: 409 });
-    const order = { client: data.get("client"), sequence: Number(data.get("sequence")) };
+    const order = { client: data.get("client"), sequence: Number(data.get("sequence")), history: data.get("history") };
     if (!Value.Check(requestSchema, order)) return textResponse("Invalid comparison request", { status: 400 });
     if (order.sequence <= (state.clients.get(order.client) ?? 0)) return new Response(null, { status: 204 });
     state.clients.set(order.client, order.sequence);
     const ticket = ++state.request;
+    // The browser's own history; it is older than the server's when, say, an open code edit kept a refresh out.
+    const shown = order.history, upToDate = shown === previous.history.id;
     // Existing HTTP field names map to the canonical Diff endpoints model.
     const requestedEndpoints = { target: data.get("end"), base: data.has("start") ? data.get("start") === "" ? null : data.get("start") : undefined };
     let next: ChangesSnapshot, buckets: readonly ChangeBucket[];
@@ -267,9 +268,10 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
       if (!Value.Check(diffEndpointsSchema, requestedEndpoints)) throw new InvalidDiffEndpoints("Invalid comparison endpoints.");
       const endpoints: DiffEndpoints = requestedEndpoints;
       const root = workspaceRepository(workspaceId);
-      // A browser still showing an older history (say, before a commit link replaced it) refreshes what the server shows now.
+      // An older history is refreshed. A comparison picked there still wins when its commits survived; a plain
+      // refresh shows what the server shows now (say, after a commit link replaced it).
       [next, buckets] = await Promise.all([
-        match[1] === "compare" ? captureChanges(root, endpoints, previous.history) : refreshChanges(root, previous, data.get("history") === previous.history.id ? endpoints : previous.endpoints),
+        match[1] === "compare" && upToDate ? captureChanges(root, endpoints, previous.history) : refreshChanges(root, previous, match[1] === "compare" || upToDate ? endpoints : previous.endpoints),
         workspaceChangeBuckets(workspaceId),
       ]);
     } catch (thrown) {
@@ -277,18 +279,18 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
       const invalid = error instanceof InvalidDiffEndpoints;
       if (!invalid) console.error(`Could not ${match[1]} Changes for workspace ${workspaceId}`, error);
       if (ticket !== state.request) return new Response(null, { status: 204 });
-      return turboStreamResponse(replace(errorId(workspaceId, previous.history.id), renderError(workspaceId, previous.history.id, invalid ? error.message : `Couldn’t generate this comparison: ${error.message}`)), { status: invalid ? 422 : 500 });
+      return turboStreamResponse(replace(errorId(workspaceId, shown), renderError(workspaceId, shown, invalid ? error.message : `Couldn’t generate this comparison: ${error.message}`)), { status: invalid ? 422 : 500 });
     }
     // Last request wins. A slow earlier capture must not publish or overwrite a newer selection.
     if (ticket !== state.request) return new Response(null, { status: 204 });
     state.snapshot = next;
     state.buckets = buckets;
     invalidateWorkspace(workspaceId);
-    if (match[1] === "refresh") {
+    if (next.history.id !== shown) {
       state.clients.clear();
-      return turboStreamResponse(replace(changesBodyId(workspaceId, previous.history.id), renderChanges(workspaceId, next, state.buckets, data.get("pickerOpen") === "true")));
+      return turboStreamResponse(replace(changesBodyId(workspaceId, shown), renderChanges(workspaceId, next, state.buckets, data.get("pickerOpen") === "true")));
     }
-    return turboStreamResponse(replace(comparisonId(workspaceId, previous.history.id), renderComparison(workspaceId, next, state.buckets, true)) + replace(errorId(workspaceId, previous.history.id), renderError(workspaceId, previous.history.id)));
+    return turboStreamResponse(replace(comparisonId(workspaceId, shown), renderComparison(workspaceId, next, state.buckets, true)) + replace(errorId(workspaceId, shown), renderError(workspaceId, shown)));
   } }],
   initialize(context) {
     invalidateWorkspace = context.invalidateWorkspace;
