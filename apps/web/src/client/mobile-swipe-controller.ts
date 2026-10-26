@@ -204,6 +204,8 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.settleMotion();
     const resolved = this.resolveNavigation(direction);
     if (!resolved) return;
+    // A claimed swipe consumes later move events; abandon any pending row hold first.
+    document.dispatchEvent(new Event("agents-in-the-cloud:mobile-swipe-start"));
     if (resolved.motion === "drawer") return this.drawerDrag(resolved);
     if (resolved.motion === "spread") return this.spreadDrag(direction, resolved);
     return resolved.motion === "pane" ? this.paneDrag(direction, resolved) : this.loopDrag(direction, resolved);

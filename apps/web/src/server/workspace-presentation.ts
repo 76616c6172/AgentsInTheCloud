@@ -1,4 +1,5 @@
 import { workspaceTemplateChoiceHtml } from "./workspace-template-presentation.ts";
+import { noxWorkspaceHoldAttributes, noxWorkspaceHoldInk, noxWorkspaceHoldLaunch } from "./nox-workspace-hold.ts";
 import { noxWorkspaceGlyph, noxWorkspaceGlyphStyle } from "./nox-workspace-glyph.ts";
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
@@ -113,10 +114,10 @@ function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): strin
   const row = contentRowHtml({
     width: "fill",
     kind: "compact",
-    container: parked ? undefined : { attributesHtml: `data-workspace-order="${index}"` },
+    container: { attributesHtml: `${parked ? "" : `data-workspace-order="${index}"`} ${workspaceTemplate ? noxWorkspaceHoldAttributes : ""}` },
     label: { kind: "text", text: workspace.title },
-    trailingHtml: status.html,
-    leadingActionsHtml: `<button type="button" class="workspace-template-icon-button nox-workspace-glyph"${glyph.attributesHtml} title="${escapeHtml(newFromTemplate)}" aria-label="${escapeHtml(newFromTemplate)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(workspaceTemplate?.id ?? "")}">${glyph.html}</button>`,
+    trailingHtml: `${status.html}<span class="nox-workspace-glyph nox-workspace-mobile-glyph"${glyph.attributesHtml} aria-hidden="true">${glyph.html}</span>${workspaceTemplate ? noxWorkspaceHoldInk : ""}`,
+    leadingActionsHtml: `<button type="button" class="workspace-template-icon-button nox-workspace-glyph"${glyph.attributesHtml} title="${escapeHtml(newFromTemplate)}" aria-label="${escapeHtml(newFromTemplate)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(workspaceTemplate?.id ?? "")}">${glyph.html}</button>${workspaceTemplate ? noxWorkspaceHoldLaunch(workspaceTemplate.id) : ""}`,
     primary: {
       tag: "button",
       attributesHtml: `${parked ? 'data-workspace-parked' : `id="${id}"`} type="${parked ? "submit" : "button"}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${label} · ${status.label}`)}"${workspace.active ? ' aria-current="page"' : ""} data-workspace-entry-id="${escapeHtml(workspace.id)}"${attentionAt}${lastActivityAt}${busyAgents}${workspaceTemplateAttribute}${parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,
