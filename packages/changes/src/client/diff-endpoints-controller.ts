@@ -270,6 +270,8 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
     }
 
     refresh(): void { this.withEditGuard(() => { void this.generate("refresh"); }); }
+    /** Showing Changes refreshes it, but never asks to leave an open code edit; saving or discarding refreshes then. */
+    refreshWhenShown(): void { if (!this.element.querySelector("[data-code-editing]")) this.refresh(); }
     retry(): void {
       const operation = this.lastOperation;
       if (operation === "history") void this.loadMore();
