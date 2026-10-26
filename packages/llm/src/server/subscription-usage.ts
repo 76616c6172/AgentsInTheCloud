@@ -12,7 +12,9 @@ export type SubscriptionUsage = {
   balance?: { currency: string; available: number; monthSpend: number };
   /** Short labelled facts that don't fit a window, like unlimited allowances or exact counts. */
   details?: { label: string; value: string }[];
-  windows: { limitName: string; meteredFeature: string | null; kind: "primary" | "secondary"; usedPercent: number; durationSeconds: number; resetsAt: string | null }[];
+  windows: { limitName: string; meteredFeature: string | null; kind: "primary" | "secondary"; usedPercent: number; durationSeconds: number; resetsAt: string | null;
+    /** The provider said this window ran out. Only set by providers that report it per window. */
+    limitReached?: boolean }[];
 };
 
 /** Expected provider/authentication failures that can be shown in the usage overview. */

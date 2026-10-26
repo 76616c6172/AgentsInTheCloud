@@ -10,6 +10,7 @@ const reportedUsageWindowSchema = {
   properties: {
     limitName: { type: "string" }, meteredFeature: { type: ["string", "null"] }, kind: { enum: ["primary", "secondary"] },
     usedPercent: { type: "number" }, durationSeconds: { type: "integer" }, resetsAt: { type: ["string", "null"], format: "date-time", description: "Null when the provider has not reported reset timing; usage is still reported." },
+    limitReached: { type: "boolean", description: "Present when the provider says this window ran out, such as one model's weekly cap while others still work." },
   },
 };
 const providerUsageSchema = {
