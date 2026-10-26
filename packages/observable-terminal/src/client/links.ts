@@ -1,7 +1,7 @@
 import type { TerminalBufferRow } from "@gespenst/core";
-import { fileReferencesIn } from "@agents-in-the-cloud/shared";
+import { fileReferencesIn, type WorkspaceFileTarget } from "@agents-in-the-cloud/shared";
 
-export interface TerminalFileLink { path: string; line?: number; column?: number }
+export type TerminalFileLink = WorkspaceFileTarget;
 export interface TerminalWebLink { url: string }
 export type TerminalLink = TerminalFileLink | TerminalWebLink;
 
@@ -23,8 +23,10 @@ export function terminalUri(uri: string): TerminalLink | undefined {
   let path: string;
   try { path = decodeURIComponent(url.pathname); } catch { return undefined; }
   if (!path.startsWith("/") || path.includes("\0")) return undefined;
-  const fragment = url.hash.match(/^#L(\d+)(?:C(\d+))?$/i);
-  return { path, line: positive(url.searchParams.get("line")) ?? positive(fragment?.[1]), column: positive(url.searchParams.get("column")) ?? positive(fragment?.[2]) };
+  // #L12C3 is a source position; any other anchor is a place in the page.
+  const position = url.hash.match(/^#L(\d+)(?:C(\d+))?$/i);
+  const fragment = position ? undefined : url.hash.slice(1) || undefined;
+  return { path, line: positive(url.searchParams.get("line")) ?? positive(position?.[1]), column: positive(url.searchParams.get("column")) ?? positive(position?.[2]), fragment };
 }
 
 // Trailing sentence punctuation and closing brackets belong to the prose, not the URL.
@@ -35,8 +37,8 @@ export function terminalTextLinkAt(text: string, offset: number): TerminalLink |
     if (offset >= match.index && offset < match.index + match[0].length) return terminalUri(match[0]);
   }
   // OSC 8 is the unambiguous case; the open endpoint verifies that a plain-text reference names a file.
-  for (const { path, line, column, start, end } of fileReferencesIn(text)) {
-    if (offset >= start && offset < end) return { path, line, column };
+  for (const { start, end, ...link } of fileReferencesIn(text)) {
+    if (offset >= start && offset < end) return link;
   }
   return undefined;
 }

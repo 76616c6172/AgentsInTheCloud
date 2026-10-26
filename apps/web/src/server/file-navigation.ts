@@ -15,7 +15,7 @@ export async function openWorkspaceFile(workspaceId: string, target: WorkspaceFi
     if ((await existingFilesInWorkspace(workspaceId, "agents-in-the-cloud", [path])).length === 0) return new Response(null, { status: 204 });
   }
   // A position points at source; without one, an HTML file is a page to look at.
-  if (/\.html?$/i.test(path) && !target.line) return openFileInBrowser(workspaceId, path, openWorkView);
+  if (/\.html?$/i.test(path) && !target.line) return openFileInBrowser(workspaceId, path, openWorkView, target.fragment);
   const resolvedTarget = { ...target, path };
   const vscode = listWorkspaceVSCodeViews(workspaceId)[0];
   return vscode

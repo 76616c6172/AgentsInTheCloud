@@ -71,9 +71,18 @@ test("neutral links to HTML files open the page in the Browser", async () => {
   const { app } = createTestApp();
   const response = await app.fetch(new Request("http://localhost/workspaces/navigation/file/open?path=out/Report.HTM"));
   expect(response.status).toBe(204);
-  expect(openBrowser).toHaveBeenCalledWith("navigation", "/work/out/Report.HTM", expect.any(Function));
+  expect(openBrowser).toHaveBeenCalledWith("navigation", "/work/out/Report.HTM", expect.any(Function), undefined);
   expect(openVSCode).not.toHaveBeenCalled();
   expect(openFiles).not.toHaveBeenCalled();
+});
+
+test("HTML links keep their anchor in the Browser", async () => {
+  listVSCode.mockReturnValue([]);
+  openBrowser.mockResolvedValue(new Response(null, { status: 204 }));
+  const { app } = createTestApp();
+  const response = await app.fetch(new Request("http://localhost/workspaces/navigation/file/open?path=/work/report.html&fragment=results"));
+  expect(response.status).toBe(204);
+  expect(openBrowser).toHaveBeenCalledWith("navigation", "/work/report.html", expect.any(Function), "results");
 });
 
 test("neutral links to a line of an HTML file open its source", async () => {
