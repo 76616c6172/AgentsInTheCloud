@@ -28,3 +28,12 @@ test("re-navigating to the same URL gives the preview iframe a new identity so i
   setWorkspaceBrowserTarget(workspaceId, view.key, "http://localhost:3000/");
   expect(iframeId()).not.toBe(first);
 });
+
+test("workspace file pages get the same browser capabilities as workspace ports", () => {
+  const workspaceId = `render_${crypto.randomUUID()}`;
+  const view = createWorkspaceBrowserView(workspaceId);
+  setWorkspaceBrowserTarget(workspaceId, view.key, "file:///work/report.html");
+  const html = renderBrowserFrame(workspaceId, view, "http://localhost:41000/work/report.html");
+  expect(html).toContain('value="file:///work/report.html"');
+  expect(html).toContain("allowfullscreen");
+});
