@@ -99,7 +99,7 @@ export function renderTranscriptItem(ctx: AgentRenderContext, item: TranscriptIt
   else if (item.type === "note") {
     body = item.tone === "summary"
       ? transcriptRow(disclosureHtml({ summary: { kind: "compact", label: { kind: "text", text: "Compaction summary" } }, bodyHtml: `<div class="markdown">${markdown(ctx, item.text)}</div>` }))
-      : renderMarkdownRow(ctx, item.text, `agent-note ${escapeHtml(item.tone)}`);
+      : renderMarkdownRow(ctx, item.text, `markdown agent-note ${escapeHtml(item.tone)}`);
   }
   else body = transcriptRow(`<div class="agent-error">${escapeHtml(item.text)}</div>`);
   return `<div class="agent-item" id="${id}" data-transcript-key="${escapeHtml(item.key)}"${item.anchor ? ` data-transcript-anchor="${escapeHtml(item.anchor)}"` : ""}${item.type === "tool" ? ` data-tool-call-id="${escapeHtml(item.tool.callId)}"` : ""}>${body}</div>`;
