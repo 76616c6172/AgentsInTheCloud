@@ -11,12 +11,15 @@ function positive(value: string | null | undefined): number | undefined {
   return Number.isSafeInteger(number) && number > 0 ? number : undefined;
 }
 
-/** OSC 8 destinations: local files and web pages. Other schemes are never followed. */
+/** OSC 8 destinations: local files, AgentsInTheCloud file links and web pages. Other schemes are never followed. */
 export function terminalUri(uri: string): TerminalLink | undefined {
   let url: URL;
   try { url = new URL(uri); } catch { return undefined; }
   if (url.protocol === "http:" || url.protocol === "https:") return { url: url.href };
-  if (url.protocol !== "file:" || (url.hostname && url.hostname !== "localhost")) return undefined;
+  const localFile = url.protocol === "file:" && (!url.hostname || url.hostname === "localhost");
+  // Agents are told to write file links as agents-in-the-cloud://file/<absolute path>.
+  const agentsInTheCloudFile = url.protocol === "agents-in-the-cloud:" && url.hostname === "file";
+  if (!localFile && !agentsInTheCloudFile) return undefined;
   let path: string;
   try { path = decodeURIComponent(url.pathname); } catch { return undefined; }
   if (!path.startsWith("/") || path.includes("\0")) return undefined;

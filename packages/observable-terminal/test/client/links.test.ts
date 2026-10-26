@@ -5,6 +5,8 @@ test("OSC 8 destinations resolve files and web pages and reject other links", ()
   expect(terminalUri("file:///work/src/a%20b.ts?line=42&column=3")).toEqual({ path: "/work/src/a b.ts", line: 42, column: 3 });
   expect(terminalUri("file://localhost/work/a.ts#L9C2")).toEqual({ path: "/work/a.ts", line: 9, column: 2 });
   expect(terminalUri("file://other-host/work/a.ts")).toBeUndefined();
+  expect(terminalUri("agents-in-the-cloud://file/work/a%20b.html?line=3")).toEqual({ path: "/work/a b.html", line: 3, column: undefined });
+  expect(terminalUri("agents-in-the-cloud://commit/abc123")).toBeUndefined();
   expect(terminalUri("https://example.com/a.ts")).toEqual({ url: "https://example.com/a.ts" });
   expect(terminalUri("javascript:alert(1)")).toBeUndefined();
   expect(terminalUri("file:///work/%00bad.ts")).toBeUndefined();
