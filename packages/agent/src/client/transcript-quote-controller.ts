@@ -167,9 +167,16 @@ export function createTranscriptQuoteController(Controller: WorkspaceClientContr
       const bounds = transcript.getBoundingClientRect();
       action.hidden = !transcript.checkVisibility() || selection.bottom <= bounds.top || selection.top >= bounds.bottom;
       if (action.hidden) return;
-      const { width, height } = action.getBoundingClientRect();
-      action.style.top = `${Math.max(Math.min(selection.bottom + offset, bounds.bottom - inset - height), bounds.top + inset)}px`;
-      action.style.left = `${bounds.right - inset - width}px`;
+      // Nox's translated/scaled panes can be the containing block for this fixed
+      // action. Measure its local origin instead of treating viewport coordinates
+      // as CSS offsets; on an untransformed page the origin is simply (0, 0).
+      action.style.top = "0px";
+      action.style.left = "0px";
+      const origin = action.getBoundingClientRect();
+      const size = getComputedStyle(action);
+      const top = Math.max(Math.min(selection.bottom + offset, bounds.bottom - inset - origin.height), bounds.top + inset);
+      action.style.top = `${(top - origin.top) * parseFloat(size.height) / origin.height}px`;
+      action.style.left = `${(bounds.right - inset - origin.width - origin.left) * parseFloat(size.width) / origin.width}px`;
     }
   };
 }
