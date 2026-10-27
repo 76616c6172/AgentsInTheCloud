@@ -50,6 +50,8 @@ svg.brand-icon path[fill] { fill: currentColor; }
 .fixed-shell-workspace-scroll .content-row:has(> .content-row__actions--leading) { padding-inline: 8px 2px; }
 .fixed-shell-workspace-scroll .content-row:has(> .content-row__actions--leading) > .content-row__primary { padding-inline-end: 4px; }
 .fixed-shell-workspace-scroll .content-row__actions--leading { order: 1; margin-inline: 0; }
+/* Glyphs are round: a soft circular vignette fades the grid's corner dots. */
+:root { --nox-glyph-vignette: radial-gradient(circle closest-side, #000 60%, transparent) center / 100% 100% no-repeat; }
 html[data-theme] {
   --nox-glyph-key: color-mix(in oklch,
     color-mix(in oklch, var(--accent), var(--success)) 40%,
@@ -57,7 +59,7 @@ html[data-theme] {
 }
 .nox-workspace-glyph { color: var(--text-muted); }
 .nox-workspace-glyph[data-tinted] { color: oklch(from var(--nox-glyph-key) calc(l + var(--glyph-l)) c var(--glyph-hue)); }
-.nox-workspace-glyph__svg { display: block; width: 17px; height: 17px; }
+.nox-workspace-glyph__svg { display: block; width: 17px; height: 17px; mask: var(--nox-glyph-vignette); }
 .nox-workspace-glyph[data-parked] .nox-workspace-glyph__svg { opacity: .4; }
 .nox-workspace-glyph__plus { display: none; color: var(--text-bright); }
 button.nox-workspace-glyph:is(:hover, :focus-visible) > :not(.nox-workspace-glyph__plus) { display: none; }
@@ -107,11 +109,11 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
 :is(.tab-strip__status[data-agent-attention-id], [data-nox-phone-tab="agents"] .tab-strip__status) .status-dot.running {
   width: 15px; height: 15px; border: 0; border-radius: 0;
   background: var(--nox-glyph-color, var(--text-muted));
-  mask: var(--nox-glyph-mask) center / contain no-repeat, linear-gradient(90deg, #000 40%, rgb(0 0 0 / .18) 50%, #000 60%) 100% 0 / 300% 100% no-repeat;
+  mask: var(--nox-glyph-mask) center / contain no-repeat, var(--nox-glyph-vignette), linear-gradient(90deg, #000 40%, rgb(0 0 0 / .18) 50%, #000 60%) 100% 0 / 300% 100% no-repeat;
   mask-composite: intersect;
   animation: nox-workspace-glyph-sweep 1.1s ease-in-out infinite;
 }
-@keyframes nox-workspace-glyph-sweep { to { mask-position: center, 0% 0; } }
+@keyframes nox-workspace-glyph-sweep { to { mask-position: center, center, 0% 0; } }
 @media (max-width: 700px), (pointer: coarse) {
   .nox-workspace-glyph__svg { width: 20px; height: 20px; }
 }
