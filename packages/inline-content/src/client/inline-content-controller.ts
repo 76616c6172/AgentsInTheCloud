@@ -1,6 +1,6 @@
 import { Value } from "typebox/value";
 import { inlineContentFrameMessage } from "../shared/inline-content-protocol.ts";
-import { frameScrollEvent, type FrameScrollDetail, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { frameScrollEvent, frameSelectionEvent, type FrameScrollDetail, type FrameSelectionDetail, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 
 export function createInlineContentController(Controller: WorkspaceClientControllerConstructor) {
   return class extends Controller {
@@ -52,6 +52,10 @@ export function createInlineContentController(Controller: WorkspaceClientControl
         // Replay input from inside the visual as if it happened over the frame.
         if (data.type === "scroll") this.frameTarget.dispatchEvent(new CustomEvent<FrameScrollDetail>(frameScrollEvent, { detail: { deltaY: data.deltaY }, bubbles: true }));
         if (data.type === "keydown") { const { type, ...init } = data; this.frameTarget.dispatchEvent(new KeyboardEvent(type, { ...init, bubbles: true, cancelable: true })); }
+        if (data.type === "selection" || data.type === "selection-cleared") {
+          const detail = data.type === "selection" ? { text: data.text, code: data.code, rect: data.rect } : null;
+          this.frameTarget.dispatchEvent(new CustomEvent<FrameSelectionDetail>(frameSelectionEvent, { detail, bubbles: true }));
+        }
         if (data.type === "error") this.fail(`An interaction failed: ${data.message}`, false);
         if (data.type === "link") {
           // A sandbox cannot navigate AgentsInTheCloud. External navigation always requires host confirmation.

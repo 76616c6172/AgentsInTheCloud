@@ -1,1 +1,1 @@
-export { browserWorkspaceModule as agentsInTheCloudServerModule } from "./web.ts";
+export { browserWorkspaceModule as agentsInTheCloudServerModule, openFileInBrowser } from "./web.ts";

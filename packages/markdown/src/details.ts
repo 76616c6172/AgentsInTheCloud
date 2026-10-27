@@ -57,7 +57,7 @@ export function installDetails(markdown: MarkdownIt): void {
   markdown.renderer.rules.details_open = (tokens, index) => {
     const token = tokens[index]!;
     return disclosureOpeningHtml({
-      summary: { kind: "multiline", tone: "muted", label: { kind: "text", text: plainText(markdown, token.info) } },
+      summary: { kind: "compact", tone: "muted", label: { kind: "text", text: plainText(markdown, token.info) } },
       open: token.attrGet("open") !== null,
     });
   };

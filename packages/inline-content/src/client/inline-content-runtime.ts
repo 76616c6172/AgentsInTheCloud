@@ -1,6 +1,7 @@
 import { Value } from "typebox/value";
 import { inlineContentConnectMessage, inlineContentThemeMessage } from "../shared/inline-content-protocol.ts";
 import { Application, Controller } from "@hotwired/stimulus";
+import { quotableSelection } from "@agents-in-the-cloud/shared/text-selection";
 
 export { Controller };
 const application = new Application();
@@ -31,7 +32,10 @@ class RuntimeController extends Controller {
   private mutations = new MutationObserver(() => this.observe());
   private scheduled = 0;
   private touchY?: number;
+  private selectionFrame = 0;
+  private selected = false;
   connect(): void {
+    document.addEventListener("selectionchange", this.selectionChanged);
     window.addEventListener("message", this.handshake);
     document.addEventListener("click", this.link);
     window.addEventListener("wheel", this.wheel, { passive: true });
@@ -46,6 +50,8 @@ class RuntimeController extends Controller {
     this.mutations.observe(document.getElementById("ic-content")!, { childList: true, subtree: true });
   }
   disconnect(): void {
+    document.removeEventListener("selectionchange", this.selectionChanged);
+    cancelAnimationFrame(this.selectionFrame);
     window.removeEventListener("message", this.handshake);
     document.removeEventListener("click", this.link);
     window.removeEventListener("wheel", this.wheel);
@@ -116,6 +122,18 @@ class RuntimeController extends Controller {
     if (target instanceof HTMLElement && (target.isContentEditable || target.closest("input, textarea, select"))) return;
     const { key, code, altKey, ctrlKey, metaKey, shiftKey, repeat } = event;
     this.port?.postMessage({ type: "keydown", key, code, altKey, ctrlKey, metaKey, shiftKey, repeat });
+  };
+  // The host draws the Comment button for selected text; it cannot see into this document.
+  private selectionChanged = (): void => {
+    cancelAnimationFrame(this.selectionFrame);
+    this.selectionFrame = requestAnimationFrame(() => {
+      const selection = quotableSelection(document);
+      if (selection) {
+        const { left, top, right, bottom } = selection.range.getBoundingClientRect();
+        this.port?.postMessage({ type: "selection", text: selection.text, code: selection.code, rect: { left, top, right, bottom } });
+      } else if (this.selected) this.port?.postMessage({ type: "selection-cleared" });
+      this.selected = Boolean(selection);
+    });
   };
   private sendError = (): void => {
     if (pendingError) this.port?.postMessage({ type: "error", message: pendingError });

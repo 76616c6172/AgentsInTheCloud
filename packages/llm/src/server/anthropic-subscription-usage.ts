@@ -8,23 +8,38 @@ const accountWindowSchema = Type.Object({
   utilization: Type.Number({ minimum: 0, maximum: 100 }),
   resets_at: Type.Union([Type.String(), Type.Null()]),
 });
+/** A model-scoped weekly cap from the account endpoint's limits[], such as Fable's. */
+const scopedLimitSchema = Type.Object({
+  percent: Type.Number({ minimum: 0 }),
+  resets_at: Type.Union([Type.String(), Type.Null()]),
+});
+/** Only a model's display name says what a cap is for. */
+const scopedModelSchema = Type.Object({ model: Type.Object({ display_name: Type.String({ minLength: 1 }) }) });
+const limitsSchema = Type.Array(Type.Record(Type.String(), Type.Unknown()));
+const scopedLimitFeature = "weekly_scoped";
 const unrecognizedHeaders = () => new SubscriptionUsageError("Anthropic returned unrecognized rate limit headers.");
 const unrecognizedAccountUsageMessage = "Anthropic returned an unrecognized usage response.";
 const unrecognizedAccountUsage = () => new SubscriptionUsageError(unrecognizedAccountUsageMessage);
 const unitSeconds = new Map([["h", 3600], ["hour", 3600], ["d", 86400], ["day", 86400]]);
+/** "oi", overage included, is Fable's weekly cap; the headers never name the model. */
+const fableFeatures = new Set(["oi", "overage_included"]);
+/** Names for the features Anthropic's window names abbreviate. */
+const featureNames = new Map([...[...fableFeatures].map((feature) => [feature, "Fable"] as const), ["opus", "Opus"], ["sonnet", "Sonnet"]]);
 const numberWords = new Map(["one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"].map((word, index) => [word, index + 1]));
 
 /** Anthropic names each window by its length and, for a metered feature, a suffix:
  * "5h" or "7d_opus" in headers, "five_hour" or "seven_day_opus" from the account
  * endpoint. The shortest reported window is the primary one. Windows whose names
  * don't state a length can't be paced, so they are left out. */
-function namedWindows(reported: Array<{ count: number; unit: string; feature: string | undefined; usedPercent: number; resetsAt: string | null }>): UsageWindow[] {
-  const windows = reported.map(({ count, unit, feature, usedPercent, resetsAt }) => ({
-    limitName: feature ? feature.replaceAll("_", " ").replace(/^./, (first) => first.toUpperCase()) : "Claude",
+type ReportedWindow = { count: number; unit: string; feature: string | undefined; name?: string; usedPercent: number; resetsAt: string | null; limitReached?: true };
+function namedWindows(reported: ReportedWindow[]): UsageWindow[] {
+  const windows = reported.map(({ count, unit, feature, name, usedPercent, resetsAt, limitReached }) => ({
+    limitName: name ?? (feature ? featureNames.get(feature) ?? feature.replaceAll("_", " ").replace(/^./, (first) => first.toUpperCase()) : "Claude"),
     meteredFeature: feature ?? null,
     usedPercent,
     durationSeconds: count * unitSeconds.get(unit)!,
     resetsAt,
+    ...(limitReached && { limitReached }),
   }));
   const shortest = Math.min(...windows.map((window) => window.durationSeconds));
   return windows.map((window) => ({ ...window, kind: window.durationSeconds === shortest ? "primary" : "secondary" }));
@@ -44,7 +59,8 @@ function anthropicHttpError(response: Response): SubscriptionUsageError {
 
 /** Claude's OAuth account endpoint. Not a public, versioned API, and heavily rate limited
  * (429 with an hour-long retry-after), so it only adds windows the headers lack.
- * Entries without a length in their name, such as monetary extra_usage, aren't windows. */
+ * Entries without a length in their name, such as monetary extra_usage, aren't windows.
+ * Model-scoped weekly caps, such as Fable's, only appear in its limits[], named by model. */
 export async function fetchAnthropicAccountUsage(accessToken: string, fetcher: Fetcher = fetch): Promise<UsageWindow[]> {
   const response = await requestAnthropic("https://api.anthropic.com/api/oauth/usage", accessToken, {}, fetcher);
   if (!response.ok) throw anthropicHttpError(response);
@@ -52,25 +68,53 @@ export async function fetchAnthropicAccountUsage(accessToken: string, fetcher: F
     invalid: "Anthropic returned an invalid usage response.",
     unrecognized: unrecognizedAccountUsageMessage,
   });
-  return namedWindows(Object.entries(payload).flatMap(([key, window]) => {
+  const buckets = Object.entries(payload).flatMap(([key, window]): ReportedWindow[] => {
     const name = key.match(/^([a-z]+)_(hour|day)(?:_(.+))?$/);
     const count = name && numberWords.get(name[1]!);
     // A null bucket is one the account doesn't have.
     if (!count || window === null) return [];
     if (!Value.Check(accountWindowSchema, window)) throw unrecognizedAccountUsage();
-    // A reported bucket is still meaningful without reset timing.
-    const reset = window.resets_at === null ? null : new Date(window.resets_at);
-    if (reset !== null && !Number.isFinite(reset.getTime())) throw unrecognizedAccountUsage();
-    return [{ count, unit: name[2]!, feature: name[3], usedPercent: window.utilization, resetsAt: reset?.toISOString() ?? null }];
-  }));
+    return [{ count, unit: name[2]!, feature: name[3], usedPercent: window.utilization, resetsAt: accountResetsAt(window.resets_at) }];
+  });
+  const limits = payload.limits ?? [];
+  if (!Value.Check(limitsSchema, limits)) throw unrecognizedAccountUsage();
+  // Other kinds, like "session" and "weekly_all", repeat the buckets above.
+  const scoped = limits.flatMap((limit): ReportedWindow[] => {
+    if (limit.kind !== "weekly_scoped") return [];
+    const scope = limit.scope;
+    if (!Value.Check(scopedLimitSchema, limit)) throw unrecognizedAccountUsage();
+    // Caps scoped to something other than a model, such as a surface, have nothing to name them by.
+    if (!Value.Check(scopedModelSchema, scope)) return [];
+    return [{ count: 7, unit: "d", feature: scopedLimitFeature, name: scope.model.display_name, usedPercent: limit.percent, resetsAt: accountResetsAt(limit.resets_at) }];
+  });
+  // A used-up feature cap is reported at 100%; the headers only say so on that model's own requests.
+  // Shared windows are left to the headers' account-wide decision.
+  const windows = namedWindows([...buckets, ...scoped].map((window) => window.feature !== undefined && window.usedPercent >= 100 ? { ...window, limitReached: true as const } : window));
+  // One cap can be both a bucket and a limits[] entry, rounding its usage differently; it's
+  // reached if either says so, and then lasts until that one's reset, when the bucket has none.
+  const reached = new Map(windows.filter((window) => window.limitReached).map((window) => [windowName(window), window] as const));
+  return uniqueWindows(windows).map((window) => {
+    const reachedBy = reached.get(windowName(window));
+    return reachedBy ? { ...window, limitReached: true, resetsAt: window.resetsAt ?? reachedBy.resetsAt } : window;
+  });
+}
+
+/** A reported bucket is still meaningful without reset timing. */
+function accountResetsAt(resetsAt: string | null): string | null {
+  if (resetsAt === null) return null;
+  const reset = new Date(resetsAt);
+  if (!Number.isFinite(reset.getTime())) throw unrecognizedAccountUsage();
+  return reset.toISOString();
 }
 
 /** Subscription OAuth responses from /v1/messages carry the account's unified limits.
- * Returns null when the response carries none, such as API-key traffic. */
+ * Returns null when the response carries none, such as API-key traffic.
+ * Anthropic rejects the account overall when only a model's own cap, such as Fable's
+ * "7d_oi", ran out. Other models still work then, so only that window is limited. */
 export function anthropicUsageFromHeaders(headers: Headers, checkedAt: Date): SubscriptionUsage | null {
   const status = headers.get("anthropic-ratelimit-unified-status");
   if (status === null) return null;
-  const windows = namedWindows([...headers].flatMap(([header, utilization]) => {
+  const reported = [...headers].flatMap(([header, utilization]) => {
     const name = header.match(/^anthropic-ratelimit-unified-(\d+)([hd])(?:[-_](.+))?-utilization$/);
     if (!name) return [];
     // A fraction of the allowance; it can pass 1 once the allowance is exhausted.
@@ -79,9 +123,17 @@ export function anthropicUsageFromHeaders(headers: Headers, checkedAt: Date): Su
     const resetHeader = headers.get(header.replace(/-utilization$/, "-reset"));
     const reset = resetHeader === null ? null : Number(resetHeader);
     if (reset !== null && (resetHeader!.trim() === "" || !Number.isInteger(reset) || reset <= 0)) throw unrecognizedHeaders();
-    return [{ count: Number(name[1]), unit: name[2]!, feature: name[3], usedPercent: used * 100, resetsAt: reset === null ? null : new Date(reset * 1000).toISOString() }];
-  }));
-  return { plan: null, checkedAt: checkedAt.toISOString(), allowed: status !== "rejected", limitReached: status === "rejected", windows, details: extraUsage(headers) };
+    const windowStatus = headers.get(header.replace(/-utilization$/, "-status"));
+    return [{ count: Number(name[1]), unit: name[2]!, feature: name[3], usedPercent: used * 100, resetsAt: reset === null ? null : new Date(reset * 1000).toISOString(), status: windowStatus }];
+  });
+  // A window without a status, like 7d on some responses, only says it's used up at 100%.
+  const reached = (window: (typeof reported)[number]) => window.status === "rejected" || (window.status === null && window.usedPercent >= 100);
+  const windows = namedWindows(reported.map((window) => reached(window) ? { ...window, limitReached: true as const } : window));
+  const shared = reported.filter((window) => window.feature === undefined && (window.status !== null || reached(window)));
+  const sharedAllowed = shared.length > 0 && shared.every((window) => window.status === "allowed" || window.status === "allowed_warning");
+  const onlyScopedRejected = sharedAllowed && reported.some((window) => window.feature !== undefined && reached(window));
+  const limitReached = status === "rejected" && !onlyScopedRejected;
+  return { plan: null, checkedAt: checkedAt.toISOString(), allowed: !limitReached, limitReached, windows, details: extraUsage(headers) };
 }
 
 /** Extra usage is billed per token once plan limits run out. Anthropic says whether it's
@@ -127,7 +179,33 @@ function singleFlight<Args extends unknown[], Result>(start: (...args: Args) => 
   };
 }
 
-const windowName = (window: UsageWindow) => `${window.durationSeconds} ${window.meteredFeature}`;
+/** The headers and the account endpoint name a feature's window differently ("7d_oi" and a
+ * weekly_scoped "Fable"), so they're matched by the name they're shown with. */
+const windowName = (window: UsageWindow) => `${window.durationSeconds} ${window.meteredFeature === null ? "" : window.limitName}`;
+
+/** The headers never name the model a cap applies to; the account endpoint does. Its
+ * model-scoped caps named like another feature's window, such as Sonnet's, are that window.
+ * When a single other one remains, it's the one behind "7d_oi", so that window takes its name. */
+function withScopedNames(windows: UsageWindow[], accountWindows: UsageWindow[]): UsageWindow[] {
+  const otherFeatures = new Set([...featureNames].filter(([feature]) => !fableFeatures.has(feature)).map(([, name]) => name));
+  for (const window of [...windows, ...accountWindows]) {
+    if (window.meteredFeature !== null && window.meteredFeature !== scopedLimitFeature && !fableFeatures.has(window.meteredFeature)) otherFeatures.add(window.limitName);
+  }
+  const scoped = accountWindows.filter((window) => window.meteredFeature === scopedLimitFeature && !otherFeatures.has(window.limitName));
+  if (scoped.length !== 1) return windows;
+  return windows.map((window) => window.meteredFeature !== null && fableFeatures.has(window.meteredFeature) ? { ...window, limitName: scoped[0]!.limitName } : window);
+}
+
+/** Keeps the first of each named window; earlier sources are the more current ones. */
+function uniqueWindows(windows: UsageWindow[]): UsageWindow[] {
+  const seen = new Set<string>();
+  return windows.filter((window) => {
+    const name = windowName(window);
+    if (seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+}
 
 /** Usage for this host's connected subscription. Usage only rises with use, and
  * Claude Code traffic through the workspace proxy keeps the snapshot current. Anthropic
@@ -185,9 +263,11 @@ export function createAnthropicUsageSource(fetcher: Fetcher = fetch, now: () => 
       let usage = observed;
       const resetPassed = usage?.windows.some((window) => window.resetsAt !== null && new Date(window.resetsAt).getTime() <= now());
       if (options.refresh || !usage || resetPassed) [usage] = await Promise.all([probe.run(token, options.model), accountUsage.run(token)]);
-      // Headers are current; the account endpoint only adds windows they lack.
-      const reported = new Set(usage.windows.map(windowName));
-      return { ...usage, windows: [...usage.windows, ...accountWindows.filter((window) => !reported.has(windowName(window)))] };
+      // Headers are current; the account endpoint only adds windows they lack. Its windows are
+      // kept while it's rate limited, but not past their reset, when what they say is out of date.
+      const current = accountWindows.filter((window) => window.resetsAt === null || new Date(window.resetsAt).getTime() > now());
+      // A header window's own status says whether it's reached.
+      return { ...usage, windows: uniqueWindows([...withScopedNames(usage.windows, current), ...current]) };
     },
   };
 }

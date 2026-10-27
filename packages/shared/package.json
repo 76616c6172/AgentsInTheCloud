@@ -10,7 +10,8 @@
     "./theme": "./src/theme-setting.ts",
     "./file-metadata": "./src/file-metadata.ts",
     "./system-version": "./src/system-version.ts",
-    "./publishing": "./src/publishing.ts"
+    "./publishing": "./src/publishing.ts",
+    "./text-selection": "./src/text-selection.ts"
   },
   "dependencies": {
     "@agents-in-the-cloud/core": "workspace:*",
