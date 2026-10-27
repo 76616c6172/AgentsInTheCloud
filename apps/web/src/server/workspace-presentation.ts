@@ -259,13 +259,14 @@ function renderAvailability(view: WorkPaneContribution): string {
 
 function renderWorkViewSelector(workspaceId: string, view: WorkPaneContribution): string {
   const textAttributesHtml = `id="${workspaceWorkViewLabelDomId(workspaceId, view.key)}"`;
+  const browser = view.key.startsWith("browser:");
   return tabHtml({
     selected: false,
-    label: { kind: "text", text: view.label, textAttributesHtml },
+    label: { kind: "text", text: browser ? `${view.label} ▾` : view.label, textAttributesHtml },
     iconHtml: view.iconHtml ?? Icons.Plus,
     status: { requestingAttention: view.attentionSequence !== undefined },
     containerAttributesHtml: `id="${workViewSelectorDomId(workspaceId, view.key)}" draggable="true" data-work-view-reorder-key="${escapeHtml(view.key)}" data-action="dragstart->workspace-presentation#beginWorkReorder dragover->workspace-presentation#allowWorkReorder drop->workspace-presentation#finishWorkReorder"`,
-    primary: { tag: "button", attributesHtml: `type="button" data-work-view-key="${escapeHtml(view.key)}" data-work-view-kind="${view.kind}"${view.attentionSequence === undefined ? "" : ` data-attention-sequence="${view.attentionSequence}"`} ${fullscreenViewAttributes(view.sourceKey ?? view.key, view.label)} data-action="click->workspace-presentation#selectWorkView"` },
+    primary: { tag: "button", attributesHtml: `type="button"${browser ? ` data-nox-tools aria-expanded="false" aria-label="${escapeHtml(view.label)}"` : ""} data-work-view-key="${escapeHtml(view.key)}" data-work-view-kind="${view.kind}"${view.attentionSequence === undefined ? "" : ` data-attention-sequence="${view.attentionSequence}"`} ${fullscreenViewAttributes(view.sourceKey ?? view.key, view.label)} data-action="click->workspace-presentation#selectWorkView"` },
     closeHtml: view.close ? selectorCloseForm(view.close) : "",
   });
 }
@@ -444,7 +445,7 @@ function renderPhoneNewTabOptions(presentation: WorkspacePresentation): string {
  * Agents, each at its place on the ring (--nox-ring-k); --nox-ring turns the belt (nox-layout.css),
  * and the copies at either end let it wrap. Tabs select by the visible pane (see
  * syncMobileNavigationSelection), not by the desktop selection. Tapping a selected Browser tab
- * (data-nox-tools) opens that Browser's toolbar (see nox-phone-chrome). The spread (nox-spread.ts)
+ * (data-nox-tools) opens that Browser's toolbar (see nox-workspace-chrome). The spread (nox-spread.ts)
  * places Workspaces, Agents and Work over their own pages; the rail's counts size their folded icons. */
 function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean): string {
   const workspaceId = presentation.workspace.id;
@@ -486,7 +487,7 @@ function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean):
     section(2, "list", 1, list("_ring", "click->mobile-swipe#loopToWorkspaces")),
     section(3, "agents", presentation.agents.length, agents("_ring")),
   ].join("");
-  return `<header class="nox-phone-header" aria-label="Workspace" data-controller="nox-phone-chrome"${inert ? " inert" : ""}>
+  return `<header class="nox-phone-header" aria-label="Workspace" data-controller="nox-workspace-chrome"${inert ? " inert" : ""}>
     <div class="nox-phone-header__row"><div class="nox-phone-rail" style="--nox-agents-count: ${presentation.agents.length}; --nox-work-count: ${workCount}">${rail}</div>${renderMobileMoreMenu(presentation)}</div>
   </header>`;
 }

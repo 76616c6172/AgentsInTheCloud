@@ -4,24 +4,24 @@ import { Controller } from "@hotwired/stimulus";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
 
 /**
- * Nox phone chrome. Tapping an already selected Browser tab opens that Browser's toolbar over
+ * Nox workspace chrome. Clicking an already selected Browser tab opens its toolbar over
  * the page instead of keeping it on screen. Navigating, using a toolbar button, tapping
  * elsewhere, Escape or moving to another pane closes it again.
  *
  * The visible workspace's bar also tells the app its height, so the workspace list opens
  * below it (nox-layout.css).
  */
-export class NoxPhoneChromeController extends Controller<HTMLElement> {
+export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
   private readonly media = matchMedia(phoneLayoutMediaQuery);
   private destination?: string;
   private readonly resizeObserver = new ResizeObserver(() => this.publishHeight());
 
   connect(): void {
-    this.destination = this.presentation.dataset.phoneDestination;
+    this.destination = this.currentDestination;
     this.presentation.addEventListener("submit", this.submitted);
     this.presentation.addEventListener("agents-in-the-cloud:presentation-changed", this.presentationChanged);
-    this.element.addEventListener("click", this.headerClicked, true);
-    this.element.addEventListener("turbo:before-morph-attribute", this.keepState);
+    this.presentation.addEventListener("click", this.headerClicked, true);
+    this.presentation.addEventListener("turbo:before-morph-attribute", this.keepState);
     document.addEventListener("click", this.documentClicked, true);
     document.addEventListener("keydown", this.keyPressed);
     window.addEventListener("blur", this.closeTools);
@@ -32,8 +32,8 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
   disconnect(): void {
     this.presentation.removeEventListener("submit", this.submitted);
     this.presentation.removeEventListener("agents-in-the-cloud:presentation-changed", this.presentationChanged);
-    this.element.removeEventListener("click", this.headerClicked, true);
-    this.element.removeEventListener("turbo:before-morph-attribute", this.keepState);
+    this.presentation.removeEventListener("click", this.headerClicked, true);
+    this.presentation.removeEventListener("turbo:before-morph-attribute", this.keepState);
     document.removeEventListener("click", this.documentClicked, true);
     document.removeEventListener("keydown", this.keyPressed);
     window.removeEventListener("blur", this.closeTools);
@@ -51,6 +51,19 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
     return this.element.closest<HTMLElement>(".fixed-workspace-presentation")!;
   }
 
+  private get currentDestination(): string | undefined {
+    if (this.media.matches) return this.presentation.dataset.phoneDestination;
+    return this.presentation.classList.contains("is-work-pane-open")
+      ? this.presentation.querySelector<HTMLElement>(".fixed-shell-work-pane [data-work-view-key][aria-selected='true']")?.dataset.workViewKey
+      : undefined;
+  }
+
+  private syncExpanded(): void {
+    this.presentation.querySelectorAll<HTMLElement>(".fixed-shell-work-pane [data-nox-tools]").forEach(tab => {
+      tab.setAttribute("aria-expanded", String(this.toolsOpen && tab.getAttribute("aria-selected") === "true"));
+    });
+  }
+
   private get toolsOpen(): boolean {
     return this.element.hasAttribute("data-nox-tools-open");
   }
@@ -58,20 +71,30 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
   /** Also runs when focus moves into the page, the only sign of a tap inside it. */
   private readonly closeTools = (): void => {
     this.element.removeAttribute("data-nox-tools-open");
+    this.syncExpanded();
   };
 
   private readonly headerClicked = (event: MouseEvent): void => {
-    if (!this.media.matches || !(event.target instanceof Element)) return;
+    if (!(event.target instanceof Element)) return;
     const tab = event.target.closest<HTMLElement>("[data-nox-tools]");
     if (tab?.getAttribute("aria-selected") !== "true") return;
     event.preventDefault();
     event.stopPropagation();
     this.element.toggleAttribute("data-nox-tools-open");
+    this.syncExpanded();
+    if (this.toolsOpen && !this.media.matches) {
+      // A newly selected Browser may still be loading its live body.
+      const address = this.presentation.querySelector<HTMLInputElement>(".fixed-shell-surface.is-active .browser-address-input");
+      address?.focus({ preventScroll: true });
+      address?.select();
+    }
   };
 
   /** A tap anywhere else closes the toolbar; its own buttons close it once they've acted. */
   private readonly documentClicked = (event: MouseEvent): void => {
     if (!this.toolsOpen || !(event.target instanceof Element) || this.element.contains(event.target)) return;
+    const tab = event.target.closest("[data-nox-tools][aria-selected='true']");
+    if (tab && this.presentation.contains(tab)) return;
     const toolbar = event.target.closest(".browser-toolbar");
     if (!toolbar) this.closeTools();
     else if (event.target.closest(".button, a")) setTimeout(this.closeTools);
@@ -82,14 +105,18 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
   };
 
   private readonly keyPressed = (event: KeyboardEvent): void => {
-    if (event.key === "Escape" && this.toolsOpen) this.closeTools();
+    if (event.key !== "Escape" || !this.toolsOpen) return;
+    this.closeTools();
+    if (!this.media.matches) this.presentation.querySelector<HTMLElement>(".fixed-shell-work-pane [data-nox-tools][aria-selected='true']")!.focus({ preventScroll: true });
   };
 
   private readonly presentationChanged = (): void => {
-    const destination = this.presentation.dataset.phoneDestination;
-    if (destination === this.destination) return;
-    this.destination = destination;
-    this.closeTools();
+    const destination = this.currentDestination;
+    if (destination !== this.destination) {
+      this.destination = destination;
+      this.closeTools();
+    }
+    this.syncExpanded();
   };
 
   /** Server morphs keep the browser-owned toolbar state. */
@@ -97,5 +124,6 @@ export class NoxPhoneChromeController extends Controller<HTMLElement> {
     // SAFETY: Turbo emits this event with its attribute mutation descriptor.
     const detail = (event as CustomEvent<{ attributeName: string }>).detail;
     if (event.target === this.element && detail.attributeName === "data-nox-tools-open") event.preventDefault();
+    if (event.target instanceof Element && event.target.matches("[data-nox-tools]") && detail.attributeName === "aria-expanded") event.preventDefault();
   };
 }

@@ -466,8 +466,15 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   .fixed-shell-app[data-nox-drawer-loop][data-nox-drawer-drag] .fixed-shell-work-pane[data-nox-loop-card] { transition: none; }
 }
 
-/* The Browser toolbar stays out of the way on phones until its selected tab is tapped, then
- * floats over the page (nox-phone-chrome). */
+/* The selected Browser tab reveals its toolbar over the page on every screen size.
+ * Keep the iframe's dimensions stable; desktop stays undimmed (nox-workspace-chrome). */
+.fixed-shell-work-pane .browser-shell { position: relative; }
+.fixed-shell-work-pane .browser-toolbar { display: none; }
+.fixed-workspace-presentation:has(> .nox-phone-header[data-nox-tools-open]) .fixed-shell-work-pane .fixed-shell-surface.is-active .browser-toolbar {
+  display: flex; position: absolute; z-index: 5; inset: 8px 8px auto; padding: 8px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-surface); background: var(--elev); box-shadow: var(--floating-surface-shadow);
+  animation: nox-chrome-settle var(--motion-enter) var(--motion-ease-out);
+}
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
   /* A selected Browser tab shows a chevron: its toolbar is one tap away. */
   .nox-phone-header [data-nox-tools][aria-selected="true"]::after {
@@ -477,12 +484,8 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   }
   .nox-phone-header[data-nox-tools-open] [data-nox-tools][aria-selected="true"]::after { transform: rotate(180deg); }
 
-  .fixed-shell-work-pane .browser-shell { position: relative; }
-  .fixed-shell-work-pane .browser-toolbar { display: none; }
   .fixed-workspace-presentation:has(> .nox-phone-header[data-nox-tools-open]) .fixed-shell-work-pane .fixed-shell-surface.is-active .browser-toolbar {
-    display: flex; position: absolute; z-index: 5; inset: 4px 6px auto; padding: 6px;
-    border: 1px solid var(--line-strong); border-radius: var(--radius-surface); background: var(--elev); box-shadow: var(--floating-surface-shadow);
-    animation: nox-chrome-settle var(--motion-enter) var(--motion-ease-out);
+    inset: 4px 6px auto; padding: 6px;
   }
   /* Dim the page under the toolbar; taps still reach it and close the toolbar. */
   .fixed-workspace-presentation:has(> .nox-phone-header[data-nox-tools-open]) .fixed-shell-work-pane .fixed-shell-surface.is-active .browser-shell::after {

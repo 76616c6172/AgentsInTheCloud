@@ -17,7 +17,7 @@ import { ConnectionModeSettingsController } from "./connection-mode-settings.ts"
 import { PwaReminderController } from "./pwa-reminder.ts";
 import { MobileSwipeController } from "./mobile-swipe-controller.ts";
 import { NoxWorkspaceHoldController } from "./nox-workspace-hold-controller.ts";
-import { NoxPhoneChromeController } from "./nox-phone-chrome-controller.ts";
+import { NoxWorkspaceChromeController } from "./nox-workspace-chrome-controller.ts";
 import { registerWorkspaceAppFrameController } from "./workspace-app-frame.ts";
 import { installWorkspaceCable } from "./workspace-cable.ts";
 import { clientHooks } from "./workspace-client-hooks.ts";
@@ -61,7 +61,7 @@ registerWorkspaceControllers({
   "connection-mode-settings": ConnectionModeSettingsController,
   "pwa-reminder": PwaReminderController,
   "mobile-swipe": MobileSwipeController,
-  "nox-phone-chrome": NoxPhoneChromeController,
+  "nox-workspace-chrome": NoxWorkspaceChromeController,
   "nox-workspace-hold": NoxWorkspaceHoldController,
   "workspace-presentation": createWorkspacePresentationController(Controller, application, clientHooks),
 });
