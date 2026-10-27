@@ -62,4 +62,6 @@ Follow these guidelines whenever writing or changing user-facing text, panels, o
 
 ### Nox fork
 
+- Before merging upstream changes, identify any UI/UX or workflow changes and get the user's explicit approval. Do not treat approval to sync upstream as approval to change Nox's interaction, layout, styling, or agent workflows. Preserve existing behavior unless the user approves the specific changes.
+
 The design goak of this fork on the nox branch is to more closely match my preferences and workflow and any changes we make need to be implemented with maintainability in mind - considering that we want to be able to merge upstream changes from https://github.com/lucasmeijer/AgentsInTheCloud back into the nox branch in a way so it's not difficult to make sure we get all the benefits but without breaking the changes that we are making (or making it easy to fix).
