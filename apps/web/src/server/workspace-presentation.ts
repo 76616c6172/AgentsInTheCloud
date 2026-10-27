@@ -140,12 +140,12 @@ function renderWorkspaceRows(presentation: WorkspacePanePresentation): string {
     summary: { kind: "compact", width: "fill", attributesHtml: "data-workspace-parked", label: { kind: "text", text: "Parked" } },
     bodyHtml: parked.map(renderWorkspaceRow).join(""),
   }) : "";
-  return `${active.map(renderWorkspaceRow).join("")}${parkedGroup}${noxPhoneWorkspaceGroups}`;
+  return `${active.map(renderWorkspaceRow).join("")}${parkedGroup}${noxWorkspaceGroups}`;
 }
 
-/* Phone-only status headings. They follow the rows so CSS counters can total each
+/* Shared status headings. They follow the rows so CSS counters can total each
  * group, and CSS orders them visually; browser-owned row arrangement is unaffected. */
-const noxPhoneWorkspaceGroups = [["attention", "Needs you"], ["busy", "Working"], ["idle", "Idle"]]
+const noxWorkspaceGroups = [["attention", "Needs you"], ["busy", "Working"], ["idle", "Idle"]]
   .map(([group, label]) => `<div class="nox-workspace-group" data-nox-workspace-group="${group}" aria-hidden="true">${label}</div>`).join("");
 
 function renderNewWorkspaceRow(presentation: WorkspacePanePresentation): string {
@@ -212,7 +212,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
   return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane" data-action="${revealActions}"><div class="fixed-shell-workspace-main">${panelHtml({
     element: { tag: "aside",  attributesHtml: 'aria-label="Workspaces"' },
     chrome: "outlined",
-    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Sidebar, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">${Icons.Cloud}Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}` })}</div>
+    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Cloud, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}` })}</div>
       <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New workspace</span></div>`,
     bodyHtml: `<div class="workspace-pane-viewport" data-workspace-pane-target="body"><div class="workspace-pane-slides">
       <section class="workspace-pane-slide" data-workspace-pane-target="workspaces" aria-label="Workspaces">
@@ -467,7 +467,7 @@ function renderPhoneHeader(presentation: WorkspacePresentation, inert: boolean):
   const listTab = (action: string, attributes: string) => tabHtml({
     selected: false,
     label: { kind: "text", text: "Workspaces" },
-    iconHtml: `<span class="nox-phone-list-icon">${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i></span>`,
+    iconHtml: `<span class="nox-phone-list-icon">${Icons.Cloud}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i></span>`,
     primary: { tag: "button", attributesHtml: `type="button" data-nox-phone-tab="list" data-action="${action}"${attributes}` },
   });
   const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher");

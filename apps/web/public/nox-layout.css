@@ -231,30 +231,33 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
 
   /* The card has no outline; a rule under its title would be the only line left, so drop it too. */
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-workspace-pane .panel__header { border-bottom: 0; }
-  /* New workspace and Settings sit at the bottom of the card. */
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .workspace-pane-footer { border-top: 1px solid var(--line); }
+}
 
-  /* Group rows by status under "label ─── count" headings. Headings follow the rows in
-   * the DOM so counters hold each group's total; order places them above their rows. */
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll { counter-reset: nox-attention nox-busy nox-idle; }
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order] { order: 31; counter-increment: nox-idle; }
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.nox-workspace-glyph[data-busy]) { order: 21; counter-increment: nox-busy; }
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) { order: 11; counter-increment: nox-attention; }
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > #workspace_pane_parked { order: 40; }
-  .nox-workspace-group { align-items: center; gap: 10px; margin: 12px 8px 2px; color: var(--text-muted); font-size: 13px; }
-  .nox-workspace-group::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--line); }
-  .nox-workspace-group::after { order: 2; font-variant-numeric: tabular-nums; }
-  .nox-workspace-group[data-nox-workspace-group="attention"] { order: 10; }
-  .nox-workspace-group[data-nox-workspace-group="attention"]::after { content: counter(nox-attention); }
-  .nox-workspace-group[data-nox-workspace-group="busy"] { order: 20; }
-  .nox-workspace-group[data-nox-workspace-group="busy"]::after { content: counter(nox-busy); }
-  .nox-workspace-group[data-nox-workspace-group="idle"] { order: 30; }
-  .nox-workspace-group[data-nox-workspace-group="idle"]::after { content: counter(nox-idle); }
-  /* A heading shows only when an earlier sibling row belongs to its group. */
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) ~ [data-nox-workspace-group="attention"],
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.nox-workspace-glyph[data-busy]):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
-  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.nox-workspace-glyph[data-busy], .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
+/* Desktop and mobile share the list's grouping and bottom-action divider. */
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .workspace-pane-footer { border-top: 1px solid var(--line); }
 
+/* Group rows by status under "label ─── count" headings. Headings follow the rows in
+ * the DOM so counters hold each group's total; order places them above their rows. */
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll { counter-reset: nox-attention nox-busy nox-idle; }
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order] { order: 31; counter-increment: nox-idle; }
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.nox-workspace-glyph[data-busy]) { order: 21; counter-increment: nox-busy; }
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) { order: 11; counter-increment: nox-attention; }
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > #workspace_pane_parked { order: 40; }
+.nox-workspace-group { align-items: center; gap: 10px; margin: 12px 8px 2px; color: var(--text-muted); font-size: 13px; }
+.nox-workspace-group::before { content: ""; order: 1; flex: 1; height: 1px; background: var(--line); }
+.nox-workspace-group::after { order: 2; font-variant-numeric: tabular-nums; }
+.nox-workspace-group[data-nox-workspace-group="attention"] { order: 10; }
+.nox-workspace-group[data-nox-workspace-group="attention"]::after { content: counter(nox-attention); }
+.nox-workspace-group[data-nox-workspace-group="busy"] { order: 20; }
+.nox-workspace-group[data-nox-workspace-group="busy"]::after { content: counter(nox-busy); }
+.nox-workspace-group[data-nox-workspace-group="idle"] { order: 30; }
+.nox-workspace-group[data-nox-workspace-group="idle"]::after { content: counter(nox-idle); }
+/* A heading shows only when an earlier sibling row belongs to its group. */
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.status-dot.attention) ~ [data-nox-workspace-group="attention"],
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:has(.nox-workspace-glyph[data-busy]):not(:has(.status-dot.attention)) ~ [data-nox-workspace-group="busy"],
+.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.nox-workspace-glyph[data-busy], .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
+
+@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
   /* Phone chrome lives at the top: one bar with the ring rail (Workspaces, Agents, Work) and More.
    * Swipes and tabs replace the bottom bar, which stays in the markup for its status slots. */
   .fixed-workspace-presentation:has(> .nox-phone-header) { grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); }
@@ -294,7 +297,7 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   /* A tab tapped while folded would start its title marquee for a label that's about to open. */
   .nox-phone-header .content-row--compact.is-label-scrolling .content-row__label { mask-image: none; }
   .nox-phone-header .content-row--compact.is-label-scrolling .content-row__label-text { width: 100%; overflow: hidden; animation: none; }
-  /* Workspaces: the sidebar icon, with a dot when another workspace needs attention. */
+  /* Workspaces: the cloud icon, with a dot when another workspace needs attention. */
   .nox-phone-list-icon { position: relative; display: inline-grid; place-items: center; }
   .nox-phone-header .nox-phone-list-icon > .nox-phone-header__attention { top: -3px; right: -4px; }
   /* Taps and released drags turn the ring smoothly; drags follow the finger, and the loop lands in place. */

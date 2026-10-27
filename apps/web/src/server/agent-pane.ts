@@ -176,7 +176,7 @@ export function renderAgentPane(presentation: WorkspacePresentation): string {
   return `<div class="fixed-shell-agent-pane"><div class="workspace-warning-stack" id="${domId("workspace_warnings", presentation.workspace.id)}">${presentation.warningsHtml ?? ""}</div>${panelHtml({
     element: { tag: "section",  attributesHtml: 'data-workspace-role-region="agent" data-workspace-presentation-target="agentPane" aria-label="Agent"' },
     chrome: "outlined",
-    headerHtml: `${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `${Icons.Sidebar}<i class="status-dot attention nox-workspace-attention" aria-hidden="true"></i>`, 'data-show-workspace-pane aria-pressed="false"')}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
+    headerHtml: `${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `${Icons.Cloud}<i class="status-dot attention nox-workspace-attention" aria-hidden="true"></i>`, 'data-show-workspace-pane aria-pressed="false"')}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
     bodyHtml: `<div id="${agentBodiesDomId(presentation.workspace.id)}" class="fixed-shell-agent-bodies">${panes || renderAgentEmpty(presentation)}</div>`,
   })}</div>`;
 }
