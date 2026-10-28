@@ -267,12 +267,14 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
       if (!Value.Check(diffEndpointsSchema, requestedEndpoints)) throw new InvalidDiffEndpoints("Invalid comparison endpoints.");
       const endpoints: DiffEndpoints = requestedEndpoints;
       const root = workspaceRepository(workspaceId);
-      // An older history is refreshed. A comparison picked there still wins when its commits survived; a plain
-      // refresh shows what the server shows now (say, after a commit link replaced it).
+      // An older history is refreshed. A comparison picked or refreshed there still wins when its commits survived.
+      // Changes refreshing because it was shown follows the server instead: a commit link that just opened it
+      // replaced the comparison, and its live update may not have reached this browser yet.
+      const kept = upToDate || data.get("shown") !== "true";
       next = await state.publishSelection(ticket, async outdated => {
         let snapshot: ChangesSnapshot;
         [snapshot, buckets] = await Promise.all([
-          match[1] === "compare" && upToDate && !outdated ? captureChanges(root, endpoints, previous.history) : refreshChanges(root, previous, match[1] === "compare" || upToDate ? endpoints : previous.endpoints),
+          match[1] === "compare" && upToDate && !outdated ? captureChanges(root, endpoints, previous.history) : refreshChanges(root, previous, kept ? endpoints : previous.endpoints),
           workspaceChangeBuckets(workspaceId),
         ]);
         return snapshot;

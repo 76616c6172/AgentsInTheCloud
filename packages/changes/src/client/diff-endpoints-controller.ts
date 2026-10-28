@@ -271,14 +271,15 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
 
     refresh(): void { this.withEditGuard(() => { void this.generate("refresh"); }); }
     /** Showing Changes refreshes it, but never asks to leave an open code edit; saving or discarding refreshes then. */
-    refreshWhenShown(): void { if (!this.element.querySelector("[data-code-editing]")) this.refresh(); }
+    refreshWhenShown(): void { if (!this.element.querySelector("[data-code-editing]")) void this.generate("refresh", true); }
     retry(): void {
       const operation = this.lastOperation;
       if (operation === "history") void this.loadMore();
       else this.withEditGuard(() => { void this.generate(operation); });
     }
     dismissError(): void { this.errorTarget.hidden = true; }
-    private async generate(operation: "compare" | "refresh"): Promise<void> {
+    /** `shown`: Changes refreshes because it was shown, not because you asked; see the refresh route. */
+    private async generate(operation: "compare" | "refresh", shown = false): Promise<void> {
       this.request?.abort();
       if (operation === "refresh") {
         this.endSecondCommitSelection();
@@ -298,6 +299,7 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
       data.set("end", this.endpoints!.target);
       if (this.endpoints!.base !== undefined) data.set("start", this.endpoints!.base ?? "");
       data.set("pickerOpen", String(this.isOpen));
+      if (shown) data.set("shown", "true");
       try {
         const result = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/changes/${operation}`, { method: "POST", body: data, signal: request.signal, headers: { Accept: "text/vnd.turbo-stream.html" } });
         const html = await result.text();
