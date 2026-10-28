@@ -52,6 +52,7 @@ export class TranscriptNavigation {
   // Showing or selecting the pane leaves the position to the next frame's
   // reconcile, so connecting controllers don't force a layout to measure it.
   private positionStale = false;
+  private reconciled = false;
   private readonly resizeObserver: ResizeObserver;
   private readonly composerOpener: HTMLElement | null;
   private layoutBottom?: number;
@@ -84,8 +85,9 @@ export class TranscriptNavigation {
   // the content at its bottom edge stays put, so the scroll offset changes once.
   // Before the first reconcile nothing is on screen to keep: that reconcile,
   // already scheduled, places the transcript without forcing a layout here.
+  // Later shows measure, since the reader's position is on screen.
   private readonly layoutBefore = (): void => {
-    this.layoutBottom = this.visible && this.height !== 0 && this.transcript.checkVisibility() ? this.transcript.scrollTop + this.transcript.clientHeight : undefined;
+    this.layoutBottom = this.visible && this.reconciled && this.transcript.checkVisibility() ? this.transcript.scrollTop + this.transcript.clientHeight : undefined;
   };
 
   private readonly layoutAfter = (): void => {
@@ -245,6 +247,7 @@ export class TranscriptNavigation {
     const resized = widthChanged || (this.height !== 0 && geometry.viewport !== this.height);
     this.width = width;
     this.height = geometry.viewport;
+    this.reconciled = true;
     if (resized && this.following) {
       // Composer/keyboard changes resize the viewport immediately. Match that
       // layout change with a snap, even if a follow glide is already running.
