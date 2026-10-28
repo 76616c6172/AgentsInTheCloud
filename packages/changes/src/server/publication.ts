@@ -56,6 +56,8 @@ export class ChangesPublication<Snapshot extends object> {
     this.refreshing++;
     let steppedAside = false;
     try {
+      // Selections capturing now capture this change themselves; don't capture only to throw it away.
+      if (this.capturing) { steppedAside = true; return; }
       const selection = this.request, previous = this.snapshot;
       const next = await this.changeRefresh.capture(previous);
       steppedAside = this.request !== selection || this.snapshot !== previous || this.capturing > 0 || change !== this.changes;

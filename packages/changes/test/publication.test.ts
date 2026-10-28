@@ -60,7 +60,7 @@ test("the last selection wins", async () => {
 });
 
 test("a turn's commits still publish when the selection that held its refresh back fails", async () => {
-  const { subject, published } = publication([Promise.resolve({ name: "turn held back" })]);
+  const { subject, published } = publication();
   const failing = Promise.withResolvers<Snapshot>();
   const selection = subject.publishSelection(subject.select(), () => failing.promise);
   await subject.changed();
@@ -111,4 +111,15 @@ test("a change still shows when a selection made during its refresh fails", asyn
   await turn;
   expect(await subject.settled()).toEqual({ name: "turn" });
   expect(published).toEqual(["turn"]);
+});
+
+test("a change doesn't capture while selections capture it themselves", async () => {
+  let captured = 0;
+  const subject = new ChangesPublication<Snapshot>({ name: "initial" }, { capture: async () => { captured++; return { name: "turn" }; }, published: () => {} });
+  const pending = Promise.withResolvers<Snapshot>();
+  const selection = subject.publishSelection(subject.select(), () => pending.promise);
+  await subject.changed();
+  pending.resolve({ name: "picked" });
+  expect(await selection).toEqual({ name: "picked" });
+  expect(captured).toBe(0);
 });
