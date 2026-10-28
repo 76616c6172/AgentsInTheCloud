@@ -22,7 +22,7 @@ export const gitHubProvider: GitHostingProvider = {
   gitUsername: "x-access-token",
   tokenEnvVar: "GH_TOKEN",
   tokenEnvAliases: [],
-  tokenHosts: ["github.com", "api.github.com"],
+  tokenHosts: ["github.com", "*.github.com"],
   sshKnownHosts: gitHubKnownHosts,
   connectForm: {
     instructionsHtml: `<p>Run these commands on your own computer:</p>
