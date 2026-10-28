@@ -33,8 +33,8 @@ function current(workspaceId: string): Promise<ChangesState> {
     state = Promise.all([captureChanges(workspaceRepository(workspaceId)), workspaceChangeBuckets(workspaceId)]).then(([snapshot, buckets]) => {
       const clients = new Map<string, number>(), root = workspaceRepository(workspaceId);
       return Object.assign(new ChangesPublication(snapshot, {
-        capture: previous => refreshChanges(root, previous),
         // A removed workspace's late refresh has no one to show it to.
+        capture: previous => states.get(workspaceId) === state ? refreshChanges(root, previous) : Promise.resolve(previous),
         published: () => { if (states.get(workspaceId) !== state) return; clients.clear(); invalidateWorkspace(workspaceId); },
       }), { buckets, clients });
     });
