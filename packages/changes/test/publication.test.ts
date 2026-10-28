@@ -15,7 +15,7 @@ function publication(turnCaptures: Promise<Snapshot>[] = []) {
 test("a selection made while a turn refreshes captures a fresh history and wins", async () => {
   const turnCapture = Promise.withResolvers<Snapshot>();
   const { subject, published } = publication([turnCapture.promise]);
-  const turn = subject.turnFinished();
+  const turn = subject.changed();
   const outdated: boolean[] = [];
   expect(await subject.publishSelection(subject.select(), async stale => { outdated.push(stale); return { name: "picked" }; })).toEqual({ name: "picked" });
   turnCapture.resolve({ name: "turn" });
@@ -30,7 +30,7 @@ test("a selection still capturing when a turn finishes captures again, and the t
   const captures = [Promise.withResolvers<Snapshot>(), Promise.withResolvers<Snapshot>()];
   const outdated: boolean[] = [];
   const selection = subject.publishSelection(subject.select(), stale => { outdated.push(stale); return captures[outdated.length - 1]!.promise; });
-  await subject.turnFinished();
+  await subject.changed();
   expect(published).toEqual([]);
   expect(subject.snapshot).toEqual({ name: "initial" });
   captures[0]!.resolve({ name: "picked before the turn" });
@@ -41,7 +41,7 @@ test("a selection still capturing when a turn finishes captures again, and the t
 
 test("a turn's refresh publishes when no selection interferes, and later selections reuse its history", async () => {
   const { subject, published } = publication();
-  await subject.turnFinished();
+  await subject.changed();
   expect(published).toEqual(["turn"]);
   let reused: boolean | undefined;
   await subject.publishSelection(subject.select(), async stale => { reused = !stale; return { name: "picked" }; });
@@ -63,7 +63,7 @@ test("a turn's commits still publish when the selection that held its refresh ba
   const { subject, published } = publication([Promise.resolve({ name: "turn held back" })]);
   const failing = Promise.withResolvers<Snapshot>();
   const selection = subject.publishSelection(subject.select(), () => failing.promise);
-  await subject.turnFinished();
+  await subject.changed();
   expect(published).toEqual([]);
   failing.reject(new Error("git failed"));
   await expect(selection).rejects.toThrow("git failed");
@@ -82,4 +82,33 @@ test("a superseded selection's caller can wait for what the later selection publ
   later.resolve({ name: "other" });
   expect(await shown).toEqual({ name: "other" });
   await other;
+});
+
+test("a superseded save shows its change even when the selection that superseded it fails", async () => {
+  const { subject, published } = publication();
+  const later = Promise.withResolvers<Snapshot>();
+  const save = subject.publishSelection(subject.select(), async () => ({ name: "saved" }));
+  const other = subject.publishSelection(subject.select(), () => later.promise);
+  expect(await save).toBeUndefined();
+  // As the save route does: the workspace changed, and the response shows what's shown once that settles.
+  await subject.changed();
+  const shown = subject.settled();
+  later.reject(new Error("git failed"));
+  await expect(other).rejects.toThrow("git failed");
+  expect(await shown).toEqual({ name: "turn" });
+  expect(published).toEqual(["turn"]);
+});
+
+test("a change still shows when a selection made during its refresh fails", async () => {
+  const turnCapture = Promise.withResolvers<Snapshot>();
+  const { subject, published } = publication([turnCapture.promise]);
+  const turn = subject.changed();
+  const failing = Promise.withResolvers<Snapshot>();
+  const selection = subject.publishSelection(subject.select(), () => failing.promise);
+  failing.reject(new Error("git failed"));
+  await expect(selection).rejects.toThrow("git failed");
+  turnCapture.resolve({ name: "stepped aside" });
+  await turn;
+  expect(await subject.settled()).toEqual({ name: "turn" });
+  expect(published).toEqual(["turn"]);
 });

@@ -159,7 +159,8 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         if (published) state.clients.clear();
         // Saving moved comments, even when a later selection superseded the save.
         invalidateWorkspace(workspaceId);
-        // A superseded save shows what that later selection published, once it has.
+        // A later selection may not show the saved file (it may have captured before the save, or fail); refresh for it.
+        if (!published) await state.changed();
         const next = published ?? await state.settled();
         // Saving captures a new history, with this edit's Working tree and whatever changed in the workspace meanwhile.
         return turboStreamResponse(replace(changesBodyId(workspaceId, input.history), renderChanges(workspaceId, next, state.buckets)));
@@ -308,7 +309,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
   } }],
   initialize(context) {
     invalidateWorkspace = context.invalidateWorkspace;
-    context.events.on("workspace_agent_turn_finished", async ({ workspaceId }) => { await (await current(workspaceId)).turnFinished(); });
+    context.events.on("workspace_agent_turn_finished", async ({ workspaceId }) => { await (await current(workspaceId)).changed(); });
     context.events.on("workspace_delete_inspect", ({ workspaceId, issues }) => {
       const uncopied = reviewComments.list(workspaceId).filter(comment => comment.copiedRevision !== comment.revision);
       if (uncopied.length) issues.push({ kind: "uncopied_review_comments", message: `${uncopied.length} review comments haven’t been copied. Deleting this workspace will delete them.`, count: uncopied.length });
