@@ -152,12 +152,15 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         const state = await current(workspaceId), root = workspaceRepository(workspaceId), ticket = state.select();
         let saved: ChangesSnapshot | undefined;
         // The save owns this browser's comparison; a later selection (say, from another browser) still wins.
-        const next = await state.publishSelection(ticket, async () => saved = saved
+        const published = await state.publishSelection(ticket, async () => saved = saved
           ? await refreshChanges(root, saved)
           : await changesEdits.save(workspaceId, root, input.token, input.contents, input.ranges,
-            (snapshot, path, contents, positions) => reviewComments.relocate(workspaceId, snapshot, path, contents, positions))) ?? state.snapshot;
-        state.clients.clear();
+            (snapshot, path, contents, positions) => reviewComments.relocate(workspaceId, snapshot, path, contents, positions)));
+        if (published) state.clients.clear();
+        // Saving moved comments, even when a later selection superseded the save.
         invalidateWorkspace(workspaceId);
+        // A superseded save shows what that later selection published, once it has.
+        const next = published ?? await state.settled();
         // Saving captures a new history, with this edit's Working tree and whatever changed in the workspace meanwhile.
         return turboStreamResponse(replace(changesBodyId(workspaceId, input.history), renderChanges(workspaceId, next, state.buckets)));
       } catch (error) {

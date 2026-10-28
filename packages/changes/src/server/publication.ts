@@ -14,6 +14,7 @@ export class ChangesPublication<Snapshot extends object> {
   /** The number of turns finished when the shown history was captured. */
   private historyTurn = 0;
   private capturing = 0;
+  private waiting: (() => void)[] = [];
   constructor(public snapshot: Snapshot, private readonly turnRefresh: TurnRefresh<Snapshot>) {}
 
   /** Starts a selection, superseding earlier ones. */
@@ -36,8 +37,15 @@ export class ChangesPublication<Snapshot extends object> {
     } finally {
       // A turn's refresh left its commits to the selections capturing then. If they all failed or gave way to one that
       // failed, nothing showed them; refresh for the turn again. Nobody awaits this one, so its errors are logged.
-      if (--this.capturing === 0 && this.historyTurn !== this.turns) this.refreshTurn(this.turns).catch(error => console.error("Could not refresh Changes after an Agent turn", error));
+      if (--this.capturing === 0) for (const resolve of this.waiting.splice(0)) resolve();
+      if (this.capturing === 0 && this.historyTurn !== this.turns) this.refreshTurn(this.turns).catch(error => console.error("Could not refresh Changes after an Agent turn", error));
     }
+  }
+
+  /** What Changes shows once no selection is capturing anymore: for a selection's caller when a later one superseded it. */
+  async settled(): Promise<Snapshot> {
+    while (this.capturing) await new Promise<void>(resolve => this.waiting.push(resolve));
+    return this.snapshot;
   }
 
   /** Refreshes after a turn, unless a selection captures this turn's commits itself, or a later turn refreshes again. */

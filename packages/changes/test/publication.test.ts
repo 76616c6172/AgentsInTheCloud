@@ -71,3 +71,15 @@ test("a turn's commits still publish when the selection that held its refresh ba
   expect(published).toEqual(["turn"]);
   expect(subject.snapshot).toEqual({ name: "turn" });
 });
+
+test("a superseded selection's caller can wait for what the later selection publishes", async () => {
+  const { subject } = publication();
+  const later = Promise.withResolvers<Snapshot>();
+  const save = subject.publishSelection(subject.select(), async () => ({ name: "saved" }));
+  const other = subject.publishSelection(subject.select(), () => later.promise);
+  expect(await save).toBeUndefined();
+  const shown = subject.settled();
+  later.resolve({ name: "other" });
+  expect(await shown).toEqual({ name: "other" });
+  await other;
+});
