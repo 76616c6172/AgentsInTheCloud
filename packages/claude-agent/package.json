@@ -19,6 +19,6 @@
     "@anthropic-ai/sdk": "0.129.0",
     "@modelcontextprotocol/sdk": "1.32.2",
     "typebox": "^1.0.57",
-    "zod": "4.6.5"
+    "zod": "4.6.7"
   }
 }
