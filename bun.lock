@@ -551,6 +551,7 @@
   "patchedDependencies": {
     "@pierre/diffs@1.6.2": "patches/@pierre%2Fdiffs@1.6.2.patch",
     "@gespenst/core@0.2.0": "patches/@gespenst%2Fcore@0.2.0.patch",
+    "@hotwired/turbo@8.0.23": "patches/@hotwired%2Fturbo@8.0.23.patch",
   },
   "catalog": {
     "@earendil-works/chord": "1.4.0",
