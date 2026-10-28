@@ -10,7 +10,7 @@
     "catalog": {
       "@earendil-works/pi-ai": "1.4.0",
       "@earendil-works/pi-coding-agent": "1.4.0",
-      "@gespenst/core": "0.1.1",
+      "@gespenst/core": "0.2.0",
       "@earendil-works/pi-durable": "1.4.0",
       "@earendil-works/pi-codemode": "1.4.0",
       "@earendil-works/chord": "1.4.0"
@@ -44,7 +44,7 @@
     "typescript": "6.0.3"
   },
   "patchedDependencies": {
-    "@gespenst/core@0.1.1": "patches/@gespenst%2Fcore@0.1.1.patch",
-    "@pierre/diffs@1.6.2": "patches/@pierre%2Fdiffs@1.6.2.patch"
+    "@pierre/diffs@1.6.2": "patches/@pierre%2Fdiffs@1.6.2.patch",
+    "@gespenst/core@0.2.0": "patches/@gespenst%2Fcore@0.2.0.patch"
   }
 }
