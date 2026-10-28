@@ -20,6 +20,13 @@ function quoteSource(start: Element | null, end: Element | null): string {
   return source && source === end?.closest("[data-quote-source]") ? source.dataset.quoteSource! : "From the transcript";
 }
 
+/** Text selected on the page in a visible Agent transcript, without surrounding blank space. Code keeps its first line's indentation. */
+export function transcriptSelectionText(): string | undefined {
+  const selection = quotableSelection(document);
+  if (!selection?.container.closest(".agent-transcript")?.checkVisibility()) return undefined;
+  return selection.code ? selection.text.replace(/^(?:[ \t]*\n)+|\s+$/g, "") : selection.text.trim();
+}
+
 /** A typed character that should start a comment, not a shortcut, a space or a key in a field. */
 function commentStart(event: KeyboardEvent): string | undefined {
   if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return undefined;
