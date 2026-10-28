@@ -11,7 +11,7 @@ workspace must be able to build from that exact image. The workspace has its own
 containerd image records and snapshots, even though both instances can see the
 same EROFS cache files. Merely sharing the cache does not install the image.
 
-Containerd 2.4.0-beta.0's pull path can prepare snapshots from the EROFS shared
+Containerd 2.4's pull path can prepare snapshots from the EROFS shared
 cache without downloading layer blobs. Its ordinary import/unpack path does not
 support the metadata-only import used here: it attempts to read the omitted layer
 blobs. This helper calls the existing cache-aware parallel unpacker instead.
@@ -113,8 +113,8 @@ does not solve those operations.
 
 The parent Dockerfile builds `/usr/local/bin/agents-in-the-cloud-image-transfer` for both
 linux/arm64 and linux/amd64. Its Go module pins containerd to the same
-`v2.4.0-beta.0` as the runtime. Update those together. The separate helper build
-uses Go 1.26.8 because the containerd module requires Go 1.26.3 or newer.
+`v2.4.2` as the runtime. Update those together. The separate helper build
+uses Go 1.27.3; the containerd module requires Go 1.26.3 or newer.
 
 ```sh
 (cd images/patched-docker/image-transfer && go test ./... && go vet ./...)
@@ -134,7 +134,7 @@ the consumer has `--network none` for its whole lifetime.
 ## When we can remove it
 
 The relevant upstream foundation is [containerd's EROFS shared cache](https://github.com/containerd/containerd/pull/13813)
-and its [parallel unpacker](https://github.com/containerd/containerd/blob/v2.4.0-beta.0/core/unpack/unpacker.go).
+and its [parallel unpacker](https://github.com/containerd/containerd/blob/v2.4.2/core/unpack/unpacker.go).
 There is no assumed release date or promised upstream replacement.
 
 Remove the import side when vanilla `ctr images import` can accept metadata-only
