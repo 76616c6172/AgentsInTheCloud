@@ -152,15 +152,22 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         const state = await current(workspaceId), root = workspaceRepository(workspaceId), ticket = state.select();
         let saved: ChangesSnapshot | undefined;
         // The save owns this browser's comparison; a later selection (say, from another browser) still wins.
-        const published = await state.publishSelection(ticket, async () => saved = saved
-          ? await refreshChanges(root, saved)
-          : await changesEdits.save(workspaceId, root, input.token, input.contents, input.ranges,
-            (snapshot, path, contents, positions) => reviewComments.relocate(workspaceId, snapshot, path, contents, positions)));
+        let published: ChangesSnapshot | undefined;
+        try {
+          published = await state.publishSelection(ticket, async () => saved = saved
+            ? await refreshChanges(root, saved)
+            : await changesEdits.save(workspaceId, root, input.token, input.contents, input.ranges,
+              (snapshot, path, contents, positions) => reviewComments.relocate(workspaceId, snapshot, path, contents, positions)));
+        } catch (error) {
+          // Only capturing again (after the workspace changed during the save) can fail once the file is written.
+          if (!saved) throw error;
+          console.error("Could not refresh Changes after a save", error);
+        }
         if (published) state.clients.clear();
         // Saving moved comments, even when a later selection superseded the save.
         invalidateWorkspace(workspaceId);
-        // A later selection may not show the saved file (it may have captured before the save, or fail); refresh for it.
-        // The file is written either way, so a failed refresh doesn't fail the save.
+        // Unpublished: a later selection may not show the saved file (it may have captured before the save, or fail),
+        // or capturing failed; refresh for it. The file is written either way, so a failed refresh doesn't fail the save.
         if (!published) await state.changed().catch(error => console.error("Could not refresh Changes after a save", error));
         const next = published ?? await state.settled();
         // Saving captures a new history, with this edit's Working tree and whatever changed in the workspace meanwhile.
