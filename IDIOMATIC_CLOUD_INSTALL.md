@@ -25,7 +25,7 @@ Add an 'agents-in-the-cloud' user with sudo powers.
 Install agents-in-the-cloud system dependencies: docker, docker buildx, bun, git, git lfs, unzip.
 Install Bun in a way that makes `bun` available to the `agents-in-the-cloud` user in both interactive shells and the boot-time service. Prefer an OS/package-manager install when available. If using Bun's official curl installer, ensure its prerequisites such as `unzip` are installed, and make sure the service PATH includes the Bun install directory. Verify the install with `sudo -u agents-in-the-cloud bun --version`; if that fails, Bun is not installed correctly for AgentsInTheCloud.
 
-Then as agents-in-the-cloud user, git clone https://github.com/lucasmeijer/atelier into ~/agents-in-the-cloud.
+Then as agents-in-the-cloud user, git clone https://github.com/lucasmeijer/AgentsInTheCloud into ~/agents-in-the-cloud.
 Ensure that on every boot "bun install && bun run web" gets run from the agents-in-the-cloud folder.
 Start agents-in-the-cloud the same way the next boot would, and monitor the logs for any startup problems.
 AgentsInTheCloud by default starts on 0.0.0.0:3000 which is fine for production.
