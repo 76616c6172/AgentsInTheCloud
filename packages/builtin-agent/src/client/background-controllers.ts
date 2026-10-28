@@ -1,4 +1,4 @@
-import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { CableTopics, isWorkspacePaneVisible, type CableSubscription, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 import { Type } from "typebox";
 import { Value } from "typebox/value";
 
@@ -14,7 +14,8 @@ export function createBackgroundController(Controller: WorkspaceClientController
     connect(): void { this.sync(); }
     disconnect(): void { this.stop(); }
     sync(): void {
-      if (document.hidden || !this.element.parentElement!.checkVisibility()) { this.stop(); return; }
+      // Asks the presentation, not the layout: this runs as controllers connect and panes show.
+      if (document.hidden || !isWorkspacePaneVisible(this.element)) { this.stop(); return; }
       this.subscription ??= window.AgentsInTheCloudCable!.subscribe(CableTopics.module("agent-background", this.workspaceIdValue, { agentId: this.agentIdValue }), {});
     }
     private stop(): void {
