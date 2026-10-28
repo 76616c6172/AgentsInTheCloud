@@ -246,7 +246,7 @@
       "dependencies": {
         "@agents-in-the-cloud/shared": "workspace:*",
         "@agents-in-the-cloud/syntax": "workspace:*",
-        "@fontsource/jetbrains-mono": "5.2.8",
+        "@fontsource/jetbrains-mono": "5.3.0",
         "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
         "qrcode-generator": "2.0.4",
       },
@@ -726,7 +726,7 @@
 
     "@earendil-works/pi-tui": ["@earendil-works/pi-tui@1.4.0", "", { "dependencies": { "get-east-asian-width": "1.6.0", "marked": "18.0.11", "marked-cjk-friendly": "0.1.2" } }, "sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg=="],
 
-    "@fontsource/jetbrains-mono": ["@fontsource/jetbrains-mono@5.2.8", "", {}, "sha512-6w8/SG4kqvIMu7xd7wt6x3idn1Qux3p9N62s6G3rfldOUYHpWcc2FKrqf+Vo44jRvqWj2oAtTHrZXEP23oSKwQ=="],
+    "@fontsource/jetbrains-mono": ["@fontsource/jetbrains-mono@5.3.0", "", {}, "sha512-fqDfB5I9f1p1TV486aUgB9t8zP84P0O1FtQR5Ol9vjwPy+S+EIGlVYm1cvj2W5shcZMTg2nZFdVMoH5wFu8a1A=="],
 
     "@gespenst/core": ["@gespenst/core@0.1.1", "", {}, "sha512-sd8iiE1LYdbVlkYHQnoFt0TslQW8WkTNycN0gQTPa2IXeftA5ZQ5KAvv/EJZxx9Vt4JqTExyYG+dSeoKw4YhvA=="],
 
