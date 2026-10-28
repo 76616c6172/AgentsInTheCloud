@@ -30,7 +30,14 @@ const states = new Map<string, Promise<ChangesState>>();
 function current(workspaceId: string): Promise<ChangesState> {
   let state = states.get(workspaceId);
   if (!state) {
-    state = Promise.all([captureChanges(workspaceRepository(workspaceId)), workspaceChangeBuckets(workspaceId)]).then(([snapshot, buckets]) => Object.assign(new ChangesPublication(snapshot), { buckets, clients: new Map<string, number>() }));
+    state = Promise.all([captureChanges(workspaceRepository(workspaceId)), workspaceChangeBuckets(workspaceId)]).then(([snapshot, buckets]) => {
+      const clients = new Map<string, number>(), root = workspaceRepository(workspaceId);
+      return Object.assign(new ChangesPublication(snapshot, {
+        capture: previous => refreshChanges(root, previous),
+        // A removed workspace's late refresh has no one to show it to.
+        published: () => { if (states.get(workspaceId) !== state) return; clients.clear(); invalidateWorkspace(workspaceId); },
+      }), { buckets, clients });
+    });
     states.set(workspaceId, state);
     void state.catch(() => { if (states.get(workspaceId) === state) states.delete(workspaceId); });
   }
@@ -298,12 +305,7 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
   } }],
   initialize(context) {
     invalidateWorkspace = context.invalidateWorkspace;
-    context.events.on("workspace_agent_turn_finished", async ({ workspaceId }) => {
-      const state = await current(workspaceId);
-      if (!await state.refreshAfterTurn(previous => refreshChanges(workspaceRepository(workspaceId), previous)) || !states.has(workspaceId)) return;
-      state.clients.clear();
-      invalidateWorkspace(workspaceId);
-    });
+    context.events.on("workspace_agent_turn_finished", async ({ workspaceId }) => { await (await current(workspaceId)).turnFinished(); });
     context.events.on("workspace_delete_inspect", ({ workspaceId, issues }) => {
       const uncopied = reviewComments.list(workspaceId).filter(comment => comment.copiedRevision !== comment.revision);
       if (uncopied.length) issues.push({ kind: "uncopied_review_comments", message: `${uncopied.length} review comments haven’t been copied. Deleting this workspace will delete them.`, count: uncopied.length });

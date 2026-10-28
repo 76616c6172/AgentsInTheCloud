@@ -3,13 +3,18 @@
  * and the refresh after each Agent turn capture concurrently; the last selection wins, and nothing publishes a history
  * from before a finished turn, which would leave out that turn's commits.
  */
+export interface TurnRefresh<Snapshot> {
+  capture(previous: Snapshot): Promise<Snapshot>;
+  published(snapshot: Snapshot): void;
+}
+
 export class ChangesPublication<Snapshot extends object> {
   private request = 0;
   private turns = 0;
   /** The number of turns finished when the shown history was captured. */
   private historyTurn = 0;
   private capturing = 0;
-  constructor(public snapshot: Snapshot) {}
+  constructor(public snapshot: Snapshot, private readonly turnRefresh: TurnRefresh<Snapshot>) {}
 
   /** Starts a selection, superseding earlier ones. */
   select(): number { return ++this.request; }
@@ -28,15 +33,21 @@ export class ChangesPublication<Snapshot extends object> {
         if (this.superseded(ticket)) return undefined;
         if (turn === this.turns) return this.publish(next, turn);
       }
-    } finally { this.capturing--; }
+    } finally {
+      // A turn's refresh left its commits to the selections capturing then. If they all failed or gave way to one that
+      // failed, nothing showed them; refresh for the turn again. Nobody awaits this one, so its errors are logged.
+      if (--this.capturing === 0 && this.historyTurn !== this.turns) this.refreshTurn(this.turns).catch(error => console.error("Could not refresh Changes after an Agent turn", error));
+    }
   }
 
   /** Refreshes after a turn, unless a selection captures this turn's commits itself, or a later turn refreshes again. */
-  async refreshAfterTurn(capture: (previous: Snapshot) => Promise<Snapshot>): Promise<Snapshot | undefined> {
-    const turn = ++this.turns, selection = this.request, previous = this.snapshot;
-    const next = await capture(previous);
-    if (this.request !== selection || this.snapshot !== previous || this.capturing || turn !== this.turns) return undefined;
-    return this.publish(next, turn);
+  turnFinished(): Promise<void> { return this.refreshTurn(++this.turns); }
+
+  private async refreshTurn(turn: number): Promise<void> {
+    const selection = this.request, previous = this.snapshot;
+    const next = await this.turnRefresh.capture(previous);
+    if (this.request !== selection || this.snapshot !== previous || this.capturing || turn !== this.turns) return;
+    this.turnRefresh.published(this.publish(next, turn));
   }
 
   private publish(snapshot: Snapshot, turn: number): Snapshot {

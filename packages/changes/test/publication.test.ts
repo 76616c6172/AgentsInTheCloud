@@ -2,33 +2,37 @@ import { expect, test } from "bun:test";
 import { ChangesPublication } from "../src/server/publication.ts";
 
 interface Snapshot { name: string }
-function deferred() {
-  let resolve!: (snapshot: Snapshot) => void;
-  const promise = new Promise<Snapshot>(done => { resolve = done; });
-  return { promise, resolve };
+/** Turn refreshes return the queued captures in order, or "turn" once they run out. */
+function publication(turnCaptures: Promise<Snapshot>[] = []) {
+  const published: string[] = [];
+  const subject = new ChangesPublication<Snapshot>({ name: "initial" }, {
+    capture: () => turnCaptures.shift() ?? Promise.resolve({ name: "turn" }),
+    published: snapshot => published.push(snapshot.name),
+  });
+  return { subject, published };
 }
 
 test("a selection made while a turn refreshes captures a fresh history and wins", async () => {
-  const publication = new ChangesPublication<Snapshot>({ name: "initial" });
-  const turnCapture = deferred();
-  const turn = publication.refreshAfterTurn(() => turnCapture.promise);
+  const turnCapture = Promise.withResolvers<Snapshot>();
+  const { subject, published } = publication([turnCapture.promise]);
+  const turn = subject.turnFinished();
   const outdated: boolean[] = [];
-  const selection = publication.publishSelection(publication.select(), async stale => { outdated.push(stale); return { name: "picked" }; });
-  expect(await selection).toEqual({ name: "picked" });
+  expect(await subject.publishSelection(subject.select(), async stale => { outdated.push(stale); return { name: "picked" }; })).toEqual({ name: "picked" });
   turnCapture.resolve({ name: "turn" });
-  expect(await turn).toBeUndefined();
+  await turn;
   expect(outdated).toEqual([true]);
-  expect(publication.snapshot).toEqual({ name: "picked" });
+  expect(published).toEqual([]);
+  expect(subject.snapshot).toEqual({ name: "picked" });
 });
 
 test("a selection still capturing when a turn finishes captures again, and the turn doesn't show the old selection first", async () => {
-  const publication = new ChangesPublication<Snapshot>({ name: "initial" });
-  const captures = [deferred(), deferred()];
+  const { subject, published } = publication();
+  const captures = [Promise.withResolvers<Snapshot>(), Promise.withResolvers<Snapshot>()];
   const outdated: boolean[] = [];
-  const selection = publication.publishSelection(publication.select(), stale => { outdated.push(stale); return captures[outdated.length - 1]!.promise; });
-  const turn = publication.refreshAfterTurn(async () => ({ name: "turn" }));
-  expect(await turn).toBeUndefined();
-  expect(publication.snapshot).toEqual({ name: "initial" });
+  const selection = subject.publishSelection(subject.select(), stale => { outdated.push(stale); return captures[outdated.length - 1]!.promise; });
+  await subject.turnFinished();
+  expect(published).toEqual([]);
+  expect(subject.snapshot).toEqual({ name: "initial" });
   captures[0]!.resolve({ name: "picked before the turn" });
   captures[1]!.resolve({ name: "picked after the turn" });
   expect(await selection).toEqual({ name: "picked after the turn" });
@@ -36,20 +40,34 @@ test("a selection still capturing when a turn finishes captures again, and the t
 });
 
 test("a turn's refresh publishes when no selection interferes, and later selections reuse its history", async () => {
-  const publication = new ChangesPublication<Snapshot>({ name: "initial" });
-  expect(await publication.refreshAfterTurn(async previous => ({ name: `after ${previous.name}` }))).toEqual({ name: "after initial" });
+  const { subject, published } = publication();
+  await subject.turnFinished();
+  expect(published).toEqual(["turn"]);
   let reused: boolean | undefined;
-  await publication.publishSelection(publication.select(), async stale => { reused = !stale; return { name: "picked" }; });
+  await subject.publishSelection(subject.select(), async stale => { reused = !stale; return { name: "picked" }; });
   expect(reused).toBe(true);
 });
 
 test("the last selection wins", async () => {
-  const publication = new ChangesPublication<Snapshot>({ name: "initial" });
-  const slow = deferred();
-  const first = publication.publishSelection(publication.select(), () => slow.promise);
-  const second = publication.publishSelection(publication.select(), async () => ({ name: "second" }));
+  const { subject } = publication();
+  const slow = Promise.withResolvers<Snapshot>();
+  const first = subject.publishSelection(subject.select(), () => slow.promise);
+  const second = subject.publishSelection(subject.select(), async () => ({ name: "second" }));
   expect(await second).toEqual({ name: "second" });
   slow.resolve({ name: "first" });
   expect(await first).toBeUndefined();
-  expect(publication.snapshot).toEqual({ name: "second" });
+  expect(subject.snapshot).toEqual({ name: "second" });
+});
+
+test("a turn's commits still publish when the selection that held its refresh back fails", async () => {
+  const { subject, published } = publication([Promise.resolve({ name: "turn held back" })]);
+  const failing = Promise.withResolvers<Snapshot>();
+  const selection = subject.publishSelection(subject.select(), () => failing.promise);
+  await subject.turnFinished();
+  expect(published).toEqual([]);
+  failing.reject(new Error("git failed"));
+  await expect(selection).rejects.toThrow("git failed");
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(published).toEqual(["turn"]);
+  expect(subject.snapshot).toEqual({ name: "turn" });
 });
