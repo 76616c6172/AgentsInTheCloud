@@ -433,7 +433,7 @@
         "proxy-from-env": "1.1.0",
       },
       "devDependencies": {
-        "@types/proxy-from-env": "1.0.3",
+        "@types/proxy-from-env": "1.0.4",
       },
     },
     "packages/proxy-ingress": {
@@ -868,7 +868,7 @@
 
     "@types/proper-lockfile": ["@types/proper-lockfile@4.1.4", "", { "dependencies": { "@types/retry": "*" } }, "sha512-uo2ABllncSqg9F1D4nugVl9v93RmjxF6LJzQLMLDdPaXCUIDPeOJ21Gbqi43xNKzBi/WQ0Q0dICqufzQbMjipQ=="],
 
-    "@types/proxy-from-env": ["@types/proxy-from-env@1.0.3", "", { "dependencies": { "@types/node": "*" } }, "sha512-qmSGyd9bq6y+rclBayyLoE6GOisOkVOLofEsQRUba71irP9W+/hq7iEPsYTuVR5C7xXLZwM03SNtJXhpmwhT1w=="],
+    "@types/proxy-from-env": ["@types/proxy-from-env@1.0.4", "", { "dependencies": { "@types/node": "*" } }, "sha512-TPR9/bCZAr3V1eHN4G3LD3OLicdJjqX1QRXWuNcCYgE66f/K8jO2ZRtHxI2D9MbnuUP6+qiKSS8eUHp6TFHGCw=="],
 
     "@types/retry": ["@types/retry@0.12.0", "", {}, "sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA=="],
 

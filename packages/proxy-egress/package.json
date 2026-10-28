@@ -17,6 +17,6 @@
     "@agents-in-the-cloud/git-hosting": "workspace:*"
   },
   "devDependencies": {
-    "@types/proxy-from-env": "1.0.3"
+    "@types/proxy-from-env": "1.0.4"
   }
 }
