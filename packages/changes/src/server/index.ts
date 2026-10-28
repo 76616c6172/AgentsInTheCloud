@@ -160,7 +160,8 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
         // Saving moved comments, even when a later selection superseded the save.
         invalidateWorkspace(workspaceId);
         // A later selection may not show the saved file (it may have captured before the save, or fail); refresh for it.
-        if (!published) await state.changed();
+        // The file is written either way, so a failed refresh doesn't fail the save.
+        if (!published) await state.changed().catch(error => console.error("Could not refresh Changes after a save", error));
         const next = published ?? await state.settled();
         // Saving captures a new history, with this edit's Working tree and whatever changed in the workspace meanwhile.
         return turboStreamResponse(replace(changesBodyId(workspaceId, input.history), renderChanges(workspaceId, next, state.buckets)));
