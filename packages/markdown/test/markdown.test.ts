@@ -125,6 +125,10 @@ describe("renderMarkdown", () => {
     expect(renderMarkdown("work 1", "[x](javascript:alert(1))")).not.toContain("href");
   });
 
+  test("bare URLs with credentials link as a whole", () => {
+    expect(renderMarkdown("work 1", "proxy: http://user:pass@proxy.example.com:8080 here")).toContain('href="http://user:pass@proxy.example.com:8080"');
+  });
+
   test("ordinary Markdown images retain their normal behavior", () => {
     expect(renderMarkdown("work 1", "![alt](https://example.com/a.png)")).toContain('<img src="https://example.com/a.png" alt="alt">');
   });

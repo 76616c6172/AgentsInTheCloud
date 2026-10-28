@@ -1,7 +1,4 @@
-import type MarkdownIt from "markdown-it";
-import type StateBlock from "markdown-it/lib/rules_block/state_block.mjs";
-import type StateCore from "markdown-it/lib/rules_core/state_core.mjs";
-import type Token from "markdown-it/lib/token.mjs";
+import type { MarkdownIt, StateBlock, StateCore, Token } from "markdown-it";
 import { disclosureClosingHtml, disclosureOpeningHtml } from "@agents-in-the-cloud/design-system/disclosure";
 
 export const detailsOpeningPattern = /^<details(\s+open)?\s*>\s*(?:<summary>(.*?)<\/summary>)?\s*$/i;
