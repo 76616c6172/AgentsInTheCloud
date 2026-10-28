@@ -50,7 +50,7 @@
         "@agents-in-the-cloud/workspace-terminal": "workspace:*",
         "@gespenst/core": "catalog:",
         "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
-        "@hotwired/turbo": "8.0.13",
+        "@hotwired/turbo": "8.0.23",
         "typebox": "^1.0.57",
       },
     },
@@ -142,7 +142,7 @@
         "@agents-in-the-cloud/syntax": "workspace:*",
         "@agents-in-the-cloud/workspace": "workspace:*",
         "@agents-in-the-cloud/workspace-templates": "workspace:*",
-        "@hotwired/turbo": "8.0.13",
+        "@hotwired/turbo": "8.0.23",
         "@pierre/diffs": "1.6.1",
         "typebox": "^1.0.57",
       },
@@ -740,7 +740,7 @@
 
     "@hotwired/stimulus": ["@hotwired/stimulus@github:hotwired/dev-builds#339df54", {}, "hotwired-dev-builds-339df54", "sha512-mHNF9l1AaFMwHph9F+E6H9/MOtt8gIPSyNKMJELZOfYlh9rdmfmgXu6+EmC1NfjcA0tc6u+xn8PDoOjSzc9SGw=="],
 
-    "@hotwired/turbo": ["@hotwired/turbo@8.0.13", "", {}, "sha512-M7qXUqcGab6G5PKOiwhgbByTtrPgKPFCTMNQ52QhzUEXEqmp0/ApEguUesh/FPiUjrmFec+3lq98KsWnYY2C7g=="],
+    "@hotwired/turbo": ["@hotwired/turbo@8.0.23", "", {}, "sha512-GZ7cijxEZ6Ig71u7rD6LHaRv/wcE/hNsc+nEfiWOkLNqUgLOwo5MNGWOy5ZV9ZUDSiQx1no7YxjTNnT4O6//cQ=="],
 
     "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 
