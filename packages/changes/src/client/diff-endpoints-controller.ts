@@ -334,6 +334,12 @@ export function createDiffEndpointsController(Controller: WorkspaceClientControl
         const result = await fetch(`/workspaces/${encodeURIComponent(this.workspaceIdValue)}/changes/history?${query}`, { signal: request.signal, headers: { Accept: "text/vnd.turbo-stream.html" } });
         const html = await result.text();
         if (request.signal.aborted) return;
+        // This history is outdated: an open code edit kept a refresh out. Refresh; it shows the first page of the new history.
+        if (result.status === 409) {
+          this.moreTarget.disabled = false;
+          this.refresh();
+          return;
+        }
         if (!result.ok) throw new Error(html);
         window.Turbo!.renderStreamMessage(html);
       } catch (error) {
