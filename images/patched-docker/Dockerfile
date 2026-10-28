@@ -2,7 +2,7 @@
 # Shared base for workspace and service daemons. Neither AgentsInTheCloud nor workspace
 # policy belongs here. Build from this directory with ./build.sh --load.
 FROM docker:29.6.1-dind@sha256:66d292e5c26bd33a6f6f61cacb880de2186339a524ecba1ce098dbbaceed6515 AS docker-tools
-FROM ubuntu:26.04@sha256:513c074113a871b51a8d16ab445c88779d6452d937a164fb5cc479f32668a41d AS ubuntu
+FROM ubuntu:26.04 AS ubuntu
 
 # Compile natively, including CGO/seccomp, even when targeting the other CPU.
 FROM --platform=$BUILDPLATFORM golang:1.26.10@sha256:672c944cfd07599b5f1bb179869270cdc94c6254e41db4d431259693cb286b82 AS build
@@ -68,7 +68,7 @@ RUN --mount=type=cache,id=agents-in-the-cloud-ctr-go,target=/root/.cache/go-buil
       -ldflags '-X github.com/containerd/containerd/v2/version.Version=v2.4.0-beta.0-agents-in-the-cloud -X github.com/containerd/containerd/v2/version.Revision=58e6cee9dee67ee87ee2f727d3570009050f9954+cache-lease+mount-root+cache-reuse+loop-node' \
       -o /out/ ./cmd/ctr ./cmd/containerd
 
-FROM --platform=$BUILDPLATFORM ubuntu:26.04@sha256:513c074113a871b51a8d16ab445c88779d6452d937a164fb5cc479f32668a41d AS containerd
+FROM --platform=$BUILDPLATFORM ubuntu:26.04 AS containerd
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 ARG TARGETARCH
