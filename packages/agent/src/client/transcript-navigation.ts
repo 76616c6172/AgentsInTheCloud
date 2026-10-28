@@ -82,8 +82,8 @@ export class TranscriptNavigation {
 
   // Composer and keyboard changes push the transcript up in the same frame:
   // the content at its bottom edge stays put, so the scroll offset changes once.
-  // Before the first reconcile nothing is arranged yet: that reconcile, already
-  // scheduled, places the transcript, so a pane connecting forces no layout here.
+  // Before the first reconcile nothing is on screen to keep: that reconcile,
+  // already scheduled, places the transcript without forcing a layout here.
   private readonly layoutBefore = (): void => {
     this.layoutBottom = this.visible && this.height !== 0 && this.transcript.checkVisibility() ? this.transcript.scrollTop + this.transcript.clientHeight : undefined;
   };
@@ -161,10 +161,10 @@ export class TranscriptNavigation {
     this.layoutChanged();
   }
 
-  private rememberPosition(): void {
+  private rememberPosition(latestTop = this.visible ? this.geometry().latestTop : Infinity): void {
     this.positionStale = false;
     this.lastScrollTop = this.transcript.scrollTop;
-    this.lastDistanceToEnd = this.visible ? this.geometry().latestTop - this.lastScrollTop : Infinity;
+    this.lastDistanceToEnd = latestTop - this.lastScrollTop;
   }
 
   private renderMode(): void {
@@ -240,11 +240,7 @@ export class TranscriptNavigation {
     if (!this.visible) return;
     const width = this.transcript.clientWidth;
     const geometry = this.geometry();
-    if (this.positionStale) {
-      this.positionStale = false;
-      this.lastScrollTop = this.transcript.scrollTop;
-      this.lastDistanceToEnd = geometry.latestTop - this.lastScrollTop;
-    }
+    if (this.positionStale) this.rememberPosition(geometry.latestTop);
     const widthChanged = this.width !== 0 && width !== this.width;
     const resized = widthChanged || (this.height !== 0 && geometry.viewport !== this.height);
     this.width = width;

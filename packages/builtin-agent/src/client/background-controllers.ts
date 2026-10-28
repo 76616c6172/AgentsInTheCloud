@@ -14,7 +14,7 @@ export function createBackgroundController(Controller: WorkspaceClientController
     connect(): void { this.sync(); }
     disconnect(): void { this.stop(); }
     sync(): void {
-      // Asks the presentation, not the layout: this runs as controllers connect and panes show.
+      // The presentation's state, not checkVisibility: that would force a layout as panes connect and show.
       if (document.hidden || !isWorkspacePaneVisible(this.element)) { this.stop(); return; }
       this.subscription ??= window.AgentsInTheCloudCable!.subscribe(CableTopics.module("agent-background", this.workspaceIdValue, { agentId: this.agentIdValue }), {});
     }
