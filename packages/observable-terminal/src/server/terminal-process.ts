@@ -381,7 +381,16 @@ export function createTerminalProcesses(options: { run: RunTerminalProcessComman
       let closed = false;
       return {
         async open(socket) {
-          const current = await state(id);
+          let current: TerminalProcessState;
+          try {
+            current = await state(id);
+          } catch (error) {
+            // Parking can stop the workspace before a reconnect checks its process.
+            // Fail this connection, not the app, and retain the diagnostic.
+            console.error(`Could not connect to terminal process ${id}`, error);
+            if (!closed) socket.close(1011, "Terminal unavailable");
+            return;
+          }
           if (closed) return;
           if (current.state !== "running") { socket.close(terminalEndedCloseCode, "ended"); return; }
           // Whether viewers can type and resize belongs to the process, not to the viewer.
