@@ -1,5 +1,5 @@
 import { AgentsInTheCloudCoreError, createAgentsInTheCloudEventBus, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
-import { type WorkspaceAgentTabProvider, type WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { CableTopics, type WorkspaceAgentTabProvider, type WorkspaceModule } from "@agents-in-the-cloud/shared";
 import { describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -79,6 +79,7 @@ async function withTestApp(
   run: (context: TestAppContext) => Promise<void>,
   created?: TestConversation | TestConversation[],
   additionalModules: WorkspaceModule[] = [],
+  deps: { persistWorkspaceParked?: (id: string, parked: boolean) => Promise<void> } = {},
 ): Promise<void> {
   const previousDataDir = process.env.ATELIER_DATA_DIR;
   const dataDir = await mkdtemp(join(tmpdir(), "agents-in-the-cloud-app-agent-routes-"));
@@ -95,7 +96,7 @@ async function withTestApp(
       provisionWorkspace: async () => {},
       deletionReview: { inspect: async () => ({ status: "clear" }), renderEvidence: () => "" },
       destroyWorkspace: async () => {},
-      persistWorkspaceParked: async () => {},
+      persistWorkspaceParked: deps.persistWorkspaceParked ?? (async () => {}),
       logError: () => {},
     });
     const workspaceId = "workspace-agent-routes";
@@ -173,6 +174,53 @@ for (const operation of ["createWorkView", "presentWorkViewFromAgent"] as const)
     }, undefined, [module]);
   });
 }
+
+test("the workspace chrome renders no Agent pane; each pane's own surface renders it", async () => {
+  await withTestApp([{ id: "conversation-a", title: "Alpha" }, { id: "conversation-b", title: "Beta" }], async ({ app, agent, workspaceId }) => {
+    const chrome = await app.subscribeSurface(CableTopics.module("surface", workspaceId, { kind: "workspace" }), () => {});
+    expect(agent.rendered).toEqual([]);
+    const published: string[] = [];
+    const pane = await app.subscribeSurface(CableTopics.module("surface", workspaceId, { kind: "agent-pane", key: "conversation-b" }), html => published.push(html));
+    expect(agent.rendered).toEqual([{ workspaceId, agentId: "conversation-b" }]);
+    expect(published.join("")).toContain('data-rendered-conversation="conversation-b"');
+    // A pane whose Agent just closed publishes nothing until the chrome drops it.
+    const closed = await app.subscribeSurface(CableTopics.module("surface", workspaceId, { kind: "agent-pane", key: "conversation-closed" }), () => {});
+    expect(agent.rendered).toHaveLength(1);
+    for (const subscription of [chrome, pane, closed]) subscription.unsubscribe();
+  });
+});
+
+test("a selected Agent pane stops rendering once its workspace leaves the running phase", async () => {
+  await withTestApp([{ id: "conversation-a", title: "Alpha" }], async ({ app, agent, registry, workspaceId }) => {
+    const pane = await app.subscribeSurface(CableTopics.module("surface", workspaceId, { kind: "agent-pane", key: "conversation-a" }), () => {});
+    const rendered = agent.rendered.length;
+    // The chrome swaps to the deletion presentation; the pane's content is no longer on the page.
+    registry.setDeletion(workspaceId, { status: "checking" });
+    await Bun.sleep(20);
+    expect(agent.rendered.length).toBe(rendered);
+    pane.unsubscribe();
+  });
+});
+
+test("a selected Agent pane does not render while its workspace is being parked", async () => {
+  const stop = Promise.withResolvers<void>();
+  const stopping = Promise.withResolvers<void>();
+  // Like main.ts: Agent execution is suspended, then the container stops, then the registry learns it is parked.
+  const persistWorkspaceParked = async (_id: string, parked: boolean) => { if (parked) { stopping.resolve(); await stop.promise; } };
+  await withTestApp([{ id: "conversation-a", title: "Alpha" }], async ({ app, agent, events, workspaceId }) => {
+    const pane = await app.subscribeSurface(CableTopics.module("surface", workspaceId, { kind: "agent-pane", key: "conversation-a" }), () => {});
+    const rendered = agent.rendered.length;
+    const parking = app.fetch(new Request(`http://test.local/workspaces/${workspaceId}/park?force=1`, { method: "POST", headers: { accept: "application/json" } }));
+    await stopping.promise;
+    // Any presentation change elsewhere while the container stops.
+    void events.emit("workspace_agent_title_changed", { workspaceId: "another-workspace", agentId: "x", title: "y" });
+    await Bun.sleep(20);
+    expect(agent.rendered.length).toBe(rendered);
+    stop.resolve();
+    expect((await parking).status).toBe(200);
+    pane.unsubscribe();
+  }, undefined, [], { persistWorkspaceParked });
+});
 
 test("a workspace command refreshes each contributed live resource once", async () => {
   let loads = 0;

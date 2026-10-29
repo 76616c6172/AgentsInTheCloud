@@ -5,23 +5,17 @@ import { registerWorkspaceControllers } from "./workspace-controller-registry.ts
 const mounts = new WeakMap<HTMLElement, LiveSurfaceController>();
 
 class LiveSurfaceController extends Controller<HTMLElement> {
-  static values = { workspace: String, kind: String, key: String, eager: Boolean, agent: String, work: String };
+  static values = { workspace: String, kind: String, key: String, eager: Boolean };
   declare readonly workspaceValue: string;
   declare readonly kindValue: string;
   declare readonly keyValue: string;
   declare readonly eagerValue: boolean;
-  declare agentValue: string;
-  declare workValue: string;
   private subscription?: CableSubscription;
   private pending?: ReturnType<typeof Promise.withResolvers<void>>;
-  private selectedAgent = "";
-  private selectedWork = "";
   ready = false;
 
   connect(): void {
     mounts.set(this.element, this);
-    this.selectedAgent = this.agentValue;
-    this.selectedWork = this.workValue;
     if (this.eagerValue) void this.ensureReady();
   }
 
@@ -35,7 +29,7 @@ class LiveSurfaceController extends Controller<HTMLElement> {
     this.element.replaceChildren();
   }
 
-  private stop(): void {
+  stop(): void {
     this.subscription?.unsubscribe();
     this.subscription = undefined;
     this.ready = false;
@@ -43,34 +37,12 @@ class LiveSurfaceController extends Controller<HTMLElement> {
     this.pending = undefined;
   }
 
-  select(agent: string, work: string): void {
-    if (this.kindValue !== "workspace" || (this.selectedAgent === agent && this.selectedWork === work)) return;
-    // An empty value subscribes to the workspace's default, which may already be the choice.
-    const presentation = this.element.querySelector<HTMLElement>("[data-workspace-initial-agent]");
-    const continues = (value: string, initial: string | undefined, chosen: string) => value === chosen || (value === "" && initial === chosen);
-    if (this.subscription && continues(this.agentValue, presentation?.dataset.workspaceInitialAgent, agent)
-      && continues(this.workValue, presentation?.dataset.workspaceInitialWork, work)) {
-      this.selectedAgent = agent;
-      this.selectedWork = work;
-      return;
-    }
-    this.agentValue = agent;
-    this.workValue = work;
-    this.selectedAgent = agent;
-    this.selectedWork = work;
-    if (!this.subscription) return;
-    this.stop();
-    void this.ensureReady();
-  }
-
   ensureReady(): Promise<void> {
     if (this.ready) return Promise.resolve();
     if (this.pending) return this.pending.promise;
     const pending = this.pending = Promise.withResolvers<void>();
     if (this.subscription) return pending.promise;
-    const identifier = this.kindValue === "workspace"
-      ? CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue, agent: this.agentValue, work: this.workValue })
-      : CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue });
+    const identifier = CableTopics.module("surface", this.workspaceValue, { kind: this.kindValue, key: this.keyValue });
     this.subscription = window.AgentsInTheCloudCable!.subscribe(identifier, {
       shownIn: this.element,
       onReady: () => {
@@ -112,6 +84,5 @@ export function registerLiveSurfaces(): void { registerWorkspaceControllers({ "l
 
 export function releaseLiveSurface(element: HTMLElement): void { mounts.get(element)?.release(); }
 
-export function selectLiveSurface(element: HTMLElement, agent: string, work: string): void {
-  mounts.get(element)?.select(agent, work);
-}
+/** Ends the surface's subscription; the element keeps showing what it last published. */
+export function stopLiveSurface(element: HTMLElement): void { mounts.get(element)?.stop(); }
