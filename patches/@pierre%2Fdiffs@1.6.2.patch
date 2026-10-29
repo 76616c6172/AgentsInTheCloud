@@ -7,7 +7,7 @@ the parts it fixes. Test in the Files editor with wrap long lines turned on (the
 using a markdown file that has many long, wrapping lines.
 
 1. CodeView.js: skip layout while the root is hidden (isRootHidden)
-   Upstream draft: https://github.com/lucasmeijer/pierre/pull/2
+   Upstream PR: https://github.com/pierrecomputer/pierre/pull/1244
    Bug: while the editor is display: none (Source/Rendered toggle, or another work-view tab
    in front), CodeView's ResizeObserver still renders and caches every wrapped line as 0px.
    The zeros stay after the editor shows again, so the wrong lines or a blank gap appear at
@@ -21,7 +21,7 @@ using a markdown file that has many long, wrapping lines.
 
 2. editor.js: ignore the echo of our own window selection (#windowSelectionEcho,
    getComposedWindowRange, isSameRange)
-   Upstream draft (with part 3): https://github.com/lucasmeijer/pierre/pull/3
+   Upstream PR (with part 3): https://github.com/pierrecomputer/pierre/pull/1245
    Bug: a late selectionchange from the editor's own setBaseAndExtent is read as a click,
    collapsing the selection to its anchor.
    Can be dropped once holding Shift+Arrow (all four directions, including across wrapped
@@ -35,13 +35,13 @@ using a markdown file that has many long, wrapping lines.
 
 4. selection.js: Up on the first line goes to the line start, Down on the last line goes to
    the line end (mapCursorMove, moveBySoftLine)
-   Upstream draft: https://github.com/lucasmeijer/pierre/pull/4
+   Upstream PR: https://github.com/pierrecomputer/pierre/pull/1246
    Can be dropped once Up on line 1 jumps the caret to the start of the document and Down
    on the last line jumps to the end, with and without Shift and on wrapped lines too.
 
 5. FileRenderer.js: keep rows aligned when lines are added inside a run of identical lines
    (applyDocumentChange's prefixLimit, and a <br> for blank placeholder rows)
-   Upstream draft: https://github.com/lucasmeijer/pierre/pull/1
+   Upstream PR: https://github.com/pierrecomputer/pierre/pull/1243
    Bug: press Enter 3 times, Up 3 times, then Enter 3 times. The new blank lines are in the
    document but render as zero-height rows until something rerenders the file. The
    prefix/suffix line match places the edit at the end of the blank run instead of at the
