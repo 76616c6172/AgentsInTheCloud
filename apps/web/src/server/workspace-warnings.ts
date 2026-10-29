@@ -10,7 +10,7 @@ export interface WorkspaceWarning {
   action?: { href: string; caption: string };
 }
 
-export const outdatedImageMessage = "New workspaces get a newer image, after an AgentsInTheCloud update or a Dockerfile change. Make a new workspace to use it.";
+export const outdatedImageMessage = "Some new features might not be available in this workspace, because it was created in an older version.";
 
 const warningTitles = {
   preparation: "Workspace preparation needs attention",
@@ -36,6 +36,5 @@ export function workspaceWarnings(entry: WorkspaceEntry, workspaceTemplate: Work
     }
   }
   for (const warning of entry.warnings ?? []) add(warning.kind, warningTitles[warning.kind], warning.message, warning.message);
-  if (entry.imageOutdated && !warnings.some((warning) => warning.kind === "image")) add("image", "Workspace image is outdated", outdatedImageMessage, "outdated");
   return warnings;
 }
