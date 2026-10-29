@@ -15,6 +15,7 @@ import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@ag
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { renderAgentViewSwitch, renderAgentPane, renderMobileAgentAttention, renderPhoneAgentTypeOptions, renderPhoneWorkspaceActions, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
+import { renderImmersiveMode } from "./immersive-mode.ts";
 import type { WorkspaceDeletionState } from "./workspace-registry.ts";
 import { outdatedImageMessage } from "./workspace-warnings.ts";
 import type { WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
@@ -220,7 +221,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
           <div id="${workspacePaneScrollDomId}" class="fixed-shell-workspace-scroll" data-workspace-navigation-target="scroll">${renderWorkspaceRows(presentation)}</div>
           <section id="global_sidebar_contributions">${sidebarContributionsHtml}</section>
         </div>
-        <footer class="workspace-pane-footer"><div id="${workspacePaneNewWorkspaceDomId}">${renderNewWorkspaceRow(presentation)}</div>${settingsRow}</footer>
+        <footer class="workspace-pane-footer"><div id="${workspacePaneNewWorkspaceDomId}">${renderNewWorkspaceRow(presentation)}</div>${renderImmersiveMode()}${settingsRow}</footer>
       </section>
       <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New workspace" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
     </div></div>`,
@@ -419,7 +420,7 @@ function renderMobileMoreMenu(presentation: WorkspacePresentation): string {
     trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-mobile-more" },
     menuAttributesHtml: 'data-workspace-presentation-target="moreMenu" data-action="toggle->workspace-presentation#syncMore"',
     contentHtml: `${renderPhoneMoreHeading(presentation)}${renderAgentViewSwitch(true)}${renderPhoneNewTabOptions(presentation)}<span id="${workViewDomId(presentation.workspace.id, "mobile_overflow")}" class="contents action-list">${workViews.overflowItems}</span>
-      <div id="${workViewDomId(presentation.workspace.id, "mobile_closers")}" class="fixed-shell-more-close-section">${closers}</div>`,
+      <div id="${workViewDomId(presentation.workspace.id, "mobile_closers")}" class="fixed-shell-more-close-section">${closers}</div>${renderImmersiveMode(true)}`,
   });
 }
 
