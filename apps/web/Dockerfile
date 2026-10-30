@@ -1,4 +1,4 @@
-ARG ATELIER_RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:aad5d19c57d57e670508b44e4cbf9cb3f41082e92c1a1e09858f35010b39a820
+ARG ATELIER_RUNTIME_IMAGE=ghcr.io/lucasmeijer/agents-in-the-cloud-docker@sha256:089aca327a3322d7ee2a547a87b5abe1440c59728daa0ce63b43abcbd908ddc1
 FROM oven/bun:1.4.4 AS bun-dist
 
 FROM ubuntu:26.04 AS deps

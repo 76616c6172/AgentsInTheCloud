@@ -97,3 +97,21 @@ test("a mount that only now becomes permanent is emptied by the morph, so its ch
   permanent = " data-turbo-permanent";
   expect(live.flush()).toContain('target="items"');
 });
+
+test("a block region resends only the blocks that changed, by position", () => {
+  let blocks = ["<h1>Title</h1>", "<p>First</p>", "<ul><li>One</li></ul>"];
+  const live = published(() => [{ target: "tail", html: blocks.join(""), blocks }]);
+  blocks = ["<h1>Title</h1>", "<p>First</p>", "<ul><li>One</li><li>Two</li></ul>", "<p>Next</p>"];
+  const grown = live.flush();
+  expect(grown).not.toContain("Title");
+  expect(grown).toContain('action="replace" targets="[id=&quot;tail&quot;] &gt; :nth-child(3)" method="morph"');
+  expect(grown).toContain('action="append" target="tail"><template><p>Next</p>');
+
+  blocks = ["<h1>Title</h1>", "<p>First, edited</p>"];
+  const shrunk = live.flush();
+  expect(shrunk).toContain(":nth-child(2)");
+  expect(shrunk).toContain('action="remove" targets="[id=&quot;tail&quot;] &gt; :nth-child(n+3)"');
+
+  blocks = ["<p>Elsewhere</p>"];
+  expect(live.flush()).toContain('action="update" target="tail" method="morph"');
+});

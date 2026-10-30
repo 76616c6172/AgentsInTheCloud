@@ -6,7 +6,7 @@ import type { Run } from "./release-support.ts";
 
 const githubReleaseSchema = Type.Object({ id: Type.Integer(), tag_name: Type.String(), target_commitish: Type.String(), body: Type.Union([Type.String(), Type.Null()]), draft: Type.Boolean() });
 const refSchema = Type.Object({ object: Type.Object({ type: Type.String(), sha: Type.String() }) });
-interface ReleaseMutation { tag_name?: string; target_commitish?: string; name?: string; body: string; draft: boolean; prerelease?: boolean; make_latest?: string; }
+interface ReleaseMutation { tag_name?: string; target_commitish?: string; name?: string; body: string; draft: boolean; prerelease?: boolean; }
 export interface ReleaseNotes { id: string; path: string; notes: string; sourceRevision: string; }
 
 export async function readReleaseNotes(run: Run, revision: string, path: string): Promise<ReleaseNotes> {
@@ -67,7 +67,7 @@ export async function publishReleaseNotes(run: Run, notes: ReleaseNotes, revisio
     if (ref.object.type !== "commit" || ref.object.sha !== revision) throw new Error("Published release tag has a different revision");
     return;
   }
-  const published = await api(run, `releases/${release.id}`, githubReleaseSchema, "PATCH", { body: releaseBody(record, notes.notes), draft: false, make_latest: "false" });
+  const published = await api(run, `releases/${release.id}`, githubReleaseSchema, "PATCH", { body: releaseBody(record, notes.notes), draft: false });
   if (!published) throw new Error("GitHub release publication is missing");
   if (published.draft) throw new Error("GitHub release is still a draft");
   const ref = await api(run, `git/ref/tags/${tag}`, refSchema);

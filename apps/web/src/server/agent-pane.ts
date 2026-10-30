@@ -7,13 +7,11 @@ import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
 import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
 import { tabHtml, tabStripHtml } from "@agents-in-the-cloud/design-system/tab-strip";
-import { domId, escapeHtml, type WorkspaceAgentPane } from "@agents-in-the-cloud/shared";
+import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
 import type { WorkspacePresentation } from "./workspace-presentation.ts";
-import { barButton, behaviorTurboStream, fullscreenViewAttributes, selectorCloseForm, type ViewCloseAction } from "./workspace-view-markup.ts";
+import { barButton, behaviorTurboStream, fullscreenViewAttributes, paneContentHtml, selectorCloseForm, type LiveIslands, type ViewCloseAction } from "./workspace-view-markup.ts";
 
 export interface AgentPaneContribution {
-  /** The selected Agent's pane, published as a child of the workspace surface. */
-  pane?: WorkspaceAgentPane;
   busy?: boolean;
   requestingAttention?: boolean;
   attentionSequence?: number;
@@ -49,16 +47,13 @@ export function agentPaneSlotDomId(workspaceId: string, agentId: string): string
   return domId("fixed_workspace", workspaceId, "agent_pane", agentId);
 }
 
-export function agentContentId(workspaceId: string, agentId: string): string {
-  return domId("agent_content", workspaceId, agentId);
-}
 
-export function renderMobileAgentAttention(workspaceId: string, agents: readonly AgentPaneContribution[]): string {
+export function renderMobileAgentAttention(islands: LiveIslands, workspaceId: string, agents: readonly AgentPaneContribution[]): string {
   const busy = agents.some((agent) => agent.busy);
   const attention = agents.some((agent) => agent.requestingAttention);
   const label = [busy && "Busy", attention && "Requesting attention"].filter(Boolean).join("; ");
   const status = `<span class="status-indicator"${label ? ` role="img" aria-label="${label}"` : ""}>${busy ? '<i class="status-dot running" aria-hidden="true"></i>' : ""}${attention ? '<i class="status-dot attention" aria-hidden="true"></i>' : ""}</span>`;
-  return `<span id="${domId("mobile_agent_attention", workspaceId)}" class="nox-mobile-nav-status">${status}</span>`;
+  return islands.island(domId("mobile_agent_attention", workspaceId), status, "span", "nox-mobile-nav-status");
 }
 
 function renderAgentTab(workspaceId: string, agent: AgentPaneContribution): string {
@@ -112,7 +107,11 @@ export function renderPhoneWorkspaceActions(presentation: WorkspacePresentation)
   return `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${id}/park" data-action="submit->workspace-navigation#parkWorkspace">${park}</form><form class="fixed-shell-delete-workspace" data-turbo="true" method="post" action="/workspaces/${id}/delete">${deleteConfirmation}</form>`;
 }
 
-export function renderAgentNavigation(presentation: WorkspacePresentation): string {
+function agentTabsDomId(workspaceId: string): string {
+  return domId("fixed_workspace", workspaceId, "agent_tabs");
+}
+
+function renderAgentNavigation(islands: LiveIslands, presentation: WorkspacePresentation): string {
   const agents = presentation.agents.length
     ? tabStripHtml({
       label: "Agents",
@@ -126,7 +125,7 @@ export function renderAgentNavigation(presentation: WorkspacePresentation): stri
     width: "content",
     contentHtml: agentTypeOptions(presentation, true),
   });
-  return `${agents}${menu}`;
+  return `${islands.island(agentTabsDomId(presentation.workspace.id), agents, "span", "contents")}${menu}`;
 }
 
 function agentEmptyId(workspaceId: string): string { return domId("agent_empty", workspaceId); }
@@ -135,8 +134,8 @@ function renderAgentEmpty(presentation: WorkspacePresentation): string {
   return `<div id="${agentEmptyId(presentation.workspace.id)}" class="fixed-shell-empty-pane empty-state"><div class="fixed-shell-empty-pane-choices">${agentTypeOptions(presentation, false)}</div></div>`;
 }
 
-function renderAgentPaneSlot(workspaceId: string, agent: AgentPaneContribution, active: boolean): string {
-  return `<section id="${agentPaneSlotDomId(workspaceId, agent.id)}" class="fixed-shell-surface${active ? " is-active" : ""}" data-workspace-pane-role="agent" data-workspace-pane-id="${escapeHtml(agent.id)}" data-agents-in-the-cloud-fullscreen-view-key="${escapeHtml(agent.id)}" data-workspace-logically-visible="false" tabindex="-1"><div class="fixed-shell-live-body" id="${agentContentId(workspaceId, agent.id)}" data-turbo-permanent></div></section>`;
+function renderAgentPaneSlot(workspaceId: string, agent: AgentPaneContribution): string {
+  return `<section id="${agentPaneSlotDomId(workspaceId, agent.id)}" class="fixed-shell-surface" data-workspace-pane-role="agent" data-workspace-pane-id="${escapeHtml(agent.id)}" data-agents-in-the-cloud-fullscreen-view-key="${escapeHtml(agent.id)}" data-workspace-logically-visible="false" tabindex="-1">${paneContentHtml(workspaceId, "agent-pane", agent.id)}</section>`;
 }
 
 export function renderAgentViewSwitch(menu = false): string {
@@ -171,12 +170,12 @@ function renderAgentActions(presentation: WorkspacePresentation): string {
   return buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml });
 }
 
-export function renderAgentPane(presentation: WorkspacePresentation): string {
-  const panes = presentation.agents.map((agent) => renderAgentPaneSlot(presentation.workspace.id, agent, agent.id === (presentation.initialSelection?.agent ?? presentation.agents[0]?.id))).join("");
-  return `<div class="fixed-shell-agent-pane"><div class="workspace-warning-stack" id="${domId("workspace_warnings", presentation.workspace.id)}">${presentation.warningsHtml ?? ""}</div>${panelHtml({
+export function renderAgentPane(islands: LiveIslands, presentation: WorkspacePresentation): string {
+  const panes = presentation.agents.map((agent) => renderAgentPaneSlot(presentation.workspace.id, agent)).join("");
+  return `<div class="fixed-shell-agent-pane">${islands.island(domId("workspace_warnings", presentation.workspace.id), presentation.warningsHtml ?? "", "div", "workspace-warning-stack")}${panelHtml({
     element: { tag: "section",  attributesHtml: 'data-workspace-role-region="agent" data-workspace-presentation-target="agentPane" aria-label="Agent"' },
     chrome: "outlined",
-    headerHtml: `${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `${Icons.Cloud}<i class="status-dot attention nox-workspace-attention" aria-hidden="true"></i>`, 'data-show-workspace-pane aria-pressed="false"')}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
+    headerHtml: `${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `${Icons.Cloud}<i class="status-dot attention nox-workspace-attention" aria-hidden="true"></i>`, 'data-show-workspace-pane aria-pressed="false"')}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(islands, presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
     bodyHtml: `<div id="${agentBodiesDomId(presentation.workspace.id)}" class="fixed-shell-agent-bodies">${panes || renderAgentEmpty(presentation)}</div>`,
   })}</div>`;
 }

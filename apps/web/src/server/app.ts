@@ -30,6 +30,7 @@ import {
   workspaceModuleModalFrameId,
   launchComposerCommand,
   placeLiveRegions,
+  CableTopics,
   type CableIdentifier,
   type DeleteCurrentWorkspaceResult,
   type GlobalSidebarContributionRegistry,
@@ -43,6 +44,7 @@ import {
   type WorkspaceModuleCommandResult,
   type WorkspaceModuleRouteHandler,
   type WorkspaceModuleWorkViewAdapter,
+  type WorkspaceAgentPane,
   type WorkspaceWorkViewPresentation
 } from "@agents-in-the-cloud/shared";
 import { createWorkspacePresentationStore, createWorkspaceProvisioning, generateWorkspaceId, listWorkspaces, setWorkspaceParked, setWorkspaceTitle, type WorkspaceCreationContext, type WorkspaceInitInstruction, type WorkspaceProvisioning, type WorkspaceProvisionRun, type WorkspaceWorkViewReference, type WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
@@ -51,7 +53,8 @@ import { Type } from "typebox";
 import { Value } from "typebox/value";
 import { createAgentPaneHost } from "./agent-pane-host.ts";
 import { welcomeBrandHtml } from "./brand/welcome-brand.ts";
-import { agentContentId, selectAgentTurboStream } from "./agent-pane.ts";
+import { selectAgentTurboStream } from "./agent-pane.ts";
+import { paneContentId, paneSurfaceKinds, type PaneSurfaceKind } from "./workspace-view-markup.ts";
 import { getAgentType, defaultAgentType, orderedAgentTypes, registeredAgentTypes, rememberAgentType } from "./agent-types.ts";
 import { openWorkspaceFile } from "./file-navigation.ts";
 import { httpErrorStatus, problemJsonResponse } from "./http-responses.ts";
@@ -68,7 +71,7 @@ import { themeRegionHtml, themeRegionId } from "./settings/theme.ts";
 import { parseCloseWorkViewRequest, parseReorderWorkViewRequest } from "./work-view-api.ts";
 import { createWorkspaceDeletion } from "./workspace-deletion.ts";
 import { workspaceModules as defaultWorkspaceModules } from "./workspace-modules.generated.ts";
-import { dismissWorkspaceParkConfirmationTurboStream, presentWorkViewTurboStream, renderAgentsInTheCloudBar, renderMobileWorkspaceBar, renderWorkspaceDeletionPresentation, renderWorkspacePane, renderWorkspaceParkConfirmation, renderWorkspacePresentation, workspacePaneCollectionsRegions, workContentId, type WorkspacePresentation as FixedWorkspacePresentation, type WorkPaneContribution, type WorkspacePanePresentation, type WorkspacePaneWorkspaceTemplate } from "./workspace-presentation.ts";
+import { dismissWorkspaceParkConfirmationTurboStream, presentWorkViewTurboStream, renderAgentsInTheCloudBar, renderMobileWorkspaceBar, renderWorkspaceDeletionPresentation, renderWorkspacePane, renderWorkspaceParkConfirmation, renderWorkspacePresentation, presentInitialWorkspaceSelection, workspacePaneCollectionsRegions, type InitialWorkspaceSelection, type WorkspacePresentation as FixedWorkspacePresentation, type WorkPaneContribution, type WorkspacePanePresentation, type WorkspacePaneWorkspaceTemplate } from "./workspace-presentation.ts";
 import type { WorkspaceDeletionState, WorkspaceEntry, WorkspaceRegistry } from "./workspace-registry.ts";
 import { workspaceWarnings, type WorkspaceWarning } from "./workspace-warnings.ts";
 
@@ -136,7 +139,9 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
   const workPresentationIntents = new Map<string, { key: string; revision: string }>();
   type SurfaceState = { kind: "workspace"; presentation: FixedWorkspacePresentation }
-    | { kind: "regions"; regions: readonly LiveRegion[] };
+    | { kind: "regions"; regions: readonly LiveRegion[]; live?: WorkspaceAgentPane["live"] };
+  /** A workspace's chrome, and the Agent pane and Work view body its presentation selects. */
+  const presentationSurfaceKinds = new Set<string>(["workspace", ...paneSurfaceKinds]);
   const surfaces = new Map<string, { workspaceId: string; kind: string; resource: ReturnType<typeof createLiveResource<SurfaceState>> }>();
   const reportPresentationError = (error: Error) => logError(
     `Could not refresh live state: ${errorMessage(error)}`,
@@ -153,13 +158,13 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
   function invalidatePresentation(): void {
     shell.invalidate();
-    for (const { kind, resource } of surfaces.values()) if (kind === "workspace") resource.invalidate();
+    for (const { kind, resource } of surfaces.values()) if (presentationSurfaceKinds.has(kind)) resource.invalidate();
   }
 
   function invalidateWorkspace(workspaceId?: string): void {
     invalidatePresentation();
     for (const surface of surfaces.values()) {
-      if (surface.kind !== "workspace" && surface.workspaceId === workspaceId) surface.resource.invalidate();
+      if (!presentationSurfaceKinds.has(surface.kind) && surface.workspaceId === workspaceId) surface.resource.invalidate();
     }
   }
 
@@ -169,18 +174,22 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     requireWorkspace(workspaceId);
     const { kind, key = "" } = params;
     const contributed = workspaceModules.flatMap(module => module.liveSurfaces ?? []).find(surface => surface.name === kind);
-    if (kind !== "workspace" && !contributed) throw new Error("Unknown surface kind");
-    const cacheKey = JSON.stringify([workspaceId, kind, key, params.agent ?? "", params.work ?? ""]);
+    if (!presentationSurfaceKinds.has(kind) && !contributed) throw new Error("Unknown surface kind");
+    const cacheKey = JSON.stringify([workspaceId, kind, key]);
     let surface = surfaces.get(cacheKey);
     if (!surface) {
       const resource = createLiveResource<SurfaceState>(async () => {
         const entry = requireWorkspace(workspaceId);
         if (contributed) return { kind: "regions", regions: await contributed.load({ workspaceId, key }) };
-        if (entry.phase.kind === "runningPhase" && !entry.phase.deletion) {
-          return { kind: "workspace", presentation: await prepareWorkspacePresentation(workspaceId, { agent: params.agent, workView: params.work }) };
-        }
-        return { kind: "regions", regions: [{ target: workspaceMountId(workspaceId), html: entry.phase.deletion
-          ? deletionPresentation(entry, entry.phase.deletion) : workspaceBootMountHtml(entry) }] };
+        const running = entry.phase.kind === "runningPhase" && !entry.phase.deletion;
+        if (kind === "workspace") return running
+          ? { kind: "workspace", presentation: (await workspacePresentationBundle(workspaceId)).presentation }
+          : { kind: "regions", regions: [{ target: workspaceMountId(workspaceId), html: entry.phase.deletion
+            ? deletionPresentation(entry, entry.phase.deletion) : workspaceBootMountHtml(entry) }] };
+        // Pane content belongs to the chrome of a running workspace; a parked one has no mount.
+        if (!running || entry.parked || parking.has(workspaceId)) return { kind: "regions", regions: [] };
+        if (kind === "agent-pane") return agentPaneSurface(workspaceId, key);
+        return { kind: "regions", regions: await workViewBodyRegions(workspaceId, key) };
       }, state => state.kind === "workspace"
         ? workspaceRegions(state.presentation)
         : state.regions, reportPresentationError);
@@ -258,6 +267,8 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   }
 
   const persistWorkspaceParked = deps.persistWorkspaceParked ?? setWorkspaceParked;
+  /** Workspaces whose Agents are being suspended for parking, before the registry marks them parked. */
+  const parking = new Set<string>();
   let suppressParkedStateCallbacks = false;
 
   registry.setCallbacks({
@@ -482,34 +493,28 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     return requestAcceptsJson(request) ? jsonResponse({ dismissed: true }) : turboStreamResponse("");
   }
 
-  /** An Agent pane is published as its shell; the Agent's own channel publishes its content. */
+  /** The chrome holds every pane, empty; the selected panes' content has surfaces of its own. */
   function workspaceRegions(presentation: FixedWorkspacePresentation): readonly LiveRegion[] {
-    const workspaceId = presentation.workspace.id;
-    return [{
-      target: workspaceMountId(workspaceId),
-      html: renderWorkspacePresentation(presentation),
-      children: [
-        ...presentation.agents.flatMap(agent => agent.pane === undefined ? [] : [{ target: agentContentId(workspaceId, agent.id), html: agent.pane.html }]),
-        ...presentation.workViews.flatMap(view => view.bodyHtml === undefined ? [] : [{ target: workContentId(workspaceId, view.key), html: view.bodyHtml }]),
-      ],
-    }];
+    const { html, islands } = renderWorkspacePresentation(presentation);
+    return [{ target: workspaceMountId(presentation.workspace.id), html, children: islands }];
   }
 
-  async function prepareWorkspacePresentation(id: string, selection: NonNullable<FixedWorkspacePresentation["initialSelection"]>): Promise<FixedWorkspacePresentation> {
-    const { presentation, storedWorkViews } = await workspacePresentationBundle(id);
-    presentation.initialSelection = {
-      agent: presentation.agents.find(agent => agent.id === selection.agent)?.id ?? presentation.agents[0]?.id,
-      workView: presentation.workViews.find(view => view.key === selection.workView)?.key,
-    };
-    await Promise.all([
-      ...presentation.agents.filter(agent => agent.id === presentation.initialSelection!.agent).map(async agent => { agent.pane = await agentTabs.render({ workspaceId: id, agentId: agent.id }); }),
-      ...presentation.workViews.filter(view => view.key === presentation.initialSelection!.workView).map(async view => {
-        if (view.availability.phase === "unavailable") return;
-        const reference = storedWorkViews.find(stored => workViewKey(stored.reference) === view.key)!.reference;
-        view.bodyHtml = await workViewAdapterByType.get(reference.type)!.render({ workspaceId: id, reference });
-      }),
-    ]);
-    return presentation;
+  /** An Agent pane is published as its shell; the Agent's own channel publishes its content. */
+  async function agentPaneSurface(workspaceId: string, agentId: string): Promise<SurfaceState> {
+    // A closed Agent's pane leaves the chrome; its subscription ends with it.
+    if (!(await agentTabs.list({ workspaceId })).some(agent => agent.id === agentId)) return { kind: "regions", regions: [] };
+    const pane = await agentTabs.render({ workspaceId, agentId });
+    return { kind: "regions", regions: [{ target: paneContentId(workspaceId, "agent-pane", agentId), html: pane.html }], live: pane.live };
+  }
+
+  async function workViewBodyRegions(workspaceId: string, key: string): Promise<LiveRegion[]> {
+    const attachments = await attachWorkspaceModules(workspaceId);
+    const storedWorkViews = await presentationStore.listWorkViews(workspaceId);
+    const view = workViewPresentations(workspaceId, attachments.flatMap(attachment => attachment.workViews ?? []), storedWorkViews).find(candidate => candidate.key === key);
+    // A closed Work view's pane leaves the chrome; an unavailable one keeps what its body last showed.
+    if (!view || view.availability.phase === "unavailable") return [];
+    const { reference } = storedWorkViews.find(stored => workViewKey(stored.reference) === key)!;
+    return [{ target: paneContentId(workspaceId, "work-view-body", key), html: await workViewAdapterByType.get(reference.type)!.render({ workspaceId, reference }) }];
   }
 
   function workspaceBootMountHtml(entry: WorkspaceEntry): string {
@@ -551,22 +556,38 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     </section>`;
   }
 
-  function workspaceMounts(selectedId?: string, selection?: FixedWorkspacePresentation["initialSelection"]): string {
+  function workspaceMounts(selectedId?: string): string {
     // Mounts are invisible siblings, not the sorted workspace list. Keep their DOM order stable
     // when attention clears and the list reorders; moving a permanent mount disconnects it.
-    return registry.list().filter(entry => !entry.parked).sort((a, b) => a.id.localeCompare(b.id)).map(entry => `<div id="${workspaceMountId(entry.id)}" class="workspace-detail-mount${entry.id === selectedId ? " visible" : ""}" data-turbo-permanent data-workspace-selection-target="mount" data-workspace-id="${escapeHtml(entry.id)}" data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(entry.id)}" data-live-surface-kind-value="workspace" data-live-surface-eager-value="${entry.id === selectedId}" data-live-surface-agent-value="${entry.id === selectedId ? escapeHtml(selection?.agent ?? "") : ""}" data-live-surface-work-value="${entry.id === selectedId ? escapeHtml(selection?.workView ?? "") : ""}"></div>`).join("");
+    return registry.list().filter(entry => !entry.parked).sort((a, b) => a.id.localeCompare(b.id)).map(entry => `<div id="${workspaceMountId(entry.id)}" class="workspace-detail-mount${entry.id === selectedId ? " visible" : ""}" data-turbo-permanent data-workspace-selection-target="mount" data-workspace-id="${escapeHtml(entry.id)}" data-controller="live-surface" data-live-surface-workspace-value="${escapeHtml(entry.id)}" data-live-surface-kind-value="workspace" data-live-surface-eager-value="${entry.id === selectedId}"></div>`).join("");
   }
 
-  async function workspaceDetailHostHtml(pane: WorkspacePanePresentation, selectedId?: string, initialSelection?: FixedWorkspacePresentation["initialSelection"]): Promise<string> {
+  async function workspaceDetailHostHtml(pane: WorkspacePanePresentation, selectedId?: string, initialSelection?: InitialWorkspaceSelection): Promise<string> {
     const entry = selectedId ? requireWorkspace(selectedId) : undefined;
-    const surface = entry ? surfaceFor({ channel: "module", name: "surface", workspaceId: entry.id, params: { kind: "workspace", agent: initialSelection?.agent ?? "", work: initialSelection?.workView ?? "" } }) : undefined;
+    const surface = entry ? surfaceFor(CableTopics.module("surface", entry.id, { kind: "workspace" })) : undefined;
     const state = await surface?.read();
-    // The mount continues the surface this page was rendered from, defaults included.
-    let mounts = workspaceMounts(selectedId, initialSelection);
-    // The selected mount shows what its surface publishes, and its Agent pane what that Agent's channel publishes.
+    let mounts = workspaceMounts(selectedId);
+    // The selected mount shows what its surfaces publish, and its Agent pane what that Agent's channel publishes.
     if (entry && state) {
       mounts = placeLiveRegions(mounts, surface!.regions(state), workspaceMountId(entry.id));
-      for (const { pane } of state.kind === "workspace" ? state.presentation.agents : []) if (pane?.live) mounts = placeLiveRegions(mounts, pane.live.regions(), pane.live.subscriberId);
+      if (state.kind === "workspace") {
+        const { agents, workViews } = state.presentation;
+        // The page opens on the selection the presentation would choose without remembered navigation.
+        const agent = agents.find(candidate => candidate.id === initialSelection?.agent)?.id ?? agents[0]?.id;
+        const workView = workViews.find(view => view.key === initialSelection?.workView)?.key;
+        const panes: { kind: PaneSurfaceKind; key: string }[] = [
+          ...agent ? [{ kind: "agent-pane" as const, key: agent }] : [],
+          ...workView ? [{ kind: "work-view-body" as const, key: workView }] : [],
+        ];
+        const paneSurfaces = panes.map(({ kind, key }) => ({ id: paneContentId(entry.id, kind, key), surface: surfaceFor(CableTopics.module("surface", entry.id, { kind, key })) }));
+        const states = await Promise.all(paneSurfaces.map(({ surface }) => surface.read()));
+        paneSurfaces.forEach(({ id, surface }, index) => {
+          const paneState = states[index]!;
+          mounts = placeLiveRegions(mounts, surface.regions(paneState), id);
+          if (paneState.kind === "regions" && paneState.live) mounts = placeLiveRegions(mounts, paneState.live.regions(), paneState.live.subscriberId);
+        });
+        mounts = presentInitialWorkspaceSelection(mounts, entry.id, { agent, workView });
+      }
     }
     return `<div id="workspace_detail" class="workspace-detail-host" data-controller="workspace-selection" data-workspace-selection-max-preloaded-value="5">
       <div class="workspace-detail-empty" data-workspace-selection-target="empty"${selectedId ? " hidden" : ""}>${emptyWorkspaceArtworkHtml(pane)}</div>
@@ -583,7 +604,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     | { kind: "settings"; request: Request; section: string | undefined; developerTools?: true }
     | { kind: "models"; focus: string | undefined };
 
-  async function renderWorkspaceShell(selectedId?: string, surface?: ShellSurface, initialSelection?: FixedWorkspacePresentation["initialSelection"]): Promise<string> {
+  async function renderWorkspaceShell(selectedId?: string, surface?: ShellSurface, initialSelection?: InitialWorkspaceSelection): Promise<string> {
     const pane = await workspacePaneCollections(selectedId ?? "");
     const workspaceTemplateEditor = surface?.kind === "workspace-template-editor" ? surface.dialogHtml : '<div id="workspace-template-editor-modal"></div>';
     const settings = surface?.kind === "settings"
@@ -952,7 +973,12 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       if (affected.length && !force) return { kind: "confirmation", workViews: affected };
       for (const { reference } of affected) await closeWorkView(id, reference);
       if (entry.parked !== parked) {
-        await persistWorkspaceParked(id, parked);
+        if (parked) parking.add(id);
+        try {
+          await persistWorkspaceParked(id, parked);
+        } finally {
+          parking.delete(id);
+        }
         suppressParkedStateCallbacks = true;
         registry.setParked(id, parked);
         suppressParkedStateCallbacks = false;

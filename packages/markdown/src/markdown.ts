@@ -5,7 +5,8 @@ import MarkdownIt from "markdown-it";
 import { installMath } from "./math.ts";
 import { installDetails } from "./details.ts";
 import { installCommitLinks } from "./commit-links.ts";
-import type Token from "markdown-it/lib/token.mjs";
+import type { Env, Token } from "markdown-it";
+import { rendererRule } from "./renderer-rule.ts";
 import { agentsInTheCloudFileHref, inlineCodeFileReference, workspaceFileImageSrc } from "./agents-in-the-cloud-markdown.ts";
 import { escapeHtml, isWorkspaceAppPort, isWorkspaceLoopbackHost, workspaceFileOpenUrl, workspacePortAppKey, workspaceProxyUrl } from "@agents-in-the-cloud/shared";
 import { renderMarkdownDiff } from "@agents-in-the-cloud/syntax/markdown-diff";
@@ -20,7 +21,7 @@ export interface MarkdownRenderOptions {
   linkableFiles?: ReadonlySet<string>;
 }
 
-interface MarkdownEnvironment extends MarkdownRenderOptions {
+interface MarkdownEnvironment extends MarkdownRenderOptions, Env {
   workspaceId: string;
   provisional?: boolean;
 }
@@ -39,13 +40,13 @@ markdown.validateLink = (url) => /^file:\/\//i.test(url)
   : defaultValidateLink(url);
 
 // Only explicit http(s) URLs: fuzzy matching would link file names like README.md.
-markdown.linkify.set({ fuzzyLink: false, fuzzyEmail: false, fuzzyIP: false });
+markdown.linkify.set({ fuzzyLink: false, fuzzyEmail: false, fuzzyIP: false, urlAuth: true });
 markdown.linkify.add("ftp:", null).add("//", null).add("mailto:", null);
 
 markdown.renderer.rules.table_open = () => '<div class="agent-table-scroll"><table>';
 markdown.renderer.rules.table_close = () => "</table></div>";
 
-markdown.renderer.rules.fence = (tokens, index, _options, environment: MarkdownEnvironment) => {
+markdown.renderer.rules.fence = rendererRule((tokens, index, _options, environment: MarkdownEnvironment) => {
   const token = tokens[index]!;
   const [language, ...filenameParts] = token.info.trim().split(/\s+/);
   const rawLang = language || undefined;
@@ -63,7 +64,7 @@ markdown.renderer.rules.fence = (tokens, index, _options, environment: MarkdownE
   const classes = `agent-code-block copy-region${isDiff ? " markdown-diff" : ""}`;
   const content = `${copyButtonHtml({ label, copyText: isDiff ? token.content : undefined })}${header}${code}`;
   return `<div class="${classes}" data-controller="agents-in-the-cloud-fullscreen" data-agents-in-the-cloud-fullscreen-mode-value="template" data-agents-in-the-cloud-fullscreen-title-value="${escapeHtml(title)}">${content}<template data-agents-in-the-cloud-fullscreen-target="content"><div class="${classes}">${content}</div></template></div>`;
-};
+});
 
 function renderHighlightedFence(code: string, language?: string): string {
   const highlighted = highlightCodeHtml({ code, language });
@@ -90,9 +91,9 @@ function renderPendingMermaid(filename?: string): string {
 }
 
 const defaultLinkOpen = markdown.renderer.rules.link_open ?? ((tokens, index, options, _environment, renderer) => renderer.renderToken(tokens, index, options));
-markdown.renderer.rules.link_open = (tokens, index, options, environment: MarkdownEnvironment, renderer) => {
+markdown.renderer.rules.link_open = rendererRule((tokens, index, options, environment: MarkdownEnvironment, renderer) => {
   const token = tokens[index]!;
-  const href = token.attrGet("href") ?? "";
+  const href = String(token.attrGet("href") ?? "");
   const fileHref = agentsInTheCloudFileHref(environment.workspaceId, href, environment.sourcePath, environment.filesViewId);
   if (fileHref) {
     token.attrSet("href", fileHref);
@@ -108,7 +109,7 @@ markdown.renderer.rules.link_open = (tokens, index, options, environment: Markdo
     token.attrSet("rel", "noopener noreferrer");
   }
   return defaultLinkOpen(tokens, index, options, environment, renderer);
-};
+});
 
 function insideLink(tokens: Token[], index: number): boolean {
   let depth = 0;
@@ -120,7 +121,7 @@ function insideLink(tokens: Token[], index: number): boolean {
 }
 
 const defaultCodeInline = markdown.renderer.rules.code_inline!;
-markdown.renderer.rules.code_inline = (tokens, index, options, environment: MarkdownEnvironment, renderer) => {
+markdown.renderer.rules.code_inline = rendererRule((tokens, index, options, environment: MarkdownEnvironment, renderer) => {
   const code = defaultCodeInline(tokens, index, options, environment, renderer);
   if (!environment.linkableFiles || insideLink(tokens, index)) return code;
   const reference = inlineCodeFileReference(tokens[index]!.content, environment.sourcePath);
@@ -128,11 +129,11 @@ markdown.renderer.rules.code_inline = (tokens, index, options, environment: Mark
   if (!path) return code;
   const href = workspaceFileOpenUrl(environment.workspaceId, path, reference!, environment.filesViewId);
   return `<a class="markdown-file-reference" href="${escapeHtml(href)}" data-turbo-stream="true" title="${escapeHtml(path)}">${code}</a>`;
-};
+});
 
 const defaultImage = markdown.renderer.rules.image!;
-markdown.renderer.rules.image = (tokens, index, options, environment: MarkdownEnvironment, renderer) => {
-  const source = tokens[index]!.attrGet("src") ?? "";
+markdown.renderer.rules.image = rendererRule((tokens, index, options, environment: MarkdownEnvironment, renderer) => {
+  const source = String(tokens[index]!.attrGet("src") ?? "");
   const embed = renderMarkdownEmbed(source, {
     workspaceId: environment.workspaceId,
     title: tokens[index]!.content,
@@ -149,7 +150,7 @@ markdown.renderer.rules.image = (tokens, index, options, environment: MarkdownEn
     tokens[index]!.attrSet("data-agents-in-the-cloud-fullscreen-title-value", tokens[index]!.content || source.split(/[?#]/)[0]!.split("/").pop()!);
   }
   return defaultImage(tokens, index, options, environment, renderer);
-};
+});
 
 function workspaceLocalPreviewHref(workspaceId: string, href: string): string | undefined {
   let url: URL;
@@ -185,4 +186,43 @@ export function renderMarkdown(workspaceId: string, text: string, options: Markd
 
 export function renderProvisionalMarkdown(workspaceId: string, text: string): string {
   return markdown.render(text, { workspaceId, provisional: true } satisfies MarkdownEnvironment).trim();
+}
+
+/** The same rendering as `renderProvisionalMarkdown`, as one element per top-level block, so a live
+ * update can resend only the blocks that changed. Parsed as one document: references, list
+ * looseness and math resolve as they do in the whole. Undefined when a block isn't one element. */
+export function renderProvisionalMarkdownBlocks(workspaceId: string, text: string): string[] | undefined {
+  const environment = { workspaceId, provisional: true } satisfies MarkdownEnvironment;
+  const tokens = markdown.parse(text, environment);
+  const blocks: string[] = [];
+  let start = 0;
+  let depth = 0;
+  for (let index = 0; index <= tokens.length; index++) {
+    const token = tokens[index];
+    // Disclosures don't nest during parsing (see details.ts), but their tokens enclose a block.
+    if (token) depth += token.type === "details_open" ? 1 : token.type === "details_close" ? -1 : token.nesting;
+    if (token && depth !== 0) continue;
+    const html = markdown.renderer.render(tokens.slice(start, index + 1), markdown.options, environment).trim();
+    start = index + 1;
+    if (!html) continue;
+    if (!isSingleElement(html)) return undefined;
+    blocks.push(html);
+  }
+  return blocks;
+}
+
+function isSingleElement(html: string): boolean {
+  let depth = 0;
+  let elements = 0;
+  let text = false;
+  new HTMLRewriter()
+    .on("*", { element(element) {
+      if (depth === 0) elements++;
+      if (element.selfClosing || !element.canHaveContent) return;
+      depth++;
+      element.onEndTag(() => { depth--; });
+    } })
+    .onDocument({ text(chunk) { if (depth === 0 && chunk.text.trim()) text = true; } })
+    .transform(html);
+  return elements === 1 && !text;
 }

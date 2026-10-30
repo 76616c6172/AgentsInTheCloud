@@ -45,7 +45,7 @@ describe("workspace secrets", () => {
     expect(context.secrets).toContainEqual({
       name: "GH_TOKEN",
       placeholder: "AGENTSINTHECLOUD_PROXY_READY_GH_TOKEN",
-      hosts: ["github.com", "api.github.com"],
+      hosts: ["github.com", "*.github.com"],
     });
   });
 

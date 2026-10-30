@@ -18,7 +18,7 @@ import { durableViewState, projectDurableTranscript } from "./durable-transcript
  */
 export class DurableAgentPresentation {
   private readonly renderer = new LiveTranscriptRenderer();
-  private readonly markdown = new Map<string, { source: string; renderer: StreamingMarkdownRenderer; stableHtml: string; tailHtml: string }>();
+  private readonly markdown = new Map<string, { source: string; renderer: StreamingMarkdownRenderer; stableHtml: string; tailHtml: string; tailBlocks?: readonly string[] }>();
   private readonly turns = new Map<string, { presentation: ReturnType<typeof createLivePresentation>; subscriptions: Set<AgentLivePresentationSubscription> }>();
   private readonly presentation = createLivePresentation(() => [this.transcriptRegion()], 50);
   private items: TranscriptItem[];
@@ -41,6 +41,7 @@ export class DurableAgentPresentation {
         cached.source = source;
         cached.stableHtml += update.stableHtmlAddition;
         cached.tailHtml = update.tailHtml;
+        cached.tailBlocks = update.tailBlocks;
       }
       return cached;
     } };

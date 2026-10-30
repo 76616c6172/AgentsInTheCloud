@@ -45,8 +45,8 @@ module agents-in-the-cloud-mount-lifetime-repro
 go 1.26.3
 
 require (
-    github.com/moby/buildkit v0.31.0
-    github.com/containerd/containerd/v2 v2.4.0-beta.0
+    github.com/moby/buildkit v0.34.0
+    github.com/containerd/containerd/v2 v2.4.2
 )
 
 replace github.com/containerd/containerd/v2 => ../containerd/containerd

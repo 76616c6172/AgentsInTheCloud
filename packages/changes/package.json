@@ -10,8 +10,8 @@
     "@agents-in-the-cloud/syntax": "workspace:*",
     "@agents-in-the-cloud/workspace": "workspace:*",
     "@agents-in-the-cloud/workspace-templates": "workspace:*",
-    "@hotwired/turbo": "8.0.13",
-    "@pierre/diffs": "1.6.1",
+    "@hotwired/turbo": "8.0.23",
+    "@pierre/diffs": "1.6.2",
     "typebox": "^1.0.57"
   }
 }

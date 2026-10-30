@@ -10,6 +10,7 @@ class CableShellController extends Controller<HTMLElement> {
     document.addEventListener("live:connection", this.changed);
     document.addEventListener("submit", this.guard, true);
     document.addEventListener("turbo:before-morph-attribute", this.preserveDisclosure);
+    document.addEventListener("turbo:before-morph-element", this.skipUnchanged);
     this.subscription = window.AgentsInTheCloudCable!.subscribe(CableTopics.shell());
     this.changed();
   }
@@ -18,6 +19,7 @@ class CableShellController extends Controller<HTMLElement> {
     document.removeEventListener("live:connection", this.changed);
     document.removeEventListener("submit", this.guard, true);
     document.removeEventListener("turbo:before-morph-attribute", this.preserveDisclosure);
+    document.removeEventListener("turbo:before-morph-element", this.skipUnchanged);
   }
   private readonly changed = (): void => {
     const ready = window.AgentsInTheCloudCable!.ready();
@@ -31,12 +33,27 @@ class CableShellController extends Controller<HTMLElement> {
       event.stopImmediatePropagation();
     }
   };
+  /** Morphing an identical subtree changes nothing, but visits every element and attribute in it
+   * with an event: a streamed answer would re-walk all its unchanged blocks on every delivery. */
+  private readonly skipUnchanged = (event: Event): void => {
+    // SAFETY: Turbo emits this event with its morph descriptor; removals carry no new element.
+    const { currentElement, newElement } = (event as CustomEvent<{ currentElement: Element; newElement?: Node }>).detail;
+    if (newElement instanceof Element && unchangedSubtree(currentElement, newElement)) event.preventDefault();
+  };
   private readonly preserveDisclosure = (event: Event): void => {
     // SAFETY: Turbo emits this event with its attribute mutation descriptor.
     const detail = (event as CustomEvent<{ attributeName: string }>).detail;
     if (event.target instanceof HTMLDetailsElement && detail.attributeName === "open") event.preventDefault();
   };
 }
+function unchangedSubtree(current: Element, next: Element): boolean {
+  if (!current.isEqualNode(next)) return false;
+  // Form controls keep what was typed in properties, not attributes: those morphs must run.
+  if (current.matches("input, textarea, select") || current.querySelector("input, textarea, select")) return false;
+  // isEqualNode ignores template contents; serialization includes them.
+  return !(current instanceof HTMLTemplateElement || current.querySelector("template")) || current.outerHTML === next.outerHTML;
+}
+
 export function installWorkspaceCable(): void {
   window.AgentsInTheCloudCable ??= createAgentsInTheCloudCableClient(renderCableStreams);
   registerWorkspaceControllers({ "cable-shell": CableShellController });
