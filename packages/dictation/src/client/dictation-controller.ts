@@ -1,7 +1,8 @@
 /// <reference lib="dom" />
 
+import { setActivityButtonState } from "@agents-in-the-cloud/design-system/activity-button/client";
 import { observableWebSocketUrl } from "@agents-in-the-cloud/observable-terminal/client";
-import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, isTextEntry, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { type MicrophoneLease, SharedMicrophone } from "./microphone.ts";
@@ -29,18 +30,23 @@ function composeTranscript(prefix: string, spoken: string, suffix: string) {
 
 export function createDictationComposerController(Controller: WorkspaceClientControllerConstructor, microphoneSource: SharedMicrophone) {
   return class DictationComposerController extends Controller {
-    static targets = ["button", "waveform", "status", "error"];
+    static targets = ["button", "waveform", "status", "error", "caption"];
     static values = { workspaceId: String, workspaceTemplateId: String };
 
     declare readonly workspaceIdValue: string;
     declare readonly workspaceTemplateIdValue: string;
-    declare readonly buttonTarget: HTMLButtonElement;
-    declare readonly waveformTarget: HTMLCanvasElement;
-    declare readonly statusTarget: HTMLElement;
-    declare readonly errorTarget: HTMLElement;
+    declare readonly buttonTargets: HTMLButtonElement[];
+    declare readonly waveformTargets: HTMLCanvasElement[];
+    declare readonly statusTargets: HTMLElement[];
+    declare readonly errorTargets: HTMLElement[];
+    declare readonly captionTargets: HTMLElement[];
 
     private get input(): HTMLTextAreaElement {
-      return this.element.querySelector("textarea")!;
+      return this.element.querySelector<HTMLTextAreaElement>(".composer-input")!;
+    }
+
+    private get composer(): HTMLElement {
+      return this.input.closest<HTMLElement>(".composer")!;
     }
 
     private state: DictationState = "idle";
@@ -100,9 +106,9 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       if (!composerSubmitKey(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       const otherEditor = target?.closest("input, textarea, select, [contenteditable='true']");
-      if (otherEditor && !this.element.contains(otherEditor)) return;
+      if (otherEditor && !this.composer.contains(otherEditor)) return;
       event.preventDefault();
-      const form = this.element.querySelector<HTMLFormElement>("form")!;
+      const form = this.input.form!;
       const submitter = form.querySelector<HTMLButtonElement | HTMLInputElement>('button[type="submit"], button:not([type]), input[type="submit"]');
       form.requestSubmit(submitter ?? undefined);
     };
@@ -146,7 +152,12 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.submitPending = false;
       this.pendingSubmitter = undefined;
       this.setState("loading", "Preparing dictation model…");
+      // Reveal without focusing the inert input: a single tap starts voice, not the keyboard.
+      const focused = document.activeElement;
+      this.element.dispatchEvent(new CustomEvent("dictation-composer:started", { bubbles: true }));
       this.input.blur();
+      // A CLI's native terminal editor may own the keyboard instead of the composer.
+      if (focused instanceof HTMLElement && this.element.contains(focused) && isTextEntry(focused)) focused.blur();
       this.setProgress(0);
       const query = this.workspaceIdValue ? `?workspaceId=${encodeURIComponent(this.workspaceIdValue)}`
         : this.workspaceTemplateIdValue ? `?workspaceTemplateId=${encodeURIComponent(this.workspaceTemplateIdValue)}` : "";
@@ -281,7 +292,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       const submitter = this.pendingSubmitter;
       this.pendingSubmitter = undefined;
       if (submitter) submitter.form!.requestSubmit(submitter);
-      else this.element.querySelector<HTMLFormElement>("form")!.requestSubmit();
+      else this.input.form!.requestSubmit();
     }
 
     private focusAfterDictation(): void {
@@ -307,7 +318,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.capture = undefined;
       this.waveformFrame = undefined;
       this.waveformColor = "";
-      this.waveformTarget.getContext("2d")?.clearRect(0, 0, this.waveformTarget.width, this.waveformTarget.height);
+      for (const canvas of this.waveformTargets) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     private renderTranscript(): void {
@@ -320,12 +331,11 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     private animateWaveform(): void {
       if (!this.capture || this.state !== "recording") return;
       this.capture.analyser.getFloatTimeDomainData(this.waveformSamples);
-      this.drawWaveform(this.waveformSamples);
+      for (const canvas of this.waveformTargets) this.drawWaveform(canvas, this.waveformSamples);
       this.waveformFrame = requestAnimationFrame(() => this.animateWaveform());
     }
 
-    private drawWaveform(samples: Float32Array): void {
-      const canvas = this.waveformTarget;
+    private drawWaveform(canvas: HTMLCanvasElement, samples: Float32Array): void {
       const ratio = window.devicePixelRatio || 1;
       const width = 24;
       const height = 22;
@@ -356,10 +366,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.focusAfterDictation();
     }
 
-    private updateButtonDisabled(): void {
-      this.buttonTarget.disabled = this.state === "finishing";
-    }
-
     private closeSession(): void {
       this.stopCapture();
       this.socket?.close();
@@ -374,25 +380,34 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private setProgress(progress: number): void {
-      this.buttonTarget.style.setProperty("--button-progress", String(progress));
+      for (const button of this.buttonTargets) button.style.setProperty("--button-progress", String(progress));
     }
 
     private setState(state: DictationState, label: string): void {
       const working = state === "loading" || state === "finishing";
       this.state = state;
-      this.buttonTarget.dataset.state = state;
-      this.buttonTarget.dataset.progressState = working ? "in-progress" : "initial";
-      this.updateButtonDisabled();
-      this.buttonTarget.toggleAttribute("aria-busy", working);
-      this.buttonTarget.ariaPressed = state === "recording" || state === "finishing" ? "true" : "false";
-      this.buttonTarget.title = label;
-      this.buttonTarget.setAttribute("aria-label", label);
-      this.statusTarget.textContent = label;
-      this.errorTarget.hidden = state !== "error";
-      if (state === "error") this.errorTarget.querySelector("p")!.textContent = label;
+      const actionLabel = state === "recording" ? "Stop dictation"
+        : state === "loading" ? "Cancel dictation"
+        : state === "finishing" ? "Finishing dictation…" : "Dictate with microphone";
+      for (const button of this.buttonTargets) {
+        button.dataset.state = state;
+        if (button.classList.contains("activity-button")) setActivityButtonState(button, working || state === "recording" ? "active" : "initial");
+        else button.dataset.progressState = working ? "in-progress" : "initial";
+        button.disabled = state === "finishing";
+        button.toggleAttribute("aria-busy", working || state === "recording");
+        button.ariaPressed = state === "recording" || state === "finishing" ? "true" : "false";
+        button.title = actionLabel;
+        button.setAttribute("aria-label", actionLabel);
+      }
+      for (const caption of this.captionTargets) caption.textContent = state === "loading" ? "Cancel" : state === "finishing" ? "Finishing…" : "Stop dictation";
+      for (const status of this.statusTargets) status.textContent = label;
+      for (const error of this.errorTargets) {
+        error.hidden = state !== "error";
+        if (state === "error") error.querySelector("p")!.textContent = label;
+      }
       const dictating = state === "loading" || state === "recording" || state === "finishing";
-      const dictationStateChanged = this.element.hasAttribute("data-dictating") !== dictating;
-      this.element.toggleAttribute("data-dictating", dictating);
+      const dictationStateChanged = this.composer.hasAttribute("data-dictating") !== dictating;
+      this.composer.toggleAttribute("data-dictating", dictating);
       this.input.readOnly = dictating;
       // Recognised words stream into the field; it can't take focus until dictation stops.
       this.input.inert = dictating;

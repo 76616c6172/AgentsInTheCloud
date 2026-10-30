@@ -218,7 +218,8 @@ function typingModeChecks(frame: Frame, label: string): ReturnType<typeof check>
   return [
     check(`${label}: D7 only send shows while typing`, frame.buttons.join() === "send", `visible composer buttons: ${frame.buttons.join(", ") || "none"}`),
     check(`${label}: D23 floating buttons hidden`, Object.keys(frame.floating).length === 0, `visible floating buttons: ${Object.keys(frame.floating).join(", ") || "none"}`),
-    check(`${label}: D10 composer sits on the keyboard, transcript above it`, frame.composer !== null && close(bottom(frame.composer), keyboardTop(frame), 2) && (frame.transcript === null || close(bottom(frame.transcript), frame.composer[1], 1)), `composer ${JSON.stringify(frame.composer)}, keyboard top ${keyboardTop(frame)}, transcript ${JSON.stringify(frame.transcript)}`),
+    check(`${label}: composer and voice dock sit above the keyboard, transcript above them`, frame.composer !== null && frame.dictationDock !== null && close(bottom(frame.composer), frame.dictationDock[1], 2) && close(bottom(frame.dictationDock), keyboardTop(frame), 2) && (frame.transcript === null || close(bottom(frame.transcript), frame.composer[1], 1)), `composer ${JSON.stringify(frame.composer)}, dock ${JSON.stringify(frame.dictationDock)}, keyboard top ${keyboardTop(frame)}, transcript ${JSON.stringify(frame.transcript)}`),
+    check(`${label}: voice remains a large tap target while typing`, frame.dictationButton !== null && frame.dictationButton[3] >= 60 && bottom(frame.dictationButton) <= keyboardTop(frame), JSON.stringify(frame.dictationButton)),
     check(`${label}: page not scrolled`, frame.pageScroll === 0 && frame.viewport[1] === 0, `scrollY ${frame.pageScroll}, visualViewport.offsetTop ${frame.viewport[1]}`),
   ];
 }
@@ -329,7 +330,7 @@ await scenario("ios-composer-tap-and-column", "On the phone itself: a tap anywhe
   // The column: one button per row, all sharing the right edge.
   const measure = (): Promise<{ column: boolean; composer: number; max: number }> => page.evaluate(`(() => {
     const c = [...document.querySelectorAll(".agent-composer-pane > .composer")].find((e) => e.checkVisibility());
-    const slots = [...c.querySelectorAll(".composer-button")].map((e) => e.getBoundingClientRect());
+    const slots = [...c.querySelectorAll(".composer-button")].filter((e) => e.checkVisibility()).map((e) => e.getBoundingClientRect());
     const column = slots.length === 3 && slots.every((r, i) => Math.abs(r.right - slots[0].right) < 1 && (i === 0 || r.top >= slots[i - 1].bottom - 1));
     return { column, composer: c.getBoundingClientRect().height, max: document.documentElement.clientHeight * 0.4 };
   })()`);

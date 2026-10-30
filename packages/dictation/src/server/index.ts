@@ -15,4 +15,4 @@ export const agentsInTheCloudServerModule: WorkspaceModule = {
   },
 };
 
-export { renderDictationComposerControl, dictationComposerController } from "./composer.ts";
+export { renderDictationComposerControl, renderMobileDictationControl, dictationComposerController } from "./composer.ts";

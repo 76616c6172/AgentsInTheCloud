@@ -13,6 +13,8 @@ export interface Frame {
   transcript: Box;
   terminal: Box;
   composer: Box;
+  dictationDock: Box;
+  dictationButton: Box;
   keyRow: Box;
   /** Visible floating buttons by accessible label, measured without press transforms. */
   floating: Record<string, Box>;
@@ -74,6 +76,8 @@ export const samplerSource = String.raw`(() => {
       transcript: box(transcript),
       terminal: box(first(".observable-terminal-host")),
       composer: box(composer),
+      dictationDock: box(pane?.querySelector(":scope > .dictation-dock")),
+      dictationButton: box(pane?.querySelector(":scope > .dictation-dock button[data-dictation-composer-target=button]")),
       keyRow: box(first(".terminal-key-bar")),
       floating,
       toolbar,
@@ -123,6 +127,8 @@ function channels(frames: Frame[]): Channel[] {
     putBox("transcript", index, frame.transcript);
     putBox("terminal", index, frame.terminal);
     putBox("composer", index, frame.composer);
+    putBox("dictationDock", index, frame.dictationDock);
+    putBox("dictationButton", index, frame.dictationButton);
     putBox("keyRow", index, frame.keyRow);
     for (const label of labels) putBox(`floating[${label}]`, index, frame.floating[label] ?? null);
     if (frame.scrollTop !== null) put("scrollTop", index, frame.scrollTop);
@@ -250,6 +256,8 @@ export function chartSvg(trace: Trace, title: string): string {
   add("terminal bottom", "#2d7048", edge((frame) => frame.terminal, "bottom"));
   add("composer top", "#d68a2e", edge((frame) => frame.composer, "top"));
   add("composer bottom", "#9e5f1a", edge((frame) => frame.composer, "bottom"));
+  add("voice dock top", "#307daa", edge((frame) => frame.dictationDock, "top"));
+  add("voice dock bottom", "#205577", edge((frame) => frame.dictationDock, "bottom"));
   add("key row top", "#b0569c", edge((frame) => frame.keyRow, "top"));
   add("viewport height", "#888888", (frame) => frame.viewport[0]);
   add("scrollTop ÷ 4", "#c0c040", (frame) => frame.scrollTop === null ? null : frame.scrollTop / 4);

@@ -22,15 +22,7 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       description: "Toggle microphone dictation in the active composer.",
       scope: "agent",
       binding: "Meta+Alt+Backslash",
-      run() {
-        const button = activeDictationButton();
-        if (!button) return;
-        const pane = button.closest("[data-controller~='agent-composer']");
-        if (pane && !pane.classList.contains("agent-composer-open")) {
-          pane.querySelector<HTMLButtonElement>('[data-agent-composer-target="opener"]')!.click();
-        }
-        button.click();
-      },
+      run: () => activeDictationButton()?.click(),
     });
   },
 };

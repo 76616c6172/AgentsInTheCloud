@@ -214,6 +214,25 @@ await scenario("mobile-D1-selection", "D1/G1: selecting a workspace on mobile sh
   await page.navigate(builtinUrl, sel.transcript);
 });
 
+await scenario("mobile-voice-dock", "Voice stays large and at the bottom when the composer opens or closes; it does not duplicate a mobile composer control.", async (recorder) => {
+  await closeComposer();
+  const baseline = (await transition(recorder, "voice ready while reading", async () => {}, { waitMs: 200, expectChange: false })).after;
+  const button = baseline.dictationButton;
+  recorder.add(
+    check("Voice is available without opening the composer", baseline.composer === null && button !== null, `composer ${JSON.stringify(baseline.composer)}, voice ${JSON.stringify(button)}`),
+    check("Voice has a large touch target", button !== null && button[2] >= 180 && button[3] >= 60, JSON.stringify(button)),
+    check("Voice fits at the bottom of the viewport", baseline.dictationDock !== null && close(bottom(baseline.dictationDock), baseline.viewport[0] + baseline.viewport[1], 2), JSON.stringify(baseline.dictationDock)),
+  );
+  const opened = await transition(recorder, "open typing beside voice", () => page.tap(sel.opener));
+  recorder.add(
+    check("Opening the composer does not move voice", JSON.stringify(opened.after.dictationButton) === JSON.stringify(button), `${JSON.stringify(button)} → ${JSON.stringify(opened.after.dictationButton)}`),
+    check("Voice sits outside and below the composer", opened.after.composer !== null && opened.after.dictationDock !== null && close(bottom(opened.after.composer), opened.after.dictationDock[1], 1), `composer ${JSON.stringify(opened.after.composer)}, dock ${JSON.stringify(opened.after.dictationDock)}`),
+    check("The mobile composer has only close, attach and send", opened.after.buttons.join() === "close,attach,send", opened.after.buttons.join(", ")),
+  );
+  const closed = await transition(recorder, "close typing beside voice", () => page.tap(sel.close));
+  recorder.add(check("Closing the composer leaves voice in place", JSON.stringify(closed.after.dictationButton) === JSON.stringify(button), `${JSON.stringify(button)} → ${JSON.stringify(closed.after.dictationButton)}`));
+});
+
 await scenario("mobile-G2-D10-pinned", "G2/D10: with the transcript pinned to the bottom, opening and closing the composer pushes the transcript in one step.", async (recorder) => {
   await pinToBottom();
   const opened = await transition(recorder, "open composer", () => page.tap(sel.opener));

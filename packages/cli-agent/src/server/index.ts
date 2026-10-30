@@ -1,4 +1,4 @@
-import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
+import { dictationComposerController, renderMobileDictationControl } from "@agents-in-the-cloud/dictation/server";
 import { registerAgentTurnSettler } from "@agents-in-the-cloud/agent/server";
 import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
 import { renderTranscriptQuoteAction } from "@agents-in-the-cloud/agent/server/render-transcript";
@@ -37,7 +37,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
     const composerUrl = `${url}/composer`;
     const transcriptControls = renderCliTranscriptControls(adapter);
     const running = terminal.state === "running";
-    const composer = running ? `<div class="composer cli-agent-composer" data-controller="agent-completions ${dictationComposerController}" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-dictation-composer-workspace-id-value="${escapeHtml(workspaceId)}" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions">
+    const composer = running ? `<div class="composer cli-agent-composer" data-controller="agent-completions" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions">
       <div class="composer-surface">
         <form id="${domId("cli_composer_form", workspaceId, agentId)}" method="post" action="${escapeHtml(composerUrl)}" data-turbo="false" data-cli-terminal-target="form" data-action="keydown->agent-completions#keydown submit->dictation-composer#submit submit->cli-terminal#submit">
           ${renderComposerBody({
@@ -52,7 +52,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
       </div>
     </div>` : "";
     // Permanent keeps a live terminal through page renders; an ended one has none, and must be replaceable.
-    return `<section id="${domId("cli_agent", workspaceId, agentId)}"${running ? " data-turbo-permanent" : ""} class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? " agent-attachments transcript-quote" : ""}" data-agent-composer-open-on-select-value="false" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-socket-value="${escapeHtml(terminalProcessSocketPath(workspaceId, agentId))}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `agents-in-the-cloud:workspace-pane-visible@window->cli-terminal#refresh agents-in-the-cloud:workspace-agent-focus->cli-terminal#focus agents-in-the-cloud:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
+    return `<section id="${domId("cli_agent", workspaceId, agentId)}"${running ? " data-turbo-permanent" : ""} class="cli-agent-body agent-composer-pane" data-controller="cli-terminal agent-composer composer-focus${composer ? ` agent-attachments transcript-quote ${dictationComposerController}` : ""}" data-agent-composer-open-on-select-value="false" data-dictation-composer-workspace-id-value="${escapeHtml(workspaceId)}" data-cli-terminal-url-value="${escapeHtml(url)}" data-cli-terminal-socket-value="${escapeHtml(terminalProcessSocketPath(workspaceId, agentId))}" data-cli-terminal-workspace-id-value="${escapeHtml(workspaceId)}" ${cliTranscriptAttributes(adapter, agentId)} ${composerAttachmentAttributes(draftId, rowId, `agents-in-the-cloud:workspace-pane-visible@window->cli-terminal#refresh agents-in-the-cloud:workspace-agent-focus->cli-terminal#focus agents-in-the-cloud:theme-change@document->cli-terminal#theme ${agentComposerActions}`)}>
       <div class="cli-terminal-status" role="status">${session.error ? failureStatus(session.error) : terminalStatus(terminal)}</div>
       <div class="cli-agent-stage">
         ${running ? renderTerminalConnectionStatus("cli-terminal") : ""}
@@ -64,6 +64,7 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
       </div>
       ${running ? renderTerminalKeyBar("cli-terminal") : ""}
       ${composer}
+      ${composer ? renderMobileDictationControl() : ""}
     </section>`;
   }
 
