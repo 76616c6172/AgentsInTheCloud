@@ -12,6 +12,7 @@ type WorkspaceCommandRegistration = Omit<WorkspaceClientCommand, "run">;
 
 const shortcutAliases = new Map([
   ["agents-in-the-cloud.open-palette", ["Control+KeyO", "Control+KeyK"]],
+  ["dictation.toggle", ["Control+Alt+Backslash"]],
   ["changes.open", ["Control+Digit1"]],
   ["browser.open", ["Control+Digit2"]],
   ["terminal.open", ["Control+Digit3"]],

@@ -1,13 +1,13 @@
 /// <reference lib="dom" />
 
 import { observableWebSocketUrl } from "@agents-in-the-cloud/observable-terminal/client";
-import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
+import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { type MicrophoneLease, SharedMicrophone } from "./microphone.ts";
 
 type DictationState = "idle" | "loading" | "recording" | "finishing" | "error";
-type AudioCapture = { microphone: MicrophoneLease; context: AudioContext; processor: ScriptProcessorNode; analyser: AnalyserNode };
+type AudioCapture = { context: AudioContext; processor: ScriptProcessorNode; analyser: AnalyserNode };
 const dictationEventSchema = Type.Object({
   type: Type.String(),
   status: Type.Optional(Type.Union([Type.Literal("loading"), Type.Literal("error")])),
@@ -29,7 +29,7 @@ function composeTranscript(prefix: string, spoken: string, suffix: string) {
 
 export function createDictationComposerController(Controller: WorkspaceClientControllerConstructor, microphoneSource: SharedMicrophone) {
   return class DictationComposerController extends Controller {
-    static targets = ["button", "waveform", "status"];
+    static targets = ["button", "waveform", "status", "error"];
     static values = { workspaceId: String, workspaceTemplateId: String };
 
     declare readonly workspaceIdValue: string;
@@ -37,6 +37,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     declare readonly buttonTarget: HTMLButtonElement;
     declare readonly waveformTarget: HTMLCanvasElement;
     declare readonly statusTarget: HTMLElement;
+    declare readonly errorTarget: HTMLElement;
 
     private get input(): HTMLTextAreaElement {
       return this.element.querySelector("textarea")!;
@@ -45,6 +46,9 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     private state: DictationState = "idle";
     private socket?: WebSocket;
     private capture?: AudioCapture;
+    private audioContext?: AudioContext;
+    private microphone?: MicrophoneLease;
+    private microphoneReady?: Promise<void>;
     private waveformFrame?: number;
     private readonly waveformSamples = new Float32Array(256);
     private waveformColor = "";
@@ -57,19 +61,43 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
 
     connect(): void {
       window.addEventListener("keydown", this.keydown);
+      document.addEventListener("agents-in-the-cloud:workspace-pane-hidden", this.hidden);
+      this.element.addEventListener("agent-composer:closing", this.closing);
     }
 
     disconnect(): void {
       window.removeEventListener("keydown", this.keydown);
+      document.removeEventListener("agents-in-the-cloud:workspace-pane-hidden", this.hidden);
+      this.element.removeEventListener("agent-composer:closing", this.closing);
       this.closeSession();
       this.submitPending = false;
       this.pendingSubmitter = undefined;
       this.setState("idle", "Dictate");
     }
 
+    private readonly hidden = (): void => {
+      // A live morph can briefly hide the selected pane; only stop when it stays hidden.
+      setTimeout(() => {
+        if (this.element.isConnected && !this.element.closest("dialog[open]") && !isWorkspacePaneVisible(this.element)) this.closing();
+      }, 0);
+    };
+
+    private readonly closing = (): void => {
+      this.submitPending = false;
+      this.pendingSubmitter = undefined;
+      if (this.state === "recording") this.finish();
+      else if (this.state === "loading") this.cancel();
+    };
+
     private readonly keydown = (event: KeyboardEvent): void => {
-      if (event.defaultPrevented || !composerSubmitKey(event)) return;
-      if (this.state === "idle" || this.state === "error") return;
+      if (event.defaultPrevented || this.state === "idle" || this.state === "error") return;
+      if (!this.element.closest("dialog[open]") && !isWorkspacePaneVisible(this.element)) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.cancel();
+        return;
+      }
+      if (!composerSubmitKey(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       const otherEditor = target?.closest("input, textarea, select, [contenteditable='true']");
       if (otherEditor && !this.element.contains(otherEditor)) return;
@@ -82,8 +110,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     submit(event: SubmitEvent): void {
       if (this.state === "idle" || this.state === "error") return;
       if (this.state === "loading" && this.input.value.trim()) {
-        this.closeSession();
-        this.setState("idle", "Dictate");
+        this.cancel();
         return;
       }
       event.preventDefault();
@@ -102,9 +129,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
         return;
       }
       if (this.state === "loading") {
-        this.closeSession();
-        this.setState("idle", "Dictate");
-        this.focusAfterDictation();
+        this.cancel();
         return;
       }
       if (this.state === "finishing") return;
@@ -118,6 +143,8 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.suffix = this.input.value.slice(selectionEnd);
       this.committed = "";
       this.partial = "";
+      this.submitPending = false;
+      this.pendingSubmitter = undefined;
       this.setState("loading", "Preparing dictation model…");
       this.input.blur();
       this.setProgress(0);
@@ -125,6 +152,22 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
         : this.workspaceTemplateIdValue ? `?workspaceTemplateId=${encodeURIComponent(this.workspaceTemplateIdValue)}` : "";
       const socket = new WebSocket(observableWebSocketUrl(`/dictation/realtime${query}`));
       this.socket = socket;
+      // Permission and AudioContext activation belong to the user's gesture, not a later
+      // socket event. Prepare them while the model starts, without sending audio yet.
+      try {
+        const context = new AudioContext();
+        this.audioContext = context;
+        this.microphoneReady = microphoneSource.acquire().then((microphone) => {
+          if (this.socket !== socket) microphone.release();
+          else this.microphone = microphone;
+        });
+        void Promise.all([context.resume(), this.microphoneReady]).catch((error) => {
+          if (this.socket === socket) this.fail(errorMessage(error));
+        });
+      } catch (error) {
+        this.fail(errorMessage(error));
+        return;
+      }
       socket.addEventListener("message", (event) => {
         if (this.socket !== socket) return;
         this.received(Value.Parse(dictationEventSchema, JSON.parse(String(event.data))));
@@ -134,14 +177,15 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       });
       socket.addEventListener("close", () => {
         if (this.socket !== socket) return;
-        this.closeSession();
-        this.setState("idle", "Dictate");
+        this.fail("Dictation disconnected. Your text is still here.");
       });
     }
 
     private received(event: DictationEvent): void {
       if (event.type === "agents-in-the-cloud.dictation.status") {
         if (event.status === "loading") {
+          // A late loading update must not undo a queued finish/send.
+          if (this.state === "finishing") return;
           this.setState("loading", event.message ?? "Preparing dictation model…");
           this.setProgress(event.progress ?? 0);
         }
@@ -169,17 +213,14 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     private async startCapture(): Promise<void> {
       const socket = this.socket;
       try {
-        const microphone = await microphoneSource.acquire();
-        if (this.socket !== socket || socket?.readyState !== WebSocket.OPEN) {
-          microphone.release();
-          return;
-        }
+        await this.microphoneReady;
+        if (this.socket !== socket || socket?.readyState !== WebSocket.OPEN) return;
         if (this.state === "finishing") {
-          microphone.release();
           this.commitAudio();
           return;
         }
-        const context = new AudioContext();
+        const microphone = this.microphone!;
+        const context = this.audioContext!;
         const source = context.createMediaStreamSource(microphone.stream);
         const processor = context.createScriptProcessor(4096, 1, 1);
         const analyser = context.createAnalyser();
@@ -200,7 +241,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
         analyser.connect(processor);
         processor.connect(sink);
         sink.connect(context.destination);
-        this.capture = { microphone, context, processor, analyser };
+        this.capture = { context, processor, analyser };
         this.socket?.send(JSON.stringify({
           type: "session.update",
           session: { sample_rate: context.sampleRate, language: "auto", automatic_punctuation: true },
@@ -217,7 +258,7 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       const { sampleRate } = this.capture!.context;
       this.stopCapture();
       if (this.socket?.readyState !== WebSocket.OPEN) {
-        this.socket?.close();
+        this.fail("Dictation disconnected. Your text is still here.");
         return;
       }
       // The streaming model holds back its last words until it hears what follows; a commit alone drops them.
@@ -244,7 +285,8 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private focusAfterDictation(): void {
-      if (focusLikelyOpensSoftwareKeyboard()) return;
+      if (focusLikelyOpensSoftwareKeyboard() || !this.input.checkVisibility()) return;
+      if (!this.element.closest("dialog[open]") && !isWorkspacePaneVisible(this.element)) return;
       this.input.focus({ preventScroll: true });
       const { caret } = this.transcript();
       this.input.setSelectionRange(caret, caret);
@@ -256,11 +298,12 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
 
     private stopCapture(): void {
       if (this.waveformFrame !== undefined) cancelAnimationFrame(this.waveformFrame);
-      this.capture?.microphone.release();
-      if (this.capture) {
-        this.capture.processor.onaudioprocess = null;
-        if (this.capture.context.state !== "closed") void this.capture.context.close();
-      }
+      this.microphone?.release();
+      this.microphone = undefined;
+      if (this.capture) this.capture.processor.onaudioprocess = null;
+      if (this.audioContext && this.audioContext.state !== "closed") void this.audioContext.close();
+      this.audioContext = undefined;
+      this.microphoneReady = undefined;
       this.capture = undefined;
       this.waveformFrame = undefined;
       this.waveformColor = "";
@@ -268,6 +311,8 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private renderTranscript(): void {
+      // Empty progress deltas and silent sessions must not erase selected draft text.
+      if (!this.committed && !this.partial) return;
       setTextInputValue(this.input, this.transcript().text);
       this.input.scrollTop = this.input.scrollHeight;
     }
@@ -303,6 +348,14 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       }
     }
 
+    cancel(): void {
+      this.closeSession();
+      this.submitPending = false;
+      this.pendingSubmitter = undefined;
+      this.setState("idle", "Dictate");
+      this.focusAfterDictation();
+    }
+
     private updateButtonDisabled(): void {
       this.buttonTarget.disabled = this.state === "finishing";
     }
@@ -335,6 +388,8 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.buttonTarget.title = label;
       this.buttonTarget.setAttribute("aria-label", label);
       this.statusTarget.textContent = label;
+      this.errorTarget.hidden = state !== "error";
+      if (state === "error") this.errorTarget.querySelector("p")!.textContent = label;
       const dictating = state === "loading" || state === "recording" || state === "finishing";
       const dictationStateChanged = this.element.hasAttribute("data-dictating") !== dictating;
       this.element.toggleAttribute("data-dictating", dictating);

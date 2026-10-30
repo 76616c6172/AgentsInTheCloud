@@ -66,7 +66,10 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     private setOpen(open: boolean): void {
       if (open === this.isOpen) return;
       changeLayout(() => {
-        if (!open) this.blurInput();
+        if (!open) {
+          this.composer?.dispatchEvent(new Event("agent-composer:closing"));
+          this.blurInput();
+        }
         this.element.classList.toggle("agent-composer-open", open);
         this.autosize();
       });

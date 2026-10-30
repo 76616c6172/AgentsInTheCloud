@@ -1,3 +1,4 @@
+import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-banner";
 import { progressButtonHtml } from "@agents-in-the-cloud/design-system/progress-button";
 
 export const dictationComposerController = "dictation-composer";
@@ -17,5 +18,10 @@ export function renderDictationComposerControl(): string {
     attributesHtml: 'data-popular-button aria-pressed="false" data-state="idle" data-dictation-composer-target="button"',
     actions: "dictation-composer#toggle",
   });
-  return `${button}<span class="dictation-status" data-dictation-composer-target="status" aria-live="polite">Dictate</span>`;
+  const error = warningBannerHtml({
+    message: "Dictation failed",
+    role: "alert",
+    dismiss: { label: "Dismiss dictation error", buttonAttributesHtml: 'data-action="dictation-composer#cancel"' },
+  });
+  return `${button}<span class="dictation-status" data-dictation-composer-target="status" aria-live="polite">Dictate</span><div class="dictation-error" data-dictation-composer-target="error" hidden>${error}</div>`;
 }

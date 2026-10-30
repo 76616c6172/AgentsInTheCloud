@@ -140,7 +140,7 @@ async function closeComposer(): Promise<void> {
 }
 
 async function switchAgentView(selector: string): Promise<void> {
-  if (!desktopActions) {
+  if (!desktopActions && !await page.visible(selector)) {
     await page.tap(".nox-phone-header [data-mobile-more]");
     await Bun.sleep(250); // Wait for the menu's positioning and entrance before tapping it.
   }
@@ -358,6 +358,7 @@ await Bun.sleep(400);
 
 await scenario("mobile-D14-terminal-focus", "D14: focusing the Pi terminal collapses the open composer (keeping its draft) in one step; the terminal moves, never resizes.", async (recorder) => {
   await openComposer();
+  await resetComposerText();
   await page.tap(sel.input);
   await page.insertText("Draft that must survive");
   await Bun.sleep(300);
@@ -403,7 +404,7 @@ await scenario("mobile-D18-frozen-send", "D18: sending while the frozen transcri
     check("D18: terminal showing after send", after.transcript === null && after.terminal !== null, `transcript ${JSON.stringify(after.transcript)}, terminal ${JSON.stringify(after.terminal)}`),
     check("D2: composer closed after send", after.composer === null, JSON.stringify(after.composer)),
     check("D17: terminal not focused after send", !after.focus.includes("gespenst__input"), `focus: ${after.focus || "body"}`),
-    check("Mobile: secondary agent actions stay out of the floating stack", Object.keys(after.floating).every(label => label === floatingLabel.followLatest), JSON.stringify(after.floating)),
+    check("Mobile: secondary agent actions stay out of the floating stack", Object.keys(after.floating).every(label => label === floatingLabel.opener || label === floatingLabel.followLatest), JSON.stringify(after.floating)),
   );
   await page.waitFor(sel.cliTranscript, 120_000);
   recorder.add(check("D18: transcript returns when the turn finishes", await page.visible(sel.cliTranscript), "Transcript shown; return action lives in More"));
@@ -426,7 +427,7 @@ await scenario("mobile-terminal-tab", "D19: focusing a Terminal view and switchi
 
 await page.navigate(builtinUrl, sel.transcript);
 
-await scenario("mobile-D21-D22-floating", "Mobile: only Follow latest floats; the composer opens from More.", async (recorder) => {
+await scenario("mobile-D21-D22-floating", "Mobile: Open composer and Follow latest float as corner tiles.", async (recorder) => {
   await closeComposer();
   await scrollPartway();
   const reading = await transition(recorder, "reading, scrolled up", async () => {}, { waitMs: 200, expectChange: false });
@@ -459,7 +460,7 @@ await scenario("desktop-D1-selection", "D1: on desktop the composer is open and 
   recorder.add(
     check("D1: composer open", after.composer !== null, JSON.stringify(after.composer)),
     check("D1: text field focused", after.focus.includes("composer-input"), `focus: ${after.focus || "body"}`),
-    check("D4: three buttons in one vertical column (close, attach, send)", buttonColumn.length === 3 && buttonColumn.every((box, index) => close(box[0] + box[2] / 2, buttonColumn[0]![0] + buttonColumn[0]![2] / 2) && (index === 0 || box[1] >= bottom(buttonColumn[index - 1]!))), JSON.stringify(buttonColumn)),
+    check("D4: four buttons in one vertical column (close, attach, dictate, send)", buttonColumn.length === 4 && buttonColumn.every((box, index) => close(box[0] + box[2] / 2, buttonColumn[0]![0] + buttonColumn[0]![2] / 2) && (index === 0 || box[1] >= bottom(buttonColumn[index - 1]!))), JSON.stringify(buttonColumn)),
   );
 });
 

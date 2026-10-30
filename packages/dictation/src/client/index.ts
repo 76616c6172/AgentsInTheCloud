@@ -1,4 +1,4 @@
-import type { WorkspaceClientModule } from "@agents-in-the-cloud/shared";
+import { isWorkspacePaneVisible, type WorkspaceClientModule } from "@agents-in-the-cloud/shared";
 import { createDictationComposerController } from "./dictation-controller.ts";
 import { SharedMicrophone } from "./microphone.ts";
 
@@ -8,10 +8,8 @@ const dictationButtonSelector = '[data-dictation-composer-target="button"]';
 function activeDictationButton(): HTMLButtonElement | null {
   const dialogButton = document.querySelector<HTMLButtonElement>(`dialog[open] ${dictationButtonSelector}`);
   if (dialogButton) return dialogButton;
-  const activeAgentButton = document.querySelector<HTMLButtonElement>(`.workspace-detail-mount.visible [data-workspace-logically-visible="true"] ${dictationButtonSelector}`);
-  if (activeAgentButton) return activeAgentButton;
   return [...document.querySelectorAll<HTMLButtonElement>(dictationButtonSelector)]
-    .find((button) => button.getClientRects().length > 0) ?? null;
+    .find((button) => button.closest('[data-workspace-pane-role="agent"]') && isWorkspacePaneVisible(button)) ?? null;
 }
 
 export const agentsInTheCloudClientModule: WorkspaceClientModule = {
@@ -24,7 +22,15 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       description: "Toggle microphone dictation in the active composer.",
       scope: "agent",
       binding: "Meta+Alt+Backslash",
-      run: () => activeDictationButton()?.click(),
+      run() {
+        const button = activeDictationButton();
+        if (!button) return;
+        const pane = button.closest("[data-controller~='agent-composer']");
+        if (pane && !pane.classList.contains("agent-composer-open")) {
+          pane.querySelector<HTMLButtonElement>('[data-agent-composer-target="opener"]')!.click();
+        }
+        button.click();
+      },
     });
   },
 };
