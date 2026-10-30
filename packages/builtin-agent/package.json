@@ -13,6 +13,7 @@
     "./server/render-composer": "./src/server/render-composer.ts"
   },
   "dependencies": {
+    "@agents-in-the-cloud/dictation": "workspace:*",
     "@agents-in-the-cloud/core": "workspace:*",
     "@agents-in-the-cloud/design-system": "workspace:*",
     "@agents-in-the-cloud/markdown": "workspace:*",

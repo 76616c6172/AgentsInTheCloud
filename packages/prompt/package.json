@@ -7,6 +7,7 @@
     "./client": "./src/client/index.ts"
   },
   "dependencies": {
+    "@agents-in-the-cloud/dictation": "workspace:*",
     "@agents-in-the-cloud/core": "workspace:*",
     "@agents-in-the-cloud/shared": "workspace:*",
     "@agents-in-the-cloud/design-system": "workspace:*",

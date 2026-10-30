@@ -127,7 +127,7 @@ export async function renderSettingsFrame(request: Request, sectionId?: string):
     bodyHtml: `<turbo-frame class="app-settings-section-frame" id="${sectionFrameId(id)}" src="/settings/sections/${id}" loading="lazy"><span role="status">Loading…</span></turbo-frame>`,
   });
   const content = `<div class="app-settings-overview">
-    ${take("theme", "commit-identity", "git-hosting", "update-channel", "update", "access")}
+    ${take("theme", "dictation", "commit-identity", "git-hosting", "update-channel", "update", "access")}
     ${connectionModeManaged() ? "" : `<section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>AgentsInTheCloud URL</h2>${agentsInTheCloudUrlHtml(agentsInTheCloudUrl(request), "settings_agents_in_the_cloud_url_qr")}</section>`}
     ${take(...inline.keys())}
     <div class="app-settings-disclosures">${disclosure("models", "Models")}${disclosure(globalWorkspaceSettingsSectionId, "Global workspace settings that apply to all new workspaces")}${disclosure("host", "Host")}${disclosure("developer-tools", "Developer tools")}</div>

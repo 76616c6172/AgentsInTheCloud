@@ -1,3 +1,4 @@
+import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
 import { activityButtonHtml } from "@agents-in-the-cloud/design-system/activity-button";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
 import { createPiModelRuntime, hasConnectedModelProvider, modelRefValue, parseModelRef, renderLaunchModelSettings, renderSharedComposerSelections, type ComposerModelOption } from "@agents-in-the-cloud/llm/server";
@@ -90,9 +91,9 @@ function renderAgentPaneComposer(options: AgentComposerRenderOptions): string {
   const { ctx, draftId } = options;
   const formId = `agent_pane_composer_${draftId}`;
   const actions = `<span class="composer-primary-action" id="${ids.actions(ctx)}"></span>`;
-  return `<div class="composer agent-pane-composer" data-controller="agent-model-setup agent-completions" data-action="agent-composer:send-prompt->agent-pane#sendPrompt" data-agent-completions-url-value="${escapeHtml(agentPath(ctx, "/completions"))}">
+  return `<div class="composer agent-pane-composer" data-controller="agent-model-setup agent-completions ${dictationComposerController}" data-action="agent-composer:send-prompt->agent-pane#sendPrompt" data-dictation-composer-workspace-id-value="${escapeHtml(ctx.workspaceId)}" data-agent-completions-url-value="${escapeHtml(agentPath(ctx, "/completions"))}">
     <div class="composer-surface">
-      <form id="${escapeHtml(formId)}" method="post" action="${escapeHtml(options.action)}" data-agent-pane-target="form" data-action="submit->agent-model-setup#guard keydown->agent-completions#keydown keydown->agent-pane#inputKeydown turbo:submit-start->agent-pane#submitStarted turbo:submit-end->agent-pane#submitted">
+      <form id="${escapeHtml(formId)}" method="post" action="${escapeHtml(options.action)}" data-agent-pane-target="form" data-action="submit->agent-model-setup#guard submit->dictation-composer#submit keydown->agent-completions#keydown keydown->agent-pane#inputKeydown turbo:submit-start->agent-pane#submitStarted turbo:submit-end->agent-pane#submitted">
         ${renderComposerBody({
           draft: { id: draftId, rowId: ids.attachRow(ctx), attachments: options.attachments },
           collapsible: true,

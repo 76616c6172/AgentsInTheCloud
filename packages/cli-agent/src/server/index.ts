@@ -1,3 +1,4 @@
+import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
 import { registerAgentTurnSettler } from "@agents-in-the-cloud/agent/server";
 import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
 import { renderTranscriptQuoteAction } from "@agents-in-the-cloud/agent/server/render-transcript";
@@ -36,9 +37,9 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
     const composerUrl = `${url}/composer`;
     const transcriptControls = renderCliTranscriptControls(adapter);
     const running = terminal.state === "running";
-    const composer = running ? `<div class="composer cli-agent-composer" data-controller="agent-completions" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions">
+    const composer = running ? `<div class="composer cli-agent-composer" data-controller="agent-completions ${dictationComposerController}" data-action="agent-composer:send-prompt->cli-terminal#sendPrompt" data-dictation-composer-workspace-id-value="${escapeHtml(workspaceId)}" data-agent-completions-url-value="${escapeHtml(composerUrl)}/completions">
       <div class="composer-surface">
-        <form id="${domId("cli_composer_form", workspaceId, agentId)}" method="post" action="${escapeHtml(composerUrl)}" data-turbo="false" data-cli-terminal-target="form" data-action="keydown->agent-completions#keydown submit->cli-terminal#submit">
+        <form id="${domId("cli_composer_form", workspaceId, agentId)}" method="post" action="${escapeHtml(composerUrl)}" data-turbo="false" data-cli-terminal-target="form" data-action="keydown->agent-completions#keydown submit->dictation-composer#submit submit->cli-terminal#submit">
           ${renderComposerBody({
             draft: { id: draftId, rowId, attachments: await listStagedAttachments(draftId) },
             collapsible: true,

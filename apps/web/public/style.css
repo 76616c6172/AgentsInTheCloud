@@ -550,3 +550,6 @@ html.software-keyboard-visible .composer.launch-composer :is(.agent-attach-row, 
 /* The Builtin robot is a 24px bitmap; match the 16px row icons so rows and labels line up. */
 .agent-type-picker .content-row__icon { width: 16px; }
 .agent-type-picker .builtin-agent-icon { height: 16px; }
+
+.app-settings-content .settings-sec-dictation > form { flex: 0 1 300px; min-width: 0; }
+@media (max-width: 700px) { .app-settings-content .settings-sec-dictation > form { flex-basis: auto; } }

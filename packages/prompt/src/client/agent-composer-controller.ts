@@ -3,6 +3,7 @@ import { changeLayout, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible,
 
 /** The composer may grow to this share of the space above the keyboard (or of the window). */
 const composerMaxShare = 0.4;
+const longPressMs = 500;
 
 /**
  * Composer visibility, height and draft indicator. Every change is applied in
@@ -19,6 +20,8 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     declare readonly hasOpenerTarget: boolean;
     private activeSelection = false;
     private pane!: HTMLElement;
+    private longPress?: ReturnType<typeof setTimeout>;
+    private suppressNextClick = false;
 
     connect(): void {
       this.pane = this.element.closest<HTMLElement>('[data-workspace-pane-role="agent"]')!;
@@ -30,6 +33,7 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
 
     disconnect(): void {
       this.activeSelection = false;
+      clearTimeout(this.longPress);
       this.blurInput();
     }
 
@@ -101,6 +105,7 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     }
 
     open(): void {
+      if (this.suppressNextClick) return;
       this.setOpen(true);
       if (this.focusesOnOpen) this.input!.focus({ preventScroll: true });
     }
@@ -164,6 +169,39 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       const input = this.input;
       const draft = Boolean(input?.value.trim() || this.composer?.querySelector(".agent-chip"));
       this.openerTarget.parentElement!.toggleAttribute("data-draft", draft);
+    }
+    // Holding open-composer opens it and starts dictation while the finger is still down.
+    pressOpener(event: PointerEvent): void {
+      if (event.button !== 0) return;
+      clearTimeout(this.longPress);
+      this.longPress = setTimeout(() => {
+        this.longPress = undefined;
+        this.suppressNextClick = true;
+        this.setOpen(true);
+        this.element.querySelector<HTMLButtonElement>(':scope > .composer [data-dictation-composer-target="button"]')!.click();
+        // The release lands wherever the finger is now, possibly on a composer button.
+        const swallow = (click: MouseEvent): void => { click.preventDefault(); click.stopImmediatePropagation(); };
+        const release = (): void => {
+          document.removeEventListener("pointerup", release, true);
+          document.removeEventListener("pointercancel", release, true);
+          document.addEventListener("click", swallow, true);
+          setTimeout(() => {
+            document.removeEventListener("click", swallow, true);
+            this.suppressNextClick = false;
+          }, 400);
+        };
+        document.addEventListener("pointerup", release, true);
+        document.addEventListener("pointercancel", release, true);
+      }, longPressMs);
+    }
+
+    releaseOpener(): void {
+      clearTimeout(this.longPress);
+      this.longPress = undefined;
+    }
+
+    suppressContextMenu(event: Event): void {
+      event.preventDefault();
     }
   };
 }
