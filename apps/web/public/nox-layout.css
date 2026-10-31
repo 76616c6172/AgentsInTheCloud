@@ -65,7 +65,7 @@ html[data-theme] {
 button.nox-workspace-glyph:is(:hover, :focus-visible) > :not(.nox-workspace-glyph__plus) { display: none; }
 button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__plus { display: grid; }
 /* Busy: a ripple crosses the dots, column by column. */
-.nox-workspace-glyph[data-busy] .nox-workspace-glyph__dot { animation: nox-workspace-glyph-ripple 1.1s ease-in-out infinite; animation-delay: calc(var(--x) * 140ms); }
+.nox-workspace-glyph[data-busy] .nox-workspace-glyph__dot { animation: nox-workspace-glyph-ripple 367ms ease-in-out infinite; animation-delay: calc(var(--x) * 47ms); }
 @keyframes nox-workspace-glyph-ripple { 50% { opacity: .18; } }
 /* Nox mobile: the glyph belongs to workspace navigation. Template shortcuts use a deliberate
  * 300 ms row hold (50 ms settle + 250 ms charge), never a separate glyph tap. */
@@ -111,7 +111,7 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   background: var(--nox-glyph-color, var(--text-muted));
   mask: var(--nox-glyph-mask) center / contain no-repeat, var(--nox-glyph-vignette), linear-gradient(90deg, #000 40%, rgb(0 0 0 / .18) 50%, #000 60%) 100% 0 / 300% 100% no-repeat;
   mask-composite: intersect;
-  animation: nox-workspace-glyph-sweep 1.1s ease-in-out infinite;
+  animation: nox-workspace-glyph-sweep 367ms ease-in-out infinite;
 }
 @keyframes nox-workspace-glyph-sweep { to { mask-position: center, center, 0% 0; } }
 @media (max-width: 700px), (pointer: coarse) {
