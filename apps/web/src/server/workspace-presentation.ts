@@ -15,7 +15,6 @@ import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@ag
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { agentPaneSlotDomId, renderAgentViewSwitch, renderAgentPane, renderMobileAgentAttention, renderPhoneAgentTypeOptions, renderPhoneWorkspaceActions, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
-import { renderImmersiveMode } from "./immersive-mode.ts";
 import type { WorkspaceDeletionState } from "./workspace-registry.ts";
 import { outdatedImageMessage } from "./workspace-warnings.ts";
 import type { WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
@@ -219,7 +218,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
           <div id="${workspacePaneScrollDomId}" class="fixed-shell-workspace-scroll" data-workspace-navigation-target="scroll">${renderWorkspaceRows(presentation)}</div>
           <section id="global_sidebar_contributions">${sidebarContributionsHtml}</section>
         </div>
-        <footer class="workspace-pane-footer"><div id="${workspacePaneNewWorkspaceDomId}">${renderNewWorkspaceRow(presentation)}</div>${renderImmersiveMode()}${settingsRow}</footer>
+        <footer class="workspace-pane-footer"><div id="${workspacePaneNewWorkspaceDomId}">${renderNewWorkspaceRow(presentation)}</div>${settingsRow}</footer>
       </section>
       <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New workspace" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
     </div></div>`,
@@ -415,7 +414,7 @@ function renderMobileMoreMenu(islands: LiveIslands, presentation: WorkspacePrese
     trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-mobile-more" },
     menuAttributesHtml: 'data-workspace-presentation-target="moreMenu" data-action="toggle->workspace-presentation#syncMore"',
     contentHtml: `${islands.island(workViewDomId(presentation.workspace.id, "phone_more_heading"), renderPhoneMoreHeading(presentation), "div", "contents")}${renderAgentViewSwitch(true)}${renderPhoneNewTabOptions(presentation)}${islands.island(workViewDomId(presentation.workspace.id, "mobile_overflow"), workViews.overflowItems, "span", "contents action-list")}
-      ${islands.island(workViewDomId(presentation.workspace.id, "mobile_closers"), closers, "div", "fixed-shell-more-close-section")}${renderImmersiveMode(true)}`,
+      ${islands.island(workViewDomId(presentation.workspace.id, "mobile_closers"), closers, "div", "fixed-shell-more-close-section")}`,
   });
 }
 

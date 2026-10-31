@@ -21,7 +21,7 @@ Group incoming changes into fixes/performance, dependencies/runtime, and visible
 
 Propose an inclusion/exclusion list and get explicit approval for visible changes. Approval to sync is not approval for new UX. Existing approval only covers the specified changes and revision range. Keep unapproved behavior unchanged. Do not repeatedly ask about already approved decisions in the same task.
 
-Inspect Nox-specific CSS/controllers, keyboard bindings, terminal patches, workspace images and release/update identity. Current examples include ring navigation, phone chrome, ghost composer controls, spread/foldable layouts, grouping, immersive mode, Browser tab controls and terminal sizing/reconnect/paint behavior. This is a discovery checklist, not a frozen specification: follow the actual branch and latest user decisions.
+Inspect Nox-specific CSS/controllers, keyboard bindings, terminal patches, workspace images and release/update identity. Current examples include ring navigation, phone chrome, ghost composer controls, spread/foldable layouts, grouping, Browser tab controls and terminal sizing/reconnect/paint behavior. This is a discovery checklist, not a frozen specification: follow the actual branch and latest user decisions.
 
 ## 3. Integrate with the smallest maintainable delta
 

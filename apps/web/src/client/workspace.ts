@@ -15,7 +15,6 @@ import * as Turbo from "@hotwired/turbo";
 import { NavigationOriginController } from "./navigation-origin-controller.ts";
 import { ConnectionModeSettingsController } from "./connection-mode-settings.ts";
 import { PwaReminderController } from "./pwa-reminder.ts";
-import { ImmersiveModeController } from "./immersive-mode-controller.ts";
 import { MobileSwipeController } from "./mobile-swipe-controller.ts";
 import { NoxWorkspaceHoldController } from "./nox-workspace-hold-controller.ts";
 import { NoxWorkspaceChromeController } from "./nox-workspace-chrome-controller.ts";
@@ -61,7 +60,6 @@ for (const module of workspaceClientModules) await module.install({ application,
 registerWorkspaceControllers({
   "connection-mode-settings": ConnectionModeSettingsController,
   "pwa-reminder": PwaReminderController,
-  "immersive-mode": ImmersiveModeController,
   "mobile-swipe": MobileSwipeController,
   "nox-workspace-chrome": NoxWorkspaceChromeController,
   "nox-workspace-hold": NoxWorkspaceHoldController,

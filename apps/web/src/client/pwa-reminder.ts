@@ -11,7 +11,7 @@ export class PwaReminderController extends Controller<HTMLElement> {
   declare readonly dialogTarget: HTMLDialogElement;
   declare readonly guideTargets: HTMLElement[];
   private animationTimer: ReturnType<typeof setTimeout> | undefined;
-  private readonly standalone = window.matchMedia("(display-mode: standalone), (display-mode: minimal-ui), (display-mode: window-controls-overlay), (display-mode: fullscreen)");
+  private readonly standalone = window.matchMedia("(display-mode: standalone), (display-mode: minimal-ui), (display-mode: window-controls-overlay)");
 
   connect(): void {
     const platform = installationPlatform();
