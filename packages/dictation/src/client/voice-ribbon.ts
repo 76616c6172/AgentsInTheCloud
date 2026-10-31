@@ -9,7 +9,13 @@ const fullTurn = Math.PI * 2;
 const ribbonFrequencies = [1.5, 2.3, 3.2] as const;
 const ribbonSpeeds = [3.2, -4.4, 5.6] as const;
 const ribbonGains = [1, 0.75, 0.55] as const;
-const paletteRefreshSeconds = 1;
+const restPhases = [0.6, 2.2, 3.9] as const;
+const restAmplitude = 0.32;
+const restPresence = 0.4;
+const hoverAmplitude = 0.55;
+const hoverSpeed = 0.7;
+const finishingPresence = 0.6;
+const restingCue = 0.62;
 
 const clamp = (value: number, min = 0, max = 1) => Math.min(max, Math.max(min, value));
 const lerp = (from: number, to: number, amount: number) => from + (to - from) * amount;
@@ -29,6 +35,10 @@ class Spring {
     return this.value;
   }
 
+  settled(target: number): boolean {
+    return Math.abs(target - this.value) < 0.002 && Math.abs(this.velocity) < 0.01;
+  }
+
   snap(value: number): void {
     this.value = value;
     this.velocity = 0;
@@ -37,15 +47,19 @@ class Spring {
 
 /** One canvas's ribbons. Each keeps its own springs so a state change eases in rather than jumping. */
 class RibbonPainter {
-  private readonly amplitude = new Spring(restAmplitude(0), 150, 18);
+  private readonly amplitude = new Spring(restAmplitude, 150, 18);
   private readonly activity = new Spring(0, 190, 22);
   private readonly stop = new Spring(0, 420, 32);
+  private readonly cue = new Spring(0, 260, 26);
+  private cueKind: "cancel" | "stop" = "cancel";
   private readonly loaded = new Spring(0, 160, 24);
-  private readonly phases = [0.6, 2.2, 3.9];
+  private readonly presence = new Spring(restPresence, 150, 22);
+  private readonly phases: number[] = [...restPhases];
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly context: CanvasRenderingContext2D) {}
 
-  paint(frame: Frame): void {
+  /** Draws one frame and reports whether the ribbons are still moving. At rest they settle, dimmed, and hold still. */
+  paint(frame: Frame): boolean {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
     const ratio = window.devicePixelRatio || 1;
@@ -56,7 +70,7 @@ class RibbonPainter {
     const drawing = this.context;
     drawing.setTransform(ratio, 0, 0, ratio, 0, 0);
     drawing.clearRect(0, 0, width, height);
-    if (!width || !height) return;
+    if (!width || !height) return false;
 
     const { state, dt, palette } = frame;
     const [lead] = palette.ribbons;
@@ -70,8 +84,9 @@ class RibbonPainter {
     let amplitudeTarget: number;
     let speed: number;
     if (state === "idle") {
-      amplitudeTarget = frame.hover ? 0.65 : restAmplitude(frame.time);
-      speed = frame.hover ? 1 : 0.4;
+      // Pointing at the resting control wakes it, hinting that it's ready to listen.
+      amplitudeTarget = frame.hover ? hoverAmplitude : restAmplitude;
+      speed = frame.hover ? hoverSpeed : 0;
     } else if (state === "listening") {
       amplitudeTarget = 0.12 + frame.level * 1.45;
       speed = 0.5 + frame.level * 1.6;
@@ -79,14 +94,27 @@ class RibbonPainter {
       amplitudeTarget = 0.02;
       speed = 0.3;
     }
+    const activityTarget = state === "idle" ? 0 : 1;
+    const stopTarget = state === "listening" && frame.hover ? 1 : 0;
+    const presenceTarget = state === "idle" && !frame.hover ? restPresence : state === "finishing" ? finishingPresence : 1;
+    // While a tap would cancel or stop, the middle shows × or ■; pointing at it enlarges the sign.
+    const acting = state === "loading" || state === "listening";
+    const cueTarget = acting ? frame.hover ? 1 : restingCue : 0;
+    if (acting) this.cueKind = state === "loading" ? "cancel" : "stop";
     if (frame.still) {
       this.amplitude.snap(amplitudeTarget);
-      this.activity.snap(state === "idle" ? 0 : 1);
+      this.activity.snap(activityTarget);
+      this.presence.snap(presenceTarget);
+      this.phases.splice(0, 3, ...restPhases);
       speed = 0;
     }
-    const activity = clamp(this.activity.step(state === "idle" ? 0 : 1, dt));
-    const stop = clamp(this.stop.step(state === "listening" && frame.hover ? 1 : 0, dt));
+    const activity = clamp(this.activity.step(activityTarget, dt));
+    const stop = clamp(this.stop.step(stopTarget, dt));
     const amplitude = Math.max(0, this.amplitude.step(amplitudeTarget, dt)) * (1 - 0.75 * stop);
+    const presence = clamp(this.presence.step(presenceTarget, dt));
+    const cue = clamp(this.cue.step(cueTarget, dt));
+    // At rest the ribbons drift back to the same shape, so the idle control always looks alike.
+    if (state === "idle" && speed === 0) for (let ribbon = 0; ribbon < 3; ribbon += 1) this.phases[ribbon] = restPhases[ribbon]! + wrapAngle(this.phases[ribbon]! - restPhases[ribbon]!) * Math.exp(-6 * dt);
 
     drawing.save();
     drawing.beginPath();
@@ -94,7 +122,7 @@ class RibbonPainter {
     drawing.clip();
 
     drawing.globalCompositeOperation = palette.additive ? "lighter" : "source-over";
-    const ribbonAlpha = (palette.additive ? 0.46 : 0.36) * (state === "loading" ? 1 - activity * 0.6 : 1);
+    const ribbonAlpha = (palette.additive ? 0.46 : 0.36) * (state === "loading" ? 1 - activity * 0.6 : 1) * presence;
     for (let ribbon = 0; ribbon < 3; ribbon += 1) {
       this.phases[ribbon]! += ribbonSpeeds[ribbon]! * speed * dt;
       const size = reach * amplitude * ribbonGains[ribbon]!;
@@ -115,7 +143,7 @@ class RibbonPainter {
     // The thread the ribbons rise from, fading out towards both ends.
     const thread = drawing.createLinearGradient(left, 0, right, 0);
     thread.addColorStop(0, rgba(lead, 0));
-    thread.addColorStop(0.5, rgba(lead, state === "idle" ? 0.75 : 0.5));
+    thread.addColorStop(0.5, rgba(lead, (state === "idle" ? 0.75 : 0.5) * Math.max(presence, 0.6)));
     thread.addColorStop(1, rgba(lead, 0));
     drawing.strokeStyle = thread;
     drawing.lineWidth = 1.2;
@@ -163,28 +191,44 @@ class RibbonPainter {
     }
     drawing.restore();
 
-    if (stop > 0.01) {
-      // Hovering a live session squeezes the ribbons flat around a stop square.
+    if (cue > 0.01) {
+      // The sign sits in a gap cut through the ribbons; hovering a live session also squeezes them flat.
       const middle = width / 2;
       drawing.save();
-      drawing.globalAlpha = stop;
+      drawing.globalAlpha = clamp(cue * 1.6);
       drawing.globalCompositeOperation = "destination-out";
       drawing.beginPath();
-      drawing.arc(middle, centre, height * 0.3, 0, fullTurn);
+      drawing.arc(middle, centre, height * 0.3 * (0.5 + 0.5 * cue), 0, fullTurn);
       drawing.fill();
       drawing.globalCompositeOperation = "source-over";
-      const side = height * 0.26 * (0.7 + 0.3 * stop);
+      const side = height * 0.26 * (0.55 + 0.45 * cue);
       drawing.fillStyle = rgba(lead, 1);
+      drawing.strokeStyle = rgba(lead, 1);
+      drawing.lineCap = "round";
+      drawing.lineWidth = Math.max(1.6, side * 0.2);
       drawing.beginPath();
-      drawing.roundRect(middle - side / 2, centre - side / 2, side, side, side * 0.24);
-      drawing.fill();
+      if (this.cueKind === "stop") {
+        drawing.roundRect(middle - side / 2, centre - side / 2, side, side, side * 0.24);
+        drawing.fill();
+      } else {
+        const arm = side * 0.42;
+        drawing.moveTo(middle - arm, centre - arm);
+        drawing.lineTo(middle + arm, centre + arm);
+        drawing.moveTo(middle + arm, centre - arm);
+        drawing.lineTo(middle - arm, centre + arm);
+        drawing.stroke();
+      }
       drawing.restore();
     }
+
+    if (state !== "idle" || speed !== 0) return true;
+    return !(this.amplitude.settled(amplitudeTarget) && this.presence.settled(presenceTarget) && this.activity.settled(activityTarget) && this.stop.settled(stopTarget) && this.cue.settled(cueTarget)
+      && this.phases.every((phase, ribbon) => Math.abs(wrapAngle(phase - restPhases[ribbon]!)) < 0.002));
   }
 }
 
-function restAmplitude(time: number): number {
-  return 0.32 + 0.1 * Math.sin(time * 1.25);
+function wrapAngle(angle: number): number {
+  return angle - fullTurn * Math.round(angle / fullTurn);
 }
 
 function resolveColor(probe: CanvasRenderingContext2D, color: string): Rgb {
@@ -196,15 +240,16 @@ function resolveColor(probe: CanvasRenderingContext2D, color: string): Rgb {
 }
 
 /**
- * Animates the voice control's ribbons on every visible canvas: they breathe at rest, rise
- * with the speaker's level while listening, and draw loading and finishing along their thread.
+ * Draws the voice control's ribbons on every visible canvas. They rest dimmed and still, rise with
+ * the speaker's level while listening, and draw loading and finishing along their thread.
+ * Frames only run while something moves; hover, resizing, visibility and theme changes wake it.
  */
 export class VoiceRibbons {
   state: VoiceRibbonState = "idle";
   progress = 0;
 
   private readonly painters = new Map<HTMLCanvasElement, RibbonPainter>();
-  // The pointer that started a session rests on the button; stop only shows once it comes back.
+  // The pointer that started a session rests on the button; its hover only counts once it comes back.
   private readonly hoverDisarmed = new Set<HTMLButtonElement>();
   private readonly visible = new Set<HTMLCanvasElement>();
   private readonly observer = new IntersectionObserver((entries) => {
@@ -215,6 +260,11 @@ export class VoiceRibbons {
     }
     this.schedule();
   });
+  private readonly resizes = new ResizeObserver(() => this.schedule());
+  private readonly themeChanged = (): void => {
+    this.palette = undefined;
+    this.schedule();
+  };
   private readonly reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   private readonly hoverCapable = window.matchMedia("(hover: hover)");
   private readonly probe = document.createElement("canvas").getContext("2d", { willReadFrequently: true })!;
@@ -222,21 +272,28 @@ export class VoiceRibbons {
   private lastTime = 0;
   private level = 0;
   private palette?: Palette;
-  private paletteAge = 0;
 
   constructor(private readonly sampleLevel: () => number) {}
 
   add(canvas: HTMLCanvasElement): void {
+    if (!this.painters.size) document.addEventListener("agents-in-the-cloud:theme-change", this.themeChanged);
     this.painters.set(canvas, new RibbonPainter(canvas, canvas.getContext("2d")!));
     this.observer.observe(canvas);
-    canvas.closest("button")!.addEventListener("pointerleave", this.rearmHover);
+    this.resizes.observe(canvas);
+    const button = canvas.closest("button")!;
+    button.addEventListener("pointerenter", this.hoverChanged);
+    button.addEventListener("pointerleave", this.hoverChanged);
   }
 
   remove(canvas: HTMLCanvasElement): void {
-    canvas.closest("button")?.removeEventListener("pointerleave", this.rearmHover);
+    const button = canvas.closest("button");
+    button?.removeEventListener("pointerenter", this.hoverChanged);
+    button?.removeEventListener("pointerleave", this.hoverChanged);
     this.observer.unobserve(canvas);
+    this.resizes.unobserve(canvas);
     this.painters.delete(canvas);
     this.visible.delete(canvas);
+    if (!this.painters.size) document.removeEventListener("agents-in-the-cloud:theme-change", this.themeChanged);
   }
 
   setState(state: VoiceRibbonState): void {
@@ -250,8 +307,9 @@ export class VoiceRibbons {
     this.schedule();
   }
 
-  private readonly rearmHover = (event: PointerEvent): void => {
-    if (event.currentTarget instanceof HTMLButtonElement) this.hoverDisarmed.delete(event.currentTarget);
+  private readonly hoverChanged = (event: PointerEvent): void => {
+    if (event.type === "pointerleave" && event.currentTarget instanceof HTMLButtonElement) this.hoverDisarmed.delete(event.currentTarget);
+    this.schedule();
   };
 
   private hovered(canvas: HTMLCanvasElement): boolean {
@@ -273,15 +331,11 @@ export class VoiceRibbons {
     this.lastTime = now;
     const target = this.state === "listening" ? this.sampleLevel() : 0;
     this.level += (target - this.level) * (1 - Math.exp(-(target > this.level ? 24 : 5.5) * dt));
-    this.paletteAge += dt;
-    const anyCanvas = this.visible.values().next().value!;
-    if (!this.palette || this.paletteAge > paletteRefreshSeconds) {
-      this.palette = this.readPalette(anyCanvas);
-      this.paletteAge = 0;
-    }
+    this.palette ??= this.readPalette(this.visible.values().next().value!);
     const still = this.reducedMotion.matches && this.state === "idle";
+    let moving = false;
     for (const canvas of this.visible) {
-      this.painters.get(canvas)!.paint({
+      moving = this.painters.get(canvas)!.paint({
         state: this.state,
         level: this.level,
         progress: this.progress,
@@ -290,11 +344,10 @@ export class VoiceRibbons {
         hover: this.hovered(canvas),
         palette: this.palette,
         still,
-      });
+      }) || moving;
     }
-    // A reduced-motion rest frame is drawn once rather than animated.
-    if (still) this.lastTime = 0;
-    else this.schedule();
+    if (moving) this.schedule();
+    else this.lastTime = 0;
   };
 
   private readPalette(canvas: HTMLCanvasElement): Palette {
