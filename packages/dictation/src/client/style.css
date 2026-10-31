@@ -28,7 +28,7 @@
 .dictation-mobile-control { position: relative; display: grid; width: min(240px, 100%); }
 .dictation-mobile-control > .button.icon-only { width: 100%; }
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  .agent-composer-pane > .dictation-dock {
+  :is(.agent-composer-pane, .launch-composer) > .dictation-dock {
     display: flex; align-items: center; justify-content: center; flex: none;
     position: relative; z-index: 3; padding: 8px 12px max(8px, env(safe-area-inset-bottom));
     background: var(--bg);
@@ -40,7 +40,8 @@
   .agent-composer-pane:not(.agent-composer-open) > .dictation-dock > .dictation-mobile-control { pointer-events: auto; }
   /* Typing straight into the terminal brings up its key bar where the button would float. */
   html.software-keyboard-visible .agent-composer-pane:not(.agent-composer-open) > .dictation-dock { display: none; }
-  .agent-composer-pane .composer-dictation { display: none; }
+  :is(.agent-composer-pane, .launch-composer) .composer-dictation { display: none; }
+  .launch-composer > .dictation-dock { background: none; }
   .dictation-mobile-control .dictation-error { width: min(320px, calc(100cqw - 24px)); right: 50%; transform: translateX(50%); }
 }
 
