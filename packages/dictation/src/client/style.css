@@ -34,6 +34,12 @@
     background: var(--bg);
   }
   .agent-composer-pane:has(> .dictation-dock) { grid-template-rows: auto minmax(0, 1fr) auto auto; }
+  /* With the composer closed it floats over the transcript or terminal instead of taking a row;
+     an open composer keeps it underneath so it never covers the draft. */
+  .agent-composer-pane:not(.agent-composer-open) > .dictation-dock { position: absolute; left: 0; right: 0; bottom: 0; background: none; pointer-events: none; }
+  .agent-composer-pane:not(.agent-composer-open) > .dictation-dock > .dictation-mobile-control { pointer-events: auto; }
+  /* Typing straight into the terminal brings up its key bar where the button would float. */
+  html.software-keyboard-visible .agent-composer-pane:not(.agent-composer-open) > .dictation-dock { display: none; }
   .agent-composer-pane .composer-dictation { display: none; }
   .dictation-mobile-control .dictation-error { width: min(320px, calc(100cqw - 24px)); right: 50%; transform: translateX(50%); }
 }
