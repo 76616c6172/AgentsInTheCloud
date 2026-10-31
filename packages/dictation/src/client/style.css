@@ -41,7 +41,8 @@
   /* Typing straight into the terminal brings up its key bar where the button would float. */
   html.software-keyboard-visible .agent-composer-pane:not(.agent-composer-open) > .dictation-dock { display: none; }
   :is(.agent-composer-pane, .launch-composer) .composer-dictation { display: none; }
-  .launch-composer > .dictation-dock { background: none; }
+  /* The composer lets taps through its empty space; this pill sits inside it. */
+  .launch-composer > .dictation-dock { background: none; pointer-events: auto; }
   .dictation-mobile-control .dictation-error { width: min(320px, calc(100cqw - 24px)); right: 50%; transform: translateX(50%); }
 }
 
