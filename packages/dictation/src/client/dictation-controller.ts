@@ -1,11 +1,11 @@
 /// <reference lib="dom" />
 
-import { setActivityButtonState } from "@agents-in-the-cloud/design-system/activity-button/client";
 import { observableWebSocketUrl } from "@agents-in-the-cloud/observable-terminal/client";
 import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, isTextEntry, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
 import { type MicrophoneLease, SharedMicrophone } from "./microphone.ts";
+import { VoiceRibbons } from "./voice-ribbon.ts";
 
 type DictationState = "idle" | "loading" | "recording" | "finishing" | "error";
 type AudioCapture = { context: AudioContext; processor: ScriptProcessorNode; analyser: AnalyserNode };
@@ -30,16 +30,14 @@ function composeTranscript(prefix: string, spoken: string, suffix: string) {
 
 export function createDictationComposerController(Controller: WorkspaceClientControllerConstructor, microphoneSource: SharedMicrophone) {
   return class DictationComposerController extends Controller {
-    static targets = ["button", "waveform", "status", "error", "caption"];
+    static targets = ["button", "ribbon", "status", "error"];
     static values = { workspaceId: String, workspaceTemplateId: String };
 
     declare readonly workspaceIdValue: string;
     declare readonly workspaceTemplateIdValue: string;
     declare readonly buttonTargets: HTMLButtonElement[];
-    declare readonly waveformTargets: HTMLCanvasElement[];
     declare readonly statusTargets: HTMLElement[];
     declare readonly errorTargets: HTMLElement[];
-    declare readonly captionTargets: HTMLElement[];
 
     private get input(): HTMLTextAreaElement {
       return this.element.querySelector<HTMLTextAreaElement>(".composer-input")!;
@@ -55,9 +53,8 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     private audioContext?: AudioContext;
     private microphone?: MicrophoneLease;
     private microphoneReady?: Promise<void>;
-    private waveformFrame?: number;
-    private readonly waveformSamples = new Float32Array(256);
-    private waveformColor = "";
+    private readonly levelSamples = new Float32Array(256);
+    private readonly ribbons = new VoiceRibbons(() => this.voiceLevel());
     private prefix = "";
     private suffix = "";
     private committed = "";
@@ -69,6 +66,14 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       window.addEventListener("keydown", this.keydown);
       document.addEventListener("agents-in-the-cloud:workspace-pane-hidden", this.hidden);
       this.element.addEventListener("agent-composer:closing", this.closing);
+    }
+
+    ribbonTargetConnected(canvas: HTMLCanvasElement): void {
+      this.ribbons.add(canvas);
+    }
+
+    ribbonTargetDisconnected(canvas: HTMLCanvasElement): void {
+      this.ribbons.remove(canvas);
     }
 
     disconnect(): void {
@@ -258,7 +263,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
           session: { sample_rate: context.sampleRate, language: "auto", automatic_punctuation: true },
         }));
         this.setState("recording", "Listening…");
-        this.animateWaveform();
       } catch (error) {
         if (this.socket === socket) this.fail(errorMessage(error));
       }
@@ -308,7 +312,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private stopCapture(): void {
-      if (this.waveformFrame !== undefined) cancelAnimationFrame(this.waveformFrame);
       this.microphone?.release();
       this.microphone = undefined;
       if (this.capture) this.capture.processor.onaudioprocess = null;
@@ -316,9 +319,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.audioContext = undefined;
       this.microphoneReady = undefined;
       this.capture = undefined;
-      this.waveformFrame = undefined;
-      this.waveformColor = "";
-      for (const canvas of this.waveformTargets) canvas.getContext("2d")?.clearRect(0, 0, canvas.width, canvas.height);
     }
 
     private renderTranscript(): void {
@@ -328,34 +328,12 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.input.scrollTop = this.input.scrollHeight;
     }
 
-    private animateWaveform(): void {
-      if (!this.capture || this.state !== "recording") return;
-      this.capture.analyser.getFloatTimeDomainData(this.waveformSamples);
-      for (const canvas of this.waveformTargets) this.drawWaveform(canvas, this.waveformSamples);
-      this.waveformFrame = requestAnimationFrame(() => this.animateWaveform());
-    }
-
-    private drawWaveform(canvas: HTMLCanvasElement, samples: Float32Array): void {
-      const ratio = window.devicePixelRatio || 1;
-      const width = 24;
-      const height = 22;
-      if (canvas.width !== width * ratio || canvas.height !== height * ratio) {
-        canvas.width = width * ratio;
-        canvas.height = height * ratio;
-      }
-      const drawing = canvas.getContext("2d")!;
-      drawing.setTransform(ratio, 0, 0, ratio, 0, 0);
-      drawing.clearRect(0, 0, width, height);
-      this.waveformColor ||= getComputedStyle(canvas).color;
-      drawing.fillStyle = this.waveformColor;
-      const bars = 5;
-      const stride = Math.max(1, Math.floor(samples.length / bars));
-      for (let bar = 0; bar < bars; bar += 1) {
-        let peak = 0;
-        for (let index = bar * stride; index < Math.min(samples.length, (bar + 1) * stride); index += 1) peak = Math.max(peak, Math.abs(samples[index] ?? 0));
-        const barHeight = Math.max(2, Math.min(height, peak * height * 3.2));
-        drawing.fillRect(bar * 5, (height - barHeight) / 2, 3, barHeight);
-      }
+    private voiceLevel(): number {
+      if (!this.capture) return 0;
+      this.capture.analyser.getFloatTimeDomainData(this.levelSamples);
+      let energy = 0;
+      for (const sample of this.levelSamples) energy += sample * sample;
+      return Math.min(1, (Math.sqrt(energy / this.levelSamples.length) * 6) ** 0.8);
     }
 
     cancel(): void {
@@ -380,26 +358,24 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private setProgress(progress: number): void {
-      for (const button of this.buttonTargets) button.style.setProperty("--button-progress", String(progress));
+      this.ribbons.progress = progress / 100;
     }
 
     private setState(state: DictationState, label: string): void {
       const working = state === "loading" || state === "finishing";
       this.state = state;
-      const actionLabel = state === "recording" ? "Stop dictation"
-        : state === "loading" ? "Cancel dictation"
-        : state === "finishing" ? "Finishing dictation…" : "Dictate with microphone";
+      const actionLabel = state === "recording" ? "Done"
+        : state === "loading" ? "Cancel"
+        : state === "finishing" ? "Finishing…" : "Speak";
       for (const button of this.buttonTargets) {
         button.dataset.state = state;
-        if (button.classList.contains("activity-button")) setActivityButtonState(button, working || state === "recording" ? "active" : "initial");
-        else button.dataset.progressState = working ? "in-progress" : "initial";
         button.disabled = state === "finishing";
         button.toggleAttribute("aria-busy", working || state === "recording");
         button.ariaPressed = state === "recording" || state === "finishing" ? "true" : "false";
         button.title = actionLabel;
         button.setAttribute("aria-label", actionLabel);
       }
-      for (const caption of this.captionTargets) caption.textContent = state === "loading" ? "Cancel" : state === "finishing" ? "Finishing…" : "Stop dictation";
+      this.ribbons.setState(state === "recording" ? "listening" : state === "error" ? "idle" : state);
       for (const status of this.statusTargets) status.textContent = label;
       for (const error of this.errorTargets) {
         error.hidden = state !== "error";

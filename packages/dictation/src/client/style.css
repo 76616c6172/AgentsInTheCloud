@@ -1,7 +1,6 @@
-[data-dictation-composer-target="button"] .dictation-microphone { stroke-width: 1.65; }
-[data-dictation-composer-target="button"] canvas { display: none; width: 24px; height: 22px; color: var(--accent); }
-[data-dictation-composer-target="button"][data-state="recording"] .dictation-microphone { display: none; }
-[data-dictation-composer-target="button"][data-state="recording"] canvas { display: block; }
+/* The ribbon fills the control; it draws its own loading and finishing, so finishing stays at full strength. */
+.voice-ribbon { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+[data-dictation-composer-target="button"]:disabled { opacity: 1; cursor: default; }
 .composer-surface:has([data-dictation-composer-target="button"][data-state="error"]) { overflow: visible; }
 .dictation-status {
   position: absolute;
@@ -27,7 +26,7 @@
 /* The session is shared with the desktop composer control; only its mobile placement changes. */
 .dictation-dock { display: none; }
 .dictation-mobile-control { position: relative; display: grid; width: min(240px, 100%); }
-[data-dictation-composer-target="button"][data-state="recording"] .dictation-working { display: none; }
+.dictation-mobile-control > .button.icon-only { width: 100%; }
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
   .agent-composer-pane > .dictation-dock {
     display: flex; align-items: center; justify-content: center; flex: none;
