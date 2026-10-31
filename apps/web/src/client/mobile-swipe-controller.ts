@@ -144,15 +144,15 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     };
   };
 
-  /** The Workspaces tab after Work goes the same way round as the swipe. */
-  loopToWorkspaces(): void {
-    this.navigationFor(1)?.();
-  }
-
   /** Tabs across the Agent/Work boundary play the depth swap; tabs within a side switch in place.
    * From the list, Agents is beside it and Work is round the loop, as their swipes go. */
   private readonly tabTapped = (event: MouseEvent): void => {
     if (!(event.target instanceof Element)) return;
+    const segment = event.target.closest<HTMLElement>("[data-nox-segment]");
+    if (segment) {
+      this.segmentTapped(event, segment.dataset.noxSegment!);
+      return;
+    }
     const tab = event.target.closest<HTMLElement>("[data-nox-phone-tab]");
     const presentation = this.presentation;
     // The Workspaces tabs open the list with their own actions.
@@ -191,6 +191,20 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     // Opening the prepared view mustn't focus a terminal and raise the keyboard.
     this.playPaneMotion(toWork ? 1 : -1, () => agentId ? presentation.selectAgentById(agentId) : presentation.selectMobileWork());
   };
+
+  /** Another slot plays the swipe that reaches it; the lit slot keeps the tap for its own switcher. */
+  private segmentTapped(event: MouseEvent, segment: string): void {
+    const presentation = this.presentationElement;
+    if (!presentation) return;
+    const here = this.sidebarOpen ? "list" : presentation.dataset.phoneDestination!.startsWith("work:") ? "work" : "agents";
+    if (segment === here) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    // The ring runs list → Agents → Work → list, so every other slot is one step away.
+    const forward = { list: "agents", agents: "work", work: "list" }[here];
+    this.settleMotion();
+    this.navigationFor(segment === forward ? 1 : -1)?.();
+  }
 
   private playPaneMotion(direction: MobileSwipeDirection, navigate: () => void): void {
     const start = this.beginPaneMotion(direction);

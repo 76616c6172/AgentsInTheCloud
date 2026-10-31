@@ -634,12 +634,6 @@ export function createWorkspacePresentationController(
         tab.setAttribute("aria-selected", String(selected));
         tab.tabIndex = selected ? 0 : -1;
       });
-      // The rail's sections two or more stops round the ring are off the bar. The spread keeps
-      // Workspaces, Agents and Work on it, each over its page, and drops the copies that wrap.
-      const ring = spread ? 0 : sidebarOpen ? -1 : this.state.phoneDestination.startsWith("work:") ? 1 : 0;
-      this.element.querySelectorAll<HTMLElement>("[data-nox-ring-k]").forEach((section) => {
-        section.inert = Math.abs(Number(section.dataset.noxRingK) - ring) >= 2;
-      });
     };
 
     private scheduleMobileNavigationLayout(): void {

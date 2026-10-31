@@ -2,6 +2,7 @@
 
 import { Controller } from "@hotwired/stimulus";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
+import { controllerForElement } from "./workspace-controller-registry.ts";
 
 /**
  * Nox workspace chrome. Clicking an already selected Browser tab opens its toolbar over
@@ -10,11 +11,16 @@ import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
  *
  * The visible workspace's bar also tells the app its height, so the workspace list opens
  * below it (nox-layout.css).
+ *
+ * On a phone the bar's slots show the active agent and Work view, and measure their names so
+ * the open slot can unfold to fit (nox-layout.css). The lit slot opens its switcher, and a lit
+ * Browser its toolbar; taps on the other slots are swipes (mobile-swipe).
  */
 export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
   private readonly media = matchMedia(phoneLayoutMediaQuery);
   private destination?: string;
   private readonly resizeObserver = new ResizeObserver(() => this.publishHeight());
+  private readonly segmentObserver = new ResizeObserver(() => this.measureSegments());
 
   connect(): void {
     this.destination = this.currentDestination;
@@ -27,6 +33,9 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
     window.addEventListener("blur", this.closeTools);
     this.media.addEventListener("change", this.closeTools);
     this.resizeObserver.observe(this.element);
+    document.addEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncSegments);
+    this.segmentObserver.observe(this.segments);
+    this.syncSegments();
   }
 
   disconnect(): void {
@@ -39,6 +48,61 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
     window.removeEventListener("blur", this.closeTools);
     this.media.removeEventListener("change", this.closeTools);
     this.resizeObserver.disconnect();
+    document.removeEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.syncSegments);
+    this.segmentObserver.disconnect();
+  }
+
+  private get segments(): HTMLElement {
+    return this.element.querySelector<HTMLElement>(".nox-phone-segments")!;
+  }
+
+  /** Each slot's name at full width. Hidden workspaces measure nothing until they appear. */
+  private measureSegments(): void {
+    const segments = this.segments;
+    segments.querySelectorAll<HTMLElement>("[data-nox-segment] .nox-phone-segment__face:not([hidden])").forEach(face => {
+      const label = face.querySelector<HTMLElement>(".nox-phone-segment__label")!;
+      const status = face.querySelector<HTMLElement>(".nox-phone-segment__status")!;
+      const width = label.scrollWidth + (status.offsetWidth ? status.offsetWidth + 6 : 0);
+      segments.style.setProperty(`--nox-${face.closest<HTMLElement>("[data-nox-segment]")!.dataset.noxSegment}-text`, `${Math.ceil(width)}px`);
+    });
+  }
+
+  /** Shows the active agent's and view's faces, or the empty ones, and marks the lit slot. */
+  private readonly syncSegments = (): void => {
+    const active = (role: string) => this.presentation.querySelector<HTMLElement>(`[data-workspace-pane-role='${role}'].is-active`)?.dataset.workspacePaneId;
+    const agentId = active("agent");
+    const workKey = active("work");
+    for (const [kind, key] of [["agent", agentId], ["work", workKey]] as const) {
+      const faces = [...this.element.querySelectorAll<HTMLElement>(`[data-nox-${kind}-face]`)];
+      const face = faces.find(candidate => candidate.getAttribute(`data-nox-${kind}-face`) === key) ?? faces[0];
+      faces.forEach(candidate => { candidate.hidden = candidate !== face; });
+    }
+    this.measureSegments();
+    this.element.querySelectorAll<HTMLElement>("[data-nox-pick-agent]").forEach(row => row.setAttribute("aria-checked", String(row.dataset.noxPickAgent === agentId)));
+    this.segments.querySelectorAll<HTMLElement>("[data-more-work-key]").forEach(row => row.setAttribute("aria-checked", String(row.dataset.moreWorkKey === workKey)));
+    const lit = this.litSegment;
+    this.element.querySelectorAll<HTMLElement>("[data-nox-segment]").forEach(segment => {
+      segment.querySelector(".nox-phone-segment__main")!.setAttribute("aria-current", String(segment.dataset.noxSegment === lit));
+    });
+  };
+
+  private get litSegment(): string {
+    if (this.element.closest(".is-mobile-workspace-pane-open")) return "list";
+    return this.presentation.dataset.phoneDestination!.startsWith("work:") ? "work" : "agents";
+  }
+
+  /** Reached only on the lit slot: other slots' taps are swipes. */
+  segmentTapped(event: Event): void {
+    // SAFETY: The action is declared on a slot's main button.
+    const segment = (event.currentTarget as HTMLElement).closest<HTMLElement>("[data-nox-segment]")!;
+    if (segment.querySelector("[data-nox-browser]:not([hidden])")) this.toggleTools();
+    else segment.querySelector<HTMLElement>("[data-popup-menu-trigger]")!.click();
+  }
+
+  pickAgent(event: Event): void {
+    // SAFETY: The action is declared on a switcher row carrying its agent.
+    const agentId = (event.currentTarget as HTMLElement).dataset.noxPickAgent!;
+    controllerForElement<{ selectAgentById(agentId: string): void }>(this.presentation, "workspace-presentation")!.selectAgentById(agentId);
   }
 
   /** Hidden workspaces' bars measure nothing; the visible one reports again as it appears. */
@@ -80,6 +144,10 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
     if (tab?.getAttribute("aria-selected") !== "true") return;
     event.preventDefault();
     event.stopPropagation();
+    this.toggleTools();
+  };
+
+  private toggleTools(): void {
     this.element.toggleAttribute("data-nox-tools-open");
     this.syncExpanded();
     if (this.toolsOpen && !this.media.matches) {
@@ -88,7 +156,7 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
       address?.focus({ preventScroll: true });
       address?.select();
     }
-  };
+  }
 
   /** A tap anywhere else closes the toolbar; its own buttons close it once they've acted. */
   private readonly documentClicked = (event: MouseEvent): void => {
@@ -117,6 +185,7 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
       this.closeTools();
     }
     this.syncExpanded();
+    this.syncSegments();
   };
 
   /** Server morphs keep the browser-owned toolbar state. */
@@ -124,6 +193,7 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
     // SAFETY: Turbo emits this event with its attribute mutation descriptor.
     const detail = (event as CustomEvent<{ attributeName: string }>).detail;
     if (event.target === this.element && detail.attributeName === "data-nox-tools-open") event.preventDefault();
+    if (event.target === this.segments && detail.attributeName === "style") event.preventDefault();
     if (event.target instanceof Element && event.target.matches("[data-nox-tools]") && detail.attributeName === "aria-expanded") event.preventDefault();
   };
 }

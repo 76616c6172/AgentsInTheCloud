@@ -87,9 +87,9 @@ function agentTypeOptions(presentation: WorkspacePresentation, menu: boolean): s
   });
 }
 
-/** Agent types for the phone header's More menu, with their own form IDs. */
-export function renderPhoneAgentTypeOptions(presentation: WorkspacePresentation): string {
-  const formId = (agentTypeId: string) => domId("create_agent", presentation.workspace.id, "phone", agentTypeId);
+/** Agent types for the phone header's menus, with form IDs of their own for each menu. */
+export function renderPhoneAgentTypeOptions(presentation: WorkspacePresentation, menu: "more" | "switcher"): string {
+  const formId = (agentTypeId: string) => domId("create_agent", presentation.workspace.id, menu === "more" ? "phone" : "phone_switcher", agentTypeId);
   const forms = presentation.agentTypes.map(agentType => `<form id="${formId(agentType.id)}" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/commands/agent.create.${encodeURIComponent(agentType.id)}" data-turbo="true" hidden></form>`).join("");
   return forms + renderAgentTypePicker(presentation.agentTypes, { attributes: agentType => `type="submit" form="${formId(agentType.id)}" role="menuitem"` });
 }
