@@ -5,3 +5,4 @@ export { agentWorkspaceModule, agentWorkspaceModule as agentsInTheCloudServerMod
 export { prepareCliAgentConnection, type CliAgentConnection, revokeAgentMcp, configureAgentMcp, handleAgentMcpRequest } from "./mcp.ts";
 export { registerAgentTurnSettler, type AgentTurnFinishReason } from "./turn-lifecycle.ts";
 export { registerAgentToolPresentations, type AgentToolPresentation } from "./tool-presentations.ts";
+export { renderNoxUsageGauge } from "./nox-usage-gauge.ts";

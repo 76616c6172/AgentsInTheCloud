@@ -7,6 +7,7 @@ import { comparisonRingHtml } from "@agents-in-the-cloud/design-system/compariso
 import { helpTipHtml } from "@agents-in-the-cloud/design-system/help-tip";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { escapeHtml, turboStream, turboStreamResponse } from "@agents-in-the-cloud/shared";
+import { noxUsageGaugeStream } from "./nox-usage-gauge.ts";
 
 function jsonResponse<Body extends object>(body: Body, status = 200): Response {
   return Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -143,16 +144,21 @@ function usageButtonHtml(comparison?: { referencePercent: number; valuePercent: 
   return actionLinkHtml({ href, variant: "secondary", content: { kind: "icon-only", iconHtml, label }, perimeterComparison: comparison, attributesHtml: 'data-turbo-stream="true"' });
 }
 
-async function renderUsageButton(): Promise<string> {
+/* Nox: the phone workspace list's Models gauge follows the same limit (nox-usage-gauge.ts). */
+function usageIndicators(...args: Parameters<typeof usageButtonHtml>) {
+  return { button: usageButtonHtml(...args), gaugeStream: noxUsageGaugeStream(args[0], args[1] ?? "Usage", args[2]) };
+}
+
+async function renderUsageButton(): Promise<ReturnType<typeof usageIndicators>> {
   const activity = providersInLastInferenceWindow();
-  if (!activity.length) return usageButtonHtml(undefined, "Usage — no subscription inference recorded");
+  if (!activity.length) return usageIndicators(undefined, "Usage — no subscription inference recorded");
   const overviews = await Promise.all(supportedUsageProviders.filter((provider) => activity.includes(provider.id)).map((provider) => getProviderUsageOverview(provider)));
   const selected = selectSubscriptionLimit(overviews);
-  if (!selected) return usageButtonHtml(undefined, "Usage — selected subscription limits unavailable");
+  if (!selected) return usageIndicators(undefined, "Usage — selected subscription limits unavailable");
   const { provider, window: { reported, timing } } = selected;
   if (timing.state !== "active") throw new Error("Selected subscription limit must be active");
   const pace = usagePace(timing.paceDifferenceSeconds);
-  return usageButtonHtml({ referencePercent: timing.elapsedPercent, valuePercent: reported.usedPercent }, `Usage — ${provider.label} · ${reported.limitName} ${usageDuration(reported.durationSeconds)}: Time ${number(timing.elapsedPercent)}%, Usage ${number(reported.usedPercent)}% · ${pace} · Providers from 30 minutes before last inference`, usageWindowCaption(reported), provider.id);
+  return usageIndicators({ referencePercent: timing.elapsedPercent, valuePercent: reported.usedPercent }, `Usage — ${provider.label} · ${reported.limitName} ${usageDuration(reported.durationSeconds)}: Time ${number(timing.elapsedPercent)}%, Usage ${number(reported.usedPercent)}% · ${pace} · Providers from 30 minutes before last inference`, usageWindowCaption(reported), provider.id);
 }
 
 export async function handleUsageRequest(request: Request, url: URL): Promise<Response | undefined> {
@@ -160,9 +166,9 @@ export async function handleUsageRequest(request: Request, url: URL): Promise<Re
   const json = requestAcceptsJson(request);
   const refresh = url.searchParams.has("refresh");
   if (url.pathname === "/usage/button") {
-    const button = await renderUsageButton();
+    const { button, gaugeStream } = await renderUsageButton();
     return request.headers.get("accept")?.includes("text/vnd.turbo-stream.html")
-      ? turboStreamResponse(turboStream("update", "usage_button_content", button))
+      ? turboStreamResponse(turboStream("update", "usage_button_content", button) + gaugeStream)
       : response(`<turbo-frame id="usage_button_content">${button}</turbo-frame>`);
   }
   if (url.pathname === "/usage" && json) return jsonResponse({ providers: await Promise.all((await connectedUsageProviders()).map((provider) => getProviderUsageOverview(provider, { refresh }))) });
