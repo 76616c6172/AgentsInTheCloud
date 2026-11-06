@@ -19,9 +19,9 @@ import { launchComposerThinkingSettings, resolveNewWorkspaceAgentModel } from "@
 import type { WorkspaceAgentToolOptions } from "@agents-in-the-cloud/agent/server/tools";
 
 /** Workspace-scoped code, including the task definitions needed to recover bash; integrations add their own. */
-export function createDurableWorkspaceRegistry(workspaceId: string, models: Pick<Models, "getModel">, options: WorkspaceAgentToolOptions = {}) {
+export function createDurableWorkspaceRegistry(workspaceId: string, options: WorkspaceAgentToolOptions = {}) {
   const registry = createRegistry();
-  registry.install(defineExtension({ name: "agents-in-the-cloud.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, models, options) }));
+  registry.install(defineExtension({ name: "agents-in-the-cloud.workspace-tools", tools: createDurableWorkspaceTools(workspaceId, options) }));
   registry.install(createDurableBashExtension(workspaceId));
   return registry;
 }
@@ -32,7 +32,7 @@ export type DurableHarnessOptions = HarnessOptions & { models: Models };
 
 export async function createDurableHarnessOptions(workspaceId: string, options: WorkspaceAgentToolOptions, writeTiming: WriteDurableTiming, harness: () => Harness): Promise<DurableHarnessOptions> {
   const models = await createPiModelRuntime();
-  const registry = createDurableWorkspaceRegistry(workspaceId, models, options);
+  const registry = createDurableWorkspaceRegistry(workspaceId, options);
   const delegation = agentDelegation?.create(models, harness);
   if (delegation) registry.install(delegation.extension);
   // Such as code mode, whose task definitions must be installed to recover its scripts.
@@ -45,8 +45,8 @@ export async function createDurableHarnessOptions(workspaceId: string, options: 
     models: templates.models(delegation?.models ?? models),
     registry,
     settings: { compaction: { enabled: true, keepRecentTokens: 6000 } },
-    // Faulted, parked and unmigratable tasks, and failing extension code, are otherwise invisible.
-    onReport: (error, info) => console.error(`Agent work report (${info.type})`, error),
+    // Faulted, interrupted and unmigratable tasks, and failing extension code, are otherwise invisible.
+    onReport: ({ error, ...info }) => console.error(`Agent work report (${info.kind})`, error, info),
   };
 }
 

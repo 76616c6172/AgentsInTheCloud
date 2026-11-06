@@ -8,7 +8,14 @@ import { LiveTranscriptRenderer } from "./render-live-transcript.ts";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame, type AgentModelContextView } from "@agents-in-the-cloud/agent/server/render-transcript";
 import type { AgentLivePresentationListener, AgentLivePresentationSubscription } from "./runtime-types.ts";
 import { findTranscriptItem, isTranscriptTarget, type TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
-import { durableViewState, projectDurableTranscript } from "./durable-transcript.ts";
+import { activeConversationView, durableViewState, projectDurableTranscript } from "./durable-transcript.ts";
+import { onValues } from "./durable-watch.ts";
+
+/**
+ * A window that never drops entries: the transcript shows the whole active context, not only its newest entries.
+ * Durable scans one entry more than the window holds, which must stay a safe integer.
+ */
+const wholeWindow = Number.MAX_SAFE_INTEGER - 1;
 
 /**
  * Server-rendered native transcript adapter. The execution owner outlives this
@@ -28,7 +35,7 @@ export class DurableAgentPresentation {
   private readonly ctx: AgentRenderContext;
 
   private constructor(private readonly watch: WatchHandle<ConversationView>, ctx: AgentRenderContext, private readonly onCommit?: (view: ConversationView) => void | Promise<void>) {
-    this.frame = watch.value;
+    this.frame = activeConversationView(watch.value);
     this.items = projectDurableTranscript(this.frame);
     this.ctx = { ...ctx, compactTools: true, streamingText: (key, source) => {
       let cached = this.markdown.get(key);
@@ -46,18 +53,21 @@ export class DurableAgentPresentation {
       return cached;
     } };
     this.update(this.frame);
-    watch.start(async view => {
+    watch.start(onValues(async value => {
       if (this.disposed) return;
+      const view = activeConversationView(value);
       this.update(view);
       await this.onCommit?.(view);
-    });
+    }));
     // A failed observer must be visible to the production owner, not mistaken
     // for an idle agent. `closed` returns the native terminal reason to callers.
     void watch.closed.then(() => this.release());
   }
 
-  static async attach(conversation: Pick<Conversation, "watch">, ctx: AgentRenderContext, context: Context, onCommit?: (view: ConversationView) => void | Promise<void>) {
-    const watch = await conversation.watch(context);
+  static async attach(conversation: Pick<Conversation, "watch" | "context">, ctx: AgentRenderContext, context: Context, onCommit?: (view: ConversationView) => void | Promise<void>) {
+    // Start at the newest compaction or reset rather than the start of the history; later ones are cut in update().
+    const { head } = await conversation.context(context);
+    const watch = await conversation.watch(context, { from: head?.head, min: wholeWindow, max: wholeWindow });
     try { return new DurableAgentPresentation(watch, ctx, onCommit); }
     catch (error) { await watch.stop(); throw error; }
   }
@@ -68,6 +78,7 @@ export class DurableAgentPresentation {
   get branchId(): string { return this.ctx.branchId!; }
   get closed() { return this.watch.closed; }
 
+  /** `view` holds the active context only. */
   private update(view: ConversationView) {
     this.frame = view;
     const branch = `${view.conversation.id}:${view.entries.find(entry => entry.head !== undefined)?.id ?? "root"}`;
