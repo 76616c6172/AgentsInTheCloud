@@ -298,13 +298,6 @@ export function createWorkspacePresentationController(
       this.element.querySelectorAll<PresentationPane>(`[data-workspace-pane-role='${role}'].is-active`).forEach((pane) => this.emitVisible(pane));
     }
 
-    /** Puts a phone tab's view in its pane, without leaving the current one, so a swipe can preview it. */
-    prepareMobileTab(tab: HTMLElement): void {
-      if (tab.dataset.agentId) this.state.activeAgentId = tab.dataset.agentId;
-      else this.state.activeWorkViewKey = tab.dataset.workViewKey;
-      this.applyState({ emit: false });
-    }
-
     /** A swipe that didn't commit hides its preview again. */
     endMobileSwipePreview(): void {
       this.applyState({ emit: true });
