@@ -231,8 +231,11 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   }
 
   closeWorkspacePane(): void {
+    // Focus left in the closing list returns to its button. A swipe leaves focus where it is:
+    // moving it from script after a gesture would show the keyboard focus ring.
+    const focusInPane = document.activeElement?.closest(".fixed-shell-workspace-pane");
     this.setWorkspacePaneOpen(false);
-    this.element.querySelector<HTMLElement>(".workspace-detail-mount.visible [data-show-workspace-list]")!.focus();
+    if (focusInPane) this.element.querySelector<HTMLElement>(".workspace-detail-mount.visible [data-show-workspace-list]")!.focus();
   }
 
   showWorkspacePane(): void {
