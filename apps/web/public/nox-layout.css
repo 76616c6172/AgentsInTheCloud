@@ -220,6 +220,26 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   .nox-list-bar__item:active > .nox-list-bar__icon { background: var(--accent-soft); }
 }
 
+/* Calmer touch chrome, after Amp. The phone header's close buttons go grey, and the sidebar button
+ * stays unpainted while the list is open. In Nox Oscura, hairlines soften and the list and the
+ * workspace sit on two tones (a lifted, cool list over a deeper workspace) instead of a ruled
+ * edge. --bg changes on the root so terminals and VS Code, which read it there, match; the list
+ * restates what the root and the shell derive from it. Desktop keeps the palette as is. */
+@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
+  .nox-phone-header .tab-strip__tabs .content-row__actions .button { color: var(--text-muted); }
+  .nox-phone-header__top > .button[data-show-workspace-list][aria-current="page"] { background: transparent; }
+
+  :root[data-theme="nox-oscura"] { --bg: #101115; --line: #24252c; background: var(--bg); }
+  [data-theme="nox-oscura"] .fixed-shell-workspace-pane {
+    --bg: #15181d; --panel: var(--bg); --elev: var(--bg);
+    --accent-soft: color-mix(in srgb, var(--accent) 15%, var(--panel));
+    --fixed-shell-bg: var(--bg); --fixed-shell-raised: var(--panel); --fixed-shell-hover: var(--accent-soft);
+    background: var(--bg);
+  }
+  [data-theme="nox-oscura"] .fixed-shell-app.is-mobile-workspace-pane-open:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main,
+  [data-theme="nox-oscura"] .fixed-shell-app[data-nox-drawer-drag]:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main { box-shadow: none; }
+}
+
 /* Desktop and mobile share the list's grouping and bottom-action divider. */
 .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .workspace-pane-footer { border-top: 1px solid var(--line); }
 
