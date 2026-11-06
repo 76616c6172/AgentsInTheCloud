@@ -419,9 +419,21 @@ function renderMobileMoreMenu(islands: LiveIslands, presentation: WorkspacePrese
   });
 }
 
-/** Nox: the phone bar has no title row, so More names the workspace and holds its actions. */
+/** Nox: More starts with the workspace's actions; the title row above the tabs names it. */
 function renderPhoneMoreHeading(presentation: WorkspacePresentation): string {
-  return `<div class="nox-phone-more-heading"><strong class="nox-phone-more-title">${escapeHtml(presentation.workspace.title)}</strong><div class="nox-phone-more-actions">${renderPhoneWorkspaceActions(presentation)}</div></div><hr class="popup-menu__separator">`;
+  return `<div class="nox-phone-more-heading"><div class="nox-phone-more-actions">${renderPhoneWorkspaceActions(presentation)}</div></div><hr class="popup-menu__separator">`;
+}
+
+/** Nox: the phone bar's top row names the workspace, by its glyph, title and template, and holds
+ * More. Tapping the name opens More too. The row leaves room for more workspace-wide controls. */
+function renderPhoneTitleRow(islands: LiveIslands, presentation: WorkspacePresentation): string {
+  const { id, title, workspaceTemplate } = presentation.workspace;
+  const moreMenuId = workViewDomId(id, "mobile_more_menu");
+  const name = `<strong class="nox-phone-title__name">${escapeHtml(title)}</strong>${workspaceTemplate ? `<span class="nox-phone-title__template">${escapeHtml(workspaceTemplate.title)}</span>` : ""}`;
+  return `<div class="nox-phone-header__top">
+    <button type="button" class="nox-phone-title" aria-haspopup="menu" aria-controls="${moreMenuId}" popovertarget="${moreMenuId}"><span class="nox-phone-title__glyph" aria-hidden="true"></span>${islands.island(domId("phone_title", id), name, "span", "nox-phone-title__text")}</button>
+    ${renderMobileMoreMenu(islands, presentation)}
+  </div>`;
 }
 
 /** Nox: in the spread, More offers new tabs for both panes. On a phone the switchers offer them instead. */
@@ -435,7 +447,7 @@ function renderPhoneNewTabOptions(presentation: WorkspacePresentation): string {
 }
 
 /* Nox phone chrome: one bar that stays put while the panes and the workspace list move beneath it.
- * On a phone it holds three slots, Workspaces · Agent · Work, the stops the swipes go round, like
+ * Its top row names the workspace and holds More (renderPhoneTitleRow). Below, on a phone, the tab row holds three slots, Workspaces · Agent · Work, the stops the swipes go round, like
  * X's profile tabs: the open one is named and underlined, and the swipe carries both (--nox-ring,
  * nox-layout.css). The Agent and Work slots name
  * the agent and view a swipe lands on: each renders a face per agent or view, and
@@ -484,7 +496,8 @@ function renderPhoneHeader(islands: LiveIslands, presentation: WorkspacePresenta
     section(1, "work", workCount, work),
   ].join("");
   return `<header class="nox-phone-header" aria-label="Workspace" data-controller="nox-workspace-chrome"${inert ? " inert" : ""}>
-    <div class="nox-phone-header__row">${renderPhoneSegments(islands, presentation, listIcon)}<div class="nox-phone-rail" style="--nox-agents-count: ${presentation.agents.length}; --nox-work-count: ${workCount}">${rail}</div>${renderMobileMoreMenu(islands, presentation)}</div>
+    ${renderPhoneTitleRow(islands, presentation)}
+    <div class="nox-phone-header__row">${renderPhoneSegments(islands, presentation, listIcon)}<div class="nox-phone-rail" style="--nox-agents-count: ${presentation.agents.length}; --nox-work-count: ${workCount}">${rail}</div></div>
   </header>`;
 }
 

@@ -260,7 +260,7 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
 .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll > [data-workspace-order]:not(:has(.nox-workspace-glyph[data-busy], .status-dot.attention)) ~ [data-nox-workspace-group="idle"] { display: flex; }
 
 @media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  /* Phone chrome lives at the top: one bar with the slots (Workspaces, Agent, Work) and More.
+  /* Phone chrome lives at the top: a title row naming the workspace, with More, over the slots (Workspaces, Agent, Work).
    * Swipes and tabs replace the bottom bar, which stays in the markup for its status slots. */
   .fixed-workspace-presentation:has(> .nox-phone-header) { grid-template: auto minmax(0, 1fr) / minmax(0, 1fr); }
   /* Without the bar, the content itself clears the home indicator. */
@@ -268,7 +268,22 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   .fixed-workspace-presentation:has(> .nox-phone-header) > .fixed-shell-workspace-bar,
   .fixed-shell-agent-pane > .panel > .panel__header { display: none; }
   .nox-phone-header { grid-area: 1 / 1; position: relative; z-index: 4; display: grid; padding-top: env(safe-area-inset-top, 0px); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: var(--bg); }
-  .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 2px 4px 4px; }
+  .nox-phone-header__row { display: flex; align-items: center; gap: 2px; min-width: 0; padding: 0 4px 4px; }
+  /* The title row: the workspace's glyph, name and template, then More. The name opens More too. */
+  .nox-phone-header__top { display: flex; align-items: center; gap: 2px; min-width: 0; height: 40px; padding: 2px 4px 0 6px; }
+  .nox-phone-title {
+    display: flex; flex: 1; align-items: center; gap: 9px; min-width: 0; height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-control);
+    background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .nox-phone-title:active { background: var(--accent-soft); }
+  .nox-phone-title:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
+  .nox-phone-title__glyph {
+    flex: none; width: 20px; height: 20px; background: var(--nox-glyph-color, var(--text-muted));
+    mask: var(--nox-glyph-mask) center / contain no-repeat, var(--nox-glyph-vignette); mask-composite: intersect;
+  }
+  .nox-phone-title__text { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .nox-phone-title__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-size: 15px; font-weight: var(--weight-semibold); }
+  .nox-phone-title__template { flex: 0 10 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 13px; }
   /* --nox-ring is where you are on the ring the swipes go round, −1 Workspaces · 0 Agents · 1 Work,
    * and 2 Workspaces again round the loop. Drags and the loop turn it with the finger. The spread's
    * rail sections each sit at their own --nox-ring-k and fold to dim icons away from it. */
@@ -404,9 +419,8 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   /* Agent types join the list as plain items. */
   .nox-phone-header .popup-menu :is(.agent-type-picker, .agent-type-choice) { border: 0; }
   .nox-phone-header .popup-menu .agent-type-picker .content-row { padding-block: 0; }
-  /* More starts with the workspace it belongs to, then Park and Delete side by side. */
+  /* More starts with Park and Delete side by side. */
   .nox-phone-more-heading { display: grid; gap: 8px; padding: 6px 6px 4px; }
-  .nox-phone-more-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-size: 15px; }
   .nox-phone-more-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .nox-phone-more-actions > form { display: flex; min-width: 0; margin: 0; }
   .nox-phone-more-actions :is(.button, .destructive-confirmation) { flex: 1; }
@@ -638,13 +652,15 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
 
   /* The bar: Workspaces, Agents and Work each sit over their own page, open while it's on screen.
    * A page off screen folds its section to dim icons at the edge it comes back from; F is the
-   * width of each folded icon, M leaves room for More. The copies that let the phone's ring
-   * wrap stay off the bar. */
+   * width of each folded icon, M the gap at the right end (More is in the title row). The copies
+   * that let the phone's ring wrap stay off the bar. */
   .nox-phone-header .nox-phone-segments { display: none; }
+  /* The tab row is the rail's frame; it keeps the slots' height for the absolutely placed sections. */
+  .nox-phone-header .nox-phone-header__row { position: relative; min-height: 42px; }
   .nox-phone-header .nox-phone-rail {
     display: flex;
     --nox-spread-unit: 2.875rem;
-    --nox-spread-more: 52px;
+    --nox-spread-more: 4px;
     --nox-spread-agents-folded: calc(var(--nox-agents-count) * var(--nox-spread-unit));
     --nox-spread-work-folded: calc(var(--nox-work-count) * var(--nox-spread-unit));
     --nox-spread-list-end: calc(4px + (1 - var(--nox-spread-a)) * (var(--nox-spread-list) - 8px) + var(--nox-spread-a) * var(--nox-spread-unit));
@@ -653,7 +669,7 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   }
   .nox-phone-header .nox-phone-rail > .nox-phone-rail__divider { display: none; }
   .nox-phone-header .nox-phone-rail > .nox-phone-fold {
-    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 2px); bottom: 4px;
+    position: absolute; top: 2px; bottom: 4px;
     align-items: center; flex: none; max-width: none; margin: 0;
   }
   .nox-phone-header .nox-phone-rail > .nox-phone-fold > .tab-strip { flex: 1; }
