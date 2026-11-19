@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 
 import { Controller } from "@hotwired/stimulus";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
@@ -56,7 +55,6 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
     return this.element.hasAttribute("data-nox-tools-open");
   }
 
-  /** Also runs when focus moves into the page, the only sign of a tap inside it. */
   private readonly closeTools = (): void => {
     this.element.removeAttribute("data-nox-tools-open");
     this.syncExpanded();
@@ -75,14 +73,12 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
     this.element.toggleAttribute("data-nox-tools-open");
     this.syncExpanded();
     if (this.toolsOpen && !this.media.matches) {
-      // A newly selected Browser may still be loading its live body.
       const address = this.presentation.querySelector<HTMLInputElement>(".fixed-shell-surface.is-active .browser-address-input");
       address?.focus({ preventScroll: true });
       address?.select();
     }
   }
 
-  /** A tap anywhere else closes the toolbar; its own buttons close it once they've acted. */
   private readonly documentClicked = (event: MouseEvent): void => {
     if (!this.toolsOpen || !(event.target instanceof Element) || this.element.contains(event.target)) return;
     const tab = event.target.closest("[data-nox-tools][aria-selected='true']");
@@ -111,7 +107,6 @@ export class NoxWorkspaceChromeController extends Controller<HTMLElement> {
     this.syncExpanded();
   };
 
-  /** Server morphs keep the browser-owned toolbar state. */
   private readonly keepState = (event: Event): void => {
     // SAFETY: Turbo emits this event with its attribute mutation descriptor.
     const detail = (event as CustomEvent<{ attributeName: string }>).detail;

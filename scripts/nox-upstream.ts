@@ -4,7 +4,6 @@ import { parseArgs } from "node:util";
 export type CommandResult = { code: number; stdout: string; stderr: string };
 export type CommandRunner = (args: string[]) => Promise<CommandResult>;
 
-/** Prepare locally by default; publishing atomically updates both fork branches. */
 export async function mergeUpstream(run: CommandRunner, publish = false): Promise<void> {
   async function checked(args: string[]): Promise<string> {
     const result = await run(args);
@@ -30,7 +29,6 @@ export async function mergeUpstream(run: CommandRunner, publish = false): Promis
   await checked(["git", "switch", "main"]);
   await checked(["git", "merge", "--ff-only", revision]);
   await checked(["git", "switch", "nox"]);
-  // On conflict Git leaves the merge in place for the maintainer to resolve or abort.
   await checked(["git", "merge", "--no-edit", revision]);
   await checked(["bun", "install", "--frozen-lockfile"]);
   await checked(["bun", "run", "check"]);

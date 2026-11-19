@@ -20,7 +20,6 @@ function unescapeHtmlAttribute(value: string): string {
   return value.replaceAll("&quot;", '"').replaceAll("&amp;", "&");
 }
 
-// Coalesce concurrent checks, but never cache ownership across requests.
 const pendingServerChecks = new Map<string, Promise<void>>();
 
 type VSCodeThemeDefaults = {
@@ -114,7 +113,6 @@ function themeDefaultsForRequest(request: Request): VSCodeThemeDefaults | undefi
   const syntaxRoles: Array<[string, string[], string[]]> = [
     ["comment", ["comment"], ["comment"]],
     ["string", ["string", "string.tag", "string.value", "string.regexp"], ["string", "regexp", "stringLiteral"]],
-    // Match the base theme's specific scopes, not just their broader parents.
     ["keyword", ["keyword", "keyword.control", "storage", "storage.type", "storage.modifier"], ["keyword", "modifier", "newOperator"]],
     ["number", ["constant.numeric", "constant.language", "variable.other.enummember"], ["number", "numberLiteral", "enumMember"]],
     ["function", ["entity.name.function", "support.function"], ["function", "method"]],

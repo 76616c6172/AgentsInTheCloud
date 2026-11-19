@@ -87,14 +87,12 @@ function agentTypeOptions(presentation: WorkspacePresentation, menu: boolean): s
   });
 }
 
-/** Agent types for the phone header's new tab menu, with form IDs of their own. */
 export function renderPhoneAgentTypeOptions(presentation: WorkspacePresentation): string {
   const formId = (agentTypeId: string) => domId("create_agent", presentation.workspace.id, "phone", agentTypeId);
   const forms = presentation.agentTypes.map(agentType => `<form id="${formId(agentType.id)}" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/commands/agent.create.${encodeURIComponent(agentType.id)}" data-turbo="true" hidden></form>`).join("");
   return forms + renderAgentTypePicker(presentation.agentTypes, { attributes: agentType => `type="submit" form="${formId(agentType.id)}" role="menuitem"` });
 }
 
-/** Park and delete for the phone More menu, with their own IDs. */
 export function renderPhoneWorkspaceActions(presentation: WorkspacePresentation): string {
   const id = encodeURIComponent(presentation.workspace.id);
   const park = buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Park" } });
@@ -139,7 +137,6 @@ function renderAgentPaneSlot(workspaceId: string, agent: AgentPaneContribution):
 }
 
 export function renderAgentViewSwitch(menu = false): string {
-  // Reuse the module commands; the active pane remains the source of view/draft state.
   const commandAction = "click->agents-in-the-cloud-shortcuts#runCommand";
   return ([
     ["transcript", "View transcript", Icons.Transcript],

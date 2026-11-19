@@ -9,6 +9,5 @@
  */
 export const noxSpreadMediaQuery = "(hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) and (orientation: landscape)";
 
-/** The split snaps to these fractions of the width; the middle one is the fold. */
 export const noxSpreadSplits: readonly number[] = [0.382, 0.5, 0.618];
 export const noxSpreadSplitStorageKey = "agents-in-the-cloud:nox-spread-split";

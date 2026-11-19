@@ -55,7 +55,6 @@ function renderWorkTab(view: WorkPaneContribution): string {
 function renderTitleRow(islands: LiveIslands, presentation: WorkspacePresentation): string {
   const { id, title, workspaceTemplate } = presentation.workspace;
   const moreMenuId = workViewDomId(id, "mobile_more_menu");
-  // The dot shows (in CSS) when another workspace needs attention.
   const list = barButton("Workspaces", "click->workspace-navigation#showWorkspacePane", `${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i>`, "data-show-workspace-list");
   const name = `<strong class="nox-phone-title__name">${escapeHtml(title)}</strong>${workspaceTemplate ? `<span class="nox-phone-title__template">${escapeHtml(workspaceTemplate.title)}</span>` : ""}`;
   return `<div class="nox-phone-header__top">${list}
@@ -64,7 +63,6 @@ function renderTitleRow(islands: LiveIslands, presentation: WorkspacePresentatio
   </div>`;
 }
 
-/** Workspace actions, the agent's transcript toggle, and closing the open Work view. */
 function renderMoreMenu(islands: LiveIslands, presentation: WorkspacePresentation): string {
   const workspaceId = presentation.workspace.id;
   const heading = `<div class="nox-phone-more-heading"><div class="nox-phone-more-actions">${renderPhoneWorkspaceActions(presentation)}</div></div>`;
@@ -78,7 +76,6 @@ function renderMoreMenu(islands: LiveIslands, presentation: WorkspacePresentatio
   });
 }
 
-/** + at the end of the tab row: new agents and Work views. */
 function renderNewTabMenu(presentation: WorkspacePresentation): string {
   const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher");
   const agents = presentation.agentTypes.length ? `<span class="nox-phone-more-label">New agent</span>${renderPhoneAgentTypeOptions(presentation)}` : "";

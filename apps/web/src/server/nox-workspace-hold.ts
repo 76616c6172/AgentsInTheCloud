@@ -1,6 +1,5 @@
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 
-/** The row remains a normal workspace button; only templated rows get the mobile shortcut. */
 export const noxWorkspaceHoldAttributes = 'data-controller="nox-workspace-hold" data-action="pointerdown->nox-workspace-hold#start contextmenu->nox-workspace-hold#contextMenu blur@window->nox-workspace-hold#cancel visibilitychange@document->nox-workspace-hold#cancel agents-in-the-cloud:mobile-swipe-start@document->nox-workspace-hold#cancel turbo:before-morph-element->nox-workspace-hold#cancel"';
 
 export function noxWorkspaceHoldLaunch(workspaceTemplateId: string): string {

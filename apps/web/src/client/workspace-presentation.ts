@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 import { focusLikelyOpensSoftwareKeyboard, phoneLayoutMediaQuery, workspaceAgentSelectionEvent, type WorkspaceClientApplication, type WorkspaceClientControllerConstructor, type WorkspaceClientSurfaceVisibilityContext } from "@agents-in-the-cloud/shared";
 import { Type, type Static } from "typebox";
 import { Value } from "typebox/value";
@@ -51,7 +49,6 @@ interface TurboLike {
 const navigationIntents = new Map<string, { agent?: string; work?: string; createdAgent?: string }>();
 
 const visiblePresentationPanes = new WeakSet<HTMLElement>();
-/** A pane's content element, which is its own live surface. */
 const paneSurfaceSelector = "[data-controller~='live-surface']";
 const agentPaneWidthStorageKey = "agents-in-the-cloud:agent-pane-width";
 
@@ -94,7 +91,6 @@ export function createWorkspacePresentationController(
     private state!: PersonalNavigationState;
     private media?: MediaQueryList;
     private spreadMedia?: MediaQueryList;
-    /** Nox spread: Work fills the screen (its third stop, see nox-spread.ts). */
     private workAlone = false;
     private sizeObserver?: ResizeObserver;
     private preferredAgentWidth?: number;
@@ -189,7 +185,7 @@ export function createWorkspacePresentationController(
     }
 
     workIntentValueChanged(): void {
-      if (!this.state) return; // Stimulus initializes values before connect.
+      if (!this.state) return;
       this.acceptWorkIntent();
       this.presentationChanged();
     }
@@ -267,13 +263,11 @@ export function createWorkspacePresentationController(
 
     mobileSwipeNavigation(direction: MobileSwipeDirection): (() => void) | undefined {
       if (!this.isPhone) return;
-      // In the spread both panes are on screen; past them Work takes the whole screen.
       if (this.isSpread) {
         if (direction === 1 && !this.workAlone && this.state.activeWorkViewKey) return () => this.setWorkAlone(true);
         if (direction === -1 && this.workAlone) return () => this.setWorkAlone(false);
         return;
       }
-      // Swipe between panes, not Work tabs. Keep the existing Work selection.
       let destination: PhoneDestination | undefined;
       if (this.state.phoneDestination === "agents") {
         if (direction === 1) return () => this.selectMobileWork();
@@ -283,12 +277,10 @@ export function createWorkspacePresentationController(
         this.selectWorkspaceMobileDestination();
         this.state.phoneDestination = destination;
         this.moreOpen = false;
-        // Navigation must not focus a composer or terminal and open the keyboard.
         this.persistAndApply();
       };
     }
 
-    /** Lets a finger-tracked swipe show the incoming pane live before navigation commits. */
     previewMobileSwipe(): void {
       if (this.isSpread) {
         if (this.workAlone) this.element.querySelectorAll<PresentationPane>("[data-workspace-pane-role='agent'].is-active").forEach((pane) => this.emitVisible(pane));
@@ -298,7 +290,6 @@ export function createWorkspacePresentationController(
       this.element.querySelectorAll<PresentationPane>(`[data-workspace-pane-role='${role}'].is-active`).forEach((pane) => this.emitVisible(pane));
     }
 
-    /** A swipe that didn't commit hides its preview again. */
     endMobileSwipePreview(): void {
       this.applyState({ emit: true });
     }
@@ -310,7 +301,6 @@ export function createWorkspacePresentationController(
         const selector = this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)!;
         this.selectWorkViewState(key, selector.dataset.workViewKind === "contextual");
       } else {
-        // The existing Work destination also represents its empty launcher pane.
         this.state.phoneDestination = "work:";
         this.state.workPaneVisible = true;
       }
@@ -320,7 +310,6 @@ export function createWorkspacePresentationController(
 
     private setWorkAlone(alone: boolean): void {
       this.workAlone = alone;
-      // Folding the device keeps showing Work.
       const key = this.state.activeWorkViewKey;
       if (alone && key) this.selectWorkViewState(key, this.element.querySelector<HTMLElement>(`[data-work-view-key="${CSS.escape(key)}"]`)?.dataset.workViewKind === "contextual");
       this.moreOpen = false;
@@ -365,7 +354,6 @@ export function createWorkspacePresentationController(
       // SAFETY: The server-rendered DOM and connected controller contract establish this element shape.
       const handle = event.currentTarget as HTMLElement;
       this.resize = { startX: event.clientX, startAgentWidth: this.agentPane.getBoundingClientRect().width };
-      // The spread's pages follow the handle without transitions, and its swipes leave this touch alone.
       if (this.isSpread) this.app.setAttribute("data-nox-spread-resize", "");
       handle.setPointerCapture(event.pointerId);
       window.addEventListener("pointermove", this.resizeWork);
@@ -448,7 +436,6 @@ export function createWorkspacePresentationController(
     }
 
     private normalizeState(): void {
-      // Panes are in the presentation from the start; their selectors arrive separately.
       const paneIds = (role: string) => [...this.element.querySelectorAll<HTMLElement>(`[data-workspace-pane-role="${role}"]`)].map((pane) => pane.dataset.workspacePaneId!);
       const agents = paneIds("agent");
       const workViews = paneIds("work");
@@ -463,7 +450,6 @@ export function createWorkspacePresentationController(
         if (workViews.includes(intent.work)) delete intent.work;
       } else if (!this.state.activeWorkViewKey || !workViews.includes(this.state.activeWorkViewKey)) this.state.activeWorkViewKey = workViews[0];
       if (!intent?.work && this.state.phoneDestination.startsWith("work:") && !workViews.includes(this.state.phoneDestination.slice(5))) this.state.phoneDestination = `work:${this.state.activeWorkViewKey ?? ""}`;
-      // The spread always shows Work beside the agent; with nothing left to show, Work can't be alone.
       if (this.isSpread) this.state.workPaneVisible = true;
       if (!this.state.activeWorkViewKey) this.workAlone = false;
       this.persist();
@@ -477,14 +463,12 @@ export function createWorkspacePresentationController(
       return this.element.querySelector<HTMLElement>(`[data-workspace-pane-role="work"][data-workspace-pane-id="${CSS.escape(key)}"]`);
     }
 
-    /** The content surfaces of the selected Agent pane and, while the Work pane is open, the selected Work view. */
     private selectedPaneSurfaces(): HTMLElement[] {
       const agent = this.state.activeAgentId ? this.agentPaneSlot(this.state.activeAgentId) : null;
       const work = this.state.workPaneVisible && this.state.activeWorkViewKey ? this.workViewPane(this.state.activeWorkViewKey) : null;
       return [agent, work].flatMap(pane => pane?.querySelector<HTMLElement>(`:scope > ${paneSurfaceSelector}`) ?? []);
     }
 
-    /** Selected panes publish their content; the others keep what they last showed. */
     private followSelectedPanes(): void {
       const selected = this.selectedPaneSurfaces();
       this.element.querySelectorAll<HTMLElement>(`[data-workspace-pane-role] > ${paneSurfaceSelector}`).forEach(surface => {
@@ -593,7 +577,6 @@ export function createWorkspacePresentationController(
         pane.dataset.workspaceLogicallyVisible = String(afterSet.has(pane));
         pane.dataset.workspaceSurfaceVisible = String(visiblePresentationPanes.has(pane));
       });
-      // Mark the newly created pane when it arrives, before its visibility event.
       const intent = navigationIntents.get(this.workspaceIdValue);
       const createdPane = after.find(pane => pane.dataset.workspacePaneRole === "agent" && pane.dataset.workspacePaneId === intent?.createdAgent);
       if (intent && createdPane) {
@@ -617,10 +600,8 @@ export function createWorkspacePresentationController(
         destination.setAttribute("aria-current", selected ? "page" : "false");
       });
       this.element.querySelector<HTMLElement>("[data-mobile-work]")!.setAttribute("aria-current", !sidebarOpen && this.state.phoneDestination.startsWith("work:") ? "page" : "false");
-      // Phone tabs show the visible pane, not the desktop split's selection; Workspaces shows the list.
       const spread = this.isSpread;
       this.element.querySelectorAll<HTMLElement>("[data-nox-phone-tab]").forEach((tab) => {
-        // The spread shows both panes, so each side keeps its own selection.
         const selected = tab.dataset.noxPhoneTab === "list" ? sidebarOpen
           : spread ? tab.dataset.agentId !== undefined ? tab.dataset.agentId === this.state.activeAgentId : tab.dataset.workViewKey === this.state.activeWorkViewKey
             : tab.dataset.noxPhoneTab === this.state.phoneDestination && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
@@ -640,7 +621,6 @@ export function createWorkspacePresentationController(
     private layoutMobileNavigation(): void {
       if (!this.isPhone) return;
       if (this.element.closest(".workspace-detail-mount.visible")) {
-        // Share the actual footer track, including its safe area and margin, with the sidebar.
         const footerHeight = this.element.getBoundingClientRect().bottom - this.element.querySelector(".fixed-shell-main")!.getBoundingClientRect().bottom;
         this.element.closest<HTMLElement>(".fixed-shell-app")!.style.setProperty("--mobile-workspace-bar-height", `${footerHeight}px`);
       }
@@ -721,7 +701,6 @@ export function createWorkspacePresentationController(
         const stored = Number(localStorage.getItem(agentPaneWidthStorageKey));
         if (Number.isFinite(stored) && stored > 0) this.preferredAgentWidth = stored;
       }
-      // Keep the default proportional; only an explicit resize pins a pixel width.
       this.setAgentWidth(this.preferredAgentWidth ?? this.element.clientWidth * 0.618);
     }
 
@@ -763,7 +742,6 @@ export function createWorkspacePresentationController(
       if (this.app.hasAttribute("data-nox-spread-resize")) {
         this.app.removeAttribute("data-nox-spread-resize");
         const fraction = this.spreadSplit;
-        // Off the left edge is the stop a swipe past Agent | Work reaches; the split it had comes back with the agent.
         if (fraction < 0.2) {
           this.setSpreadSplit(this.storedSpreadSplit, false);
           this.setWorkAlone(true);
@@ -785,20 +763,17 @@ export function createWorkspacePresentationController(
     };
     private structureChanged = (): void => { this.presentationChanged(); };
     private viewportChanged = (): void => { this.applyState({ emit: true }); };
-    /** Unfolding reveals the other pane beside the one you were on, and folding keeps the one in view. */
     private spreadChanged = (): void => {
       this.workAlone = false;
       this.normalizeState();
       this.applyState({ emit: true });
     };
-    /** The list opens beside the agent, so Work steps off with Work alone or not. */
     private workspaceListChanged = (): void => {
       if (!this.workAlone || !this.app.classList.contains("is-mobile-workspace-pane-open")) return;
       this.workAlone = false;
       this.applyState({ emit: true });
     };
     private mountVisible = (event: Event): void => {
-      // Restore the visible pane's width before transcript navigation measures it.
       this.restorePreferences();
       if (event instanceof CustomEvent && event.detail.selectedFromList) this.selectDestinationOnWorkspaceEntry();
       else this.applyDeepLink();

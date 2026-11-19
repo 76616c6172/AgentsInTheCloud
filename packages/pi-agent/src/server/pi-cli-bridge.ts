@@ -71,7 +71,6 @@ export interface PiCliConfiguration {
   enabledModels: string[];
 }
 
-/** An expired subscription must not prevent other providers from starting or connecting. */
 async function resolvedProviderModels(runtime: Runtime): Promise<Array<{ model: Model<Api>; auth: AuthResult }>> {
   const providers = await Promise.all(runtime.getProviders().map(async ({ id }) => {
     try {
@@ -83,21 +82,17 @@ async function resolvedProviderModels(runtime: Runtime): Promise<Array<{ model: 
       }
       return resolved;
     } catch (error) {
-      // Authentication failures remain visible in Models and on requests to that provider.
       if (!(error instanceof ModelsError) || error.code !== "oauth") throw error;
       return [];
     }
   }));
   return providers.flat();
 }
-
-/** Export resolved model configuration, never raw models.json (which may contain secrets or commands). */
 export async function createPiCliConfiguration(runtime: Runtime, enabledModels: EnabledModel[]): Promise<PiCliConfiguration> {
   const result: PiCliConfiguration = { auth: {}, models: { providers: {} }, enabledModels: [] };
   const available = await resolvedProviderModels(runtime);
   const enabledModelLabels = new Map(enabledModels.map((model) => [modelRefValue(model), model.label]));
   for (const { model, auth } of available) {
-    // Ambient host credentials have no safe file representation. Do not advertise them in Pi.
     if (unsupportedAuth(model, auth)) continue;
     const baseUrl = endpoint(model, auth).href.replace(/\/$/, "");
     const style = model.api === "openai-codex-responses" ? "codex"
@@ -117,7 +112,6 @@ export async function createPiCliConfiguration(runtime: Runtime, enabledModels: 
   return result;
 }
 
-/** Resolve current endpoints on each CONNECT, including OAuth endpoint overrides. */
 export async function piCliCredentialHosts(runtime: Runtime): Promise<string[]> {
   const hosts = new Set<string>();
   for (const { model, auth } of await resolvedProviderModels(runtime)) {
@@ -126,11 +120,9 @@ export async function piCliCredentialHosts(runtime: Runtime): Promise<string[]> 
   return [...hosts];
 }
 
-/** Resolve only markers addressed to a currently configured endpoint. OAuth refresh stays in ModelRuntime. */
 export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime>): SecretRequestTransform {
   return async (request, registerSecret) => {
     const url = new URL(request.url);
-    // Pi model APIs use headers or query parameters for credentials, never paths.
     if (url.pathname.match(markerPattern) || url.pathname.includes("agents-in-the-cloud-pi-no-key")) {
       throw new HttpRequestBlockedError("Pi credentials cannot be injected into URL paths");
     }
@@ -162,7 +154,6 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
         try { marker = Value.Parse(markerSchema, JSON.parse(Buffer.from(match[1]!, "base64url").toString())); }
         catch { throw new HttpRequestBlockedError("Invalid Pi credential placeholder"); }
         const { model, auth } = await resolve({ provider: marker.provider, id: marker.model });
-        // Provider API keys are shared by its models, including providers with multiple API endpoints.
         const candidates = marker.field === "header" ? [model] : await availableProviderModels(runtime, marker.provider);
         const allowed = candidates.some((candidate) => endpoint(candidate, auth).origin === url.origin);
         if (!allowed) throw new HttpRequestBlockedError(`Pi credentials are not allowed for ${url.origin}`);
@@ -175,7 +166,6 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
           try {
             replacement = codexAccountId(auth.auth.apiKey!);
           } catch {
-            // Credential parsing errors must not include any part of a real token in proxy diagnostics.
             throw new HttpRequestBlockedError("Could not resolve the Pi Codex account; reconnect the provider in AgentsInTheCloud");
           }
         }
@@ -193,12 +183,10 @@ export function createPiCliCredentialTransform(getRuntime: () => Promise<Runtime
       const replaced = await replace(value);
       if (replaced) headers.set(name, replaced);
     }
-    // Pi signs Claude subscription requests as Claude Code; this is the Pi TUI.
     if (subscription) {
       headers.delete("x-app");
       headers.set("user-agent", "pi");
     }
-    // Query-encoded API keys are supported without enabling substitution for unrelated workspace secrets.
     const query = new URLSearchParams();
     for (const [name, value] of url.searchParams) query.append(await replace(name), await replace(value));
     url.search = query.toString();

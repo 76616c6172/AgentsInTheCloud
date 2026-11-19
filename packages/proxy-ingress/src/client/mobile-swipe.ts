@@ -2,7 +2,6 @@ import { Application, Controller, defaultSchema } from "@hotwired/stimulus";
 import { phoneLayoutMediaQuery } from "@agents-in-the-cloud/shared";
 import { isMobileSwipeMessage, mobileSwipeMessage, observeMobileSwipe, type MobileSwipeDirection } from "@agents-in-the-cloud/shared/mobile-swipe";
 
-/** Isolated Stimulus application: never register with or modify a preview's own app. */
 class FrameSwipeController extends Controller<HTMLElement> {
   private parentOrigin?: string;
   private previous = false;

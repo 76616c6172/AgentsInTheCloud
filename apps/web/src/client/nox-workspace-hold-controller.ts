@@ -5,7 +5,6 @@ const settleMs = 50;
 const chargeMs = 250;
 const movementSlop = 10;
 
-/** Mobile-only shortcut to the existing, server-rendered template launch composer. */
 export class NoxWorkspaceHoldController extends Controller<HTMLElement> {
   static targets = ["launch"];
   declare readonly launchTarget: HTMLAnchorElement;
@@ -30,7 +29,6 @@ export class NoxWorkspaceHoldController extends Controller<HTMLElement> {
     this.cancel();
     this.suppressClick = false;
     this.element.classList.remove("nox-hold-released");
-    // The glyph is inside the primary button on mobile, not a separate action.
     this.gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, started: performance.now() };
     this.element.style.setProperty("--nox-hold-color", getComputedStyle(this.element.querySelector<HTMLElement>(".nox-workspace-mobile-glyph")!).color);
     this.element.classList.add("nox-hold-charging");
@@ -47,7 +45,6 @@ export class NoxWorkspaceHoldController extends Controller<HTMLElement> {
     event.preventDefault();
   }
 
-  /** Scroll, swipe, backgrounding and a second finger all abandon an unfinished hold. */
   readonly cancel = (): void => {
     if (this.gesture) this.suppressClick = true;
     this.gesture = undefined;
@@ -71,7 +68,6 @@ export class NoxWorkspaceHoldController extends Controller<HTMLElement> {
   private readonly finish = (event: PointerEvent): void => {
     const gesture = this.gesture;
     if (!gesture || event.pointerId !== gesture.id) return;
-    // Ordinary taps still navigate; releasing an intentional but incomplete hold does not.
     const tapped = performance.now() - gesture.started < 180;
     this.cancel();
     this.suppressClick = !tapped;
@@ -88,12 +84,10 @@ export class NoxWorkspaceHoldController extends Controller<HTMLElement> {
     }
     this.cancel();
     this.element.classList.add("nox-hold-released");
-    // Turbo loads the existing launch frame; no workspace is created until its form is sent.
     this.launchTarget.click();
   };
 
   private readonly clicked = (event: MouseEvent): void => {
-    // Leave the Turbo launch link and keyboard/assistive-technology activation alone.
     if (!this.suppressClick || event.detail === 0) return;
     event.preventDefault();
     event.stopImmediatePropagation();

@@ -1,12 +1,10 @@
 import { CableTopics, type CableSubscription, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 
-/** The transcript item a reveal `target` points at: its key, anchor or tool call ID. */
 export function transcriptTargetSelector(target: string): string {
   const value = CSS.escape(target);
   return `[data-transcript-anchor="${value}"], [data-transcript-key="${value}"], [data-tool-call-id="${value}"]`;
 }
 
-// Disclosure choice belongs to this pane instance, not another tab or browser.
 const turnDisclosureChoices = new WeakMap<Element, Map<string, boolean>>();
 
 export function createAgentTurnController(Controller: WorkspaceClientControllerConstructor) {
@@ -67,7 +65,6 @@ export function createAgentTurnController(Controller: WorkspaceClientControllerC
     }
 
     toggle(event: Event): void {
-      // Nested tool disclosures emit their own toggle events.
       if (event.target !== this.element) return;
       turnDisclosureChoices.get(this.pane)!.set(this.key, this.element.open);
       this.reconcile();

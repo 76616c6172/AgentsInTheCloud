@@ -1,4 +1,3 @@
-/// <reference lib="dom" />
 
 export type VoiceRibbonState = "idle" | "loading" | "listening" | "finishing";
 type Rgb = readonly [number, number, number];
@@ -45,7 +44,6 @@ class Spring {
   }
 }
 
-/** One canvas's ribbons. Each keeps its own springs so a state change eases in rather than jumping. */
 class RibbonPainter {
   private readonly amplitude = new Spring(restAmplitude, 150, 18);
   private readonly activity = new Spring(0, 190, 22);
@@ -58,7 +56,6 @@ class RibbonPainter {
 
   constructor(private readonly canvas: HTMLCanvasElement, private readonly context: CanvasRenderingContext2D) {}
 
-  /** Draws one frame and reports whether the ribbons are still moving. At rest they settle, dimmed, and hold still. */
   paint(frame: Frame): boolean {
     const width = this.canvas.clientWidth;
     const height = this.canvas.clientHeight;
@@ -84,7 +81,6 @@ class RibbonPainter {
     let amplitudeTarget: number;
     let speed: number;
     if (state === "idle") {
-      // Pointing at the resting control wakes it, hinting that it's ready to listen.
       amplitudeTarget = frame.hover ? hoverAmplitude : restAmplitude;
       speed = frame.hover ? hoverSpeed : 0;
     } else if (state === "listening") {
@@ -97,7 +93,6 @@ class RibbonPainter {
     const activityTarget = state === "idle" ? 0 : 1;
     const stopTarget = state === "listening" && frame.hover ? 1 : 0;
     const presenceTarget = state === "idle" && !frame.hover ? restPresence : state === "finishing" ? finishingPresence : 1;
-    // While a tap would cancel or stop, the middle shows × or ■; pointing at it enlarges the sign.
     const acting = state === "loading" || state === "listening";
     const cueTarget = acting ? frame.hover ? 1 : restingCue : 0;
     if (acting) this.cueKind = state === "loading" ? "cancel" : "stop";
@@ -113,7 +108,6 @@ class RibbonPainter {
     const amplitude = Math.max(0, this.amplitude.step(amplitudeTarget, dt)) * (1 - 0.75 * stop);
     const presence = clamp(this.presence.step(presenceTarget, dt));
     const cue = clamp(this.cue.step(cueTarget, dt));
-    // At rest the ribbons drift back to the same shape, so the idle control always looks alike.
     if (state === "idle" && speed === 0) for (let ribbon = 0; ribbon < 3; ribbon += 1) this.phases[ribbon] = restPhases[ribbon]! + wrapAngle(this.phases[ribbon]! - restPhases[ribbon]!) * Math.exp(-6 * dt);
 
     drawing.save();
@@ -140,7 +134,6 @@ class RibbonPainter {
     }
     drawing.globalCompositeOperation = "source-over";
 
-    // The thread the ribbons rise from, fading out towards both ends.
     const thread = drawing.createLinearGradient(left, 0, right, 0);
     thread.addColorStop(0, rgba(lead, 0));
     thread.addColorStop(0.5, rgba(lead, (state === "idle" ? 0.75 : 0.5) * Math.max(presence, 0.6)));
@@ -153,7 +146,6 @@ class RibbonPainter {
     drawing.stroke();
 
     if (state === "loading") {
-      // A bright head draws along the thread as the model gets ready.
       const head = lerp(left, right, clamp(this.loaded.step(frame.progress, dt)));
       const trail = drawing.createLinearGradient(left, 0, head, 0);
       trail.addColorStop(0, rgba(lead, 0));
@@ -176,7 +168,6 @@ class RibbonPainter {
     }
 
     if (state === "finishing") {
-      // A glint sweeps along the thread until the last words land.
       const position = lerp(left - 20, right + 20, (frame.time * 1.1) % 1);
       const glint = drawing.createLinearGradient(position - 22, 0, position + 22, 0);
       glint.addColorStop(0, rgba(lead, 0));
@@ -192,7 +183,6 @@ class RibbonPainter {
     drawing.restore();
 
     if (cue > 0.01) {
-      // The sign sits in a gap cut through the ribbons; hovering a live session also squeezes them flat.
       const middle = width / 2;
       drawing.save();
       drawing.globalAlpha = clamp(cue * 1.6);
@@ -249,7 +239,6 @@ export class VoiceRibbons {
   progress = 0;
 
   private readonly painters = new Map<HTMLCanvasElement, RibbonPainter>();
-  // The pointer that started a session rests on the button; its hover only counts once it comes back.
   private readonly hoverDisarmed = new Set<HTMLButtonElement>();
   private readonly visible = new Set<HTMLCanvasElement>();
   private readonly observer = new IntersectionObserver((entries) => {

@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 import { Controller } from "@hotwired/stimulus";
 import { PopupPosition } from "./popup-position.ts";
 import { contentRowElement } from "../content-row/content-row-html.ts";
@@ -30,7 +28,6 @@ function focusMenu(menu: HTMLElement): void {
 }
 
 
-/** Synchronizes menu selection and disclosure state around the native Popover API. */
 export class PopupController extends Controller<HTMLElement> {
   private trigger!: HTMLButtonElement;
   private menu!: HTMLElement;
@@ -62,7 +59,6 @@ export class PopupController extends Controller<HTMLElement> {
   private readonly choose = (event: MouseEvent): void => {
     const item = event.target instanceof Element ? event.target.closest<HTMLElement>(enabledItem) : null;
     if (!item) return;
-    // A nested menu or confirmation needs its parent to remain open.
     if (item.hasAttribute("popovertarget")) return;
     if (item.getAttribute("role") === "menuitemradio") {
       for (const candidate of this.menu.querySelectorAll<HTMLElement>("[role='menuitemradio']")) candidate.setAttribute("aria-checked", String(candidate === item));
@@ -81,7 +77,6 @@ export class PopupController extends Controller<HTMLElement> {
 
 }
 
-/** Enhances a native select while preserving its form and change-event semantics. */
 export class PopupSelectController extends Controller<HTMLSelectElement> {
   private button!: HTMLButtonElement;
   private menu!: HTMLDivElement;
@@ -186,7 +181,6 @@ export class PopupSelectController extends Controller<HTMLSelectElement> {
     this.menu.showPopover();
   };
   private readonly reset = (): void => {
-    // A native reset applies defaults after the event callback and its microtasks.
     window.clearTimeout(this.resetTimer);
     this.resetTimer = window.setTimeout(this.sync, 0);
   };

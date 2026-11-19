@@ -52,7 +52,6 @@ export interface WorkspacePaneWorkspaceTemplate {
 
 export interface WorkPaneContribution {
   iconHtml?: string;
-  /** Stable, type-native serialized identity supplied by the resource adapter. */
   key: string;
   label: string;
   kind: "resource" | "contextual";
@@ -66,7 +65,6 @@ export interface WorkPaneContribution {
 
 export interface WorkspacePanePresentation {
   workspaceTemplates: readonly WorkspacePaneWorkspaceTemplate[];
-  /** Already ordered by the workspace registry. */
   workspaces: readonly WorkspacePaneEntry[];
 }
 
@@ -89,7 +87,6 @@ function workspaceStatusSlot(content: string): string {
   return `<span class="fixed-shell-workspace-status content-row__status">${content}</span>`;
 }
 
-/* Busy and attention live in the row's glyph (nox-workspace-glyph.ts); warnings stay trailing. */
 function workspaceStatus(workspace: WorkspacePaneEntry) {
   const warnings = (workspace.warnings ?? []).map((warning) => warning.message);
   if (workspace.outdated) warnings.push(outdatedImageMessage);
@@ -168,7 +165,6 @@ function renderWorkspaceTemplateOption(workspaceTemplate?: WorkspacePaneWorkspac
 
 function renderWorkspaceTemplateOptions(presentation: WorkspacePanePresentation): string {
   const ordered = [...presentation.workspaceTemplates].sort((left, right) => (right.lastUsedAt ?? 0) - (left.lastUsedAt ?? 0) || left.title.localeCompare(right.title));
-  // Until the first template exists, the add action explains what a template is.
   const addWorkspaceTemplate = ordered.length
     ? contentRowHtml({
       width: "fill",
@@ -391,7 +387,6 @@ interface MobileWorkspaceBarOptions {
   inert?: boolean;
 }
 
-/* With a phone header, this bar is hidden; its stops still carry the pane status slots. */
 export function renderMobileWorkspaceBar({ agentHtml = "", workHtml = "", inert = false }: MobileWorkspaceBarOptions = {}): string {
   const workspace = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", Icons.Workspace, "data-show-workspace-list");
   return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar" aria-label="Workspace panes"${inert ? " inert" : ""}>
@@ -431,7 +426,6 @@ export function renderWorkspaceDeletionPresentation(workspaceId: string, deletio
   return `<div id="${domId("fixed_workspace", workspaceId)}" class="fixed-workspace-presentation workspace-deletion-presentation" data-workspace-id="${escapeHtml(workspaceId)}" data-workspace-commands="[]"><main class="workspace-deletion-state" data-deletion-status="${deletion.status}"${role}>${content}</main>${renderMobileWorkspaceBar()}</div>`;
 }
 
-/** The workspace chrome, and the islands within it that are published as their own regions. */
 export function renderWorkspacePresentation(presentation: WorkspacePresentation) {
   const islands = new LiveIslands();
   const id = workspacePresentationDomId(presentation.workspace.id);

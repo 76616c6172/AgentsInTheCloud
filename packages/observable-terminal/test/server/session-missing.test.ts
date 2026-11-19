@@ -6,7 +6,6 @@ import { shellQuote } from "@agents-in-the-cloud/core";
 import type { StartWorkspaceProcess } from "@agents-in-the-cloud/workspace-helper";
 import { attachObservableTerminal, type ObservableTerminalAttachOptions } from "../../src/server/attach.ts";
 
-/** Runs workspace processes locally on pipes, with `path` searched first. Only the workspace helper is a stand-in. */
 function localStart(path?: string): StartWorkspaceProcess {
   return (start) => {
     const child = Bun.spawn(start.argv, { env: { ...process.env, PATH: path ? `${path}:${process.env.PATH}` : process.env.PATH }, stdin: "pipe", stdout: "pipe", stderr: "pipe" });

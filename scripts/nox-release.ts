@@ -83,7 +83,6 @@ async function main(operation: string) {
       for (const reference of [release.app, release.system, release.workspace]) {
         await resolveImage(reference, fetch, { os: "linux", architecture: "amd64" });
       }
-      // Publish the compatible System before exposing an app that requires it.
       for (const [image, reference] of [[systemImage, release.system], [appImage, release.app]]) {
         await run(["docker", "buildx", "imagetools", "create", "--prefer-index=false", "--tag", `${image}:latest`, "--tag", `${image}:stable`, reference!], true);
       }

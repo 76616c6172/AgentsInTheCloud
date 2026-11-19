@@ -47,7 +47,6 @@ try {
     await page.navigate(`${args.atelier}/workspaces/${args.workspace}?workView=${encodeURIComponent(other.key)}`, ".fixed-workspace-presentation");
     const samples = [];
     for (let i = 0; i <= Number(args.samples); i++) {
-      // Use the real selection action. The mobile bar and desktop tabs share it.
       await page.evaluate(`document.querySelector('button[data-work-view-key=${JSON.stringify(other.key)}]').click()`);
       await Bun.sleep(200);
       const resizesBefore = page.resizes.length;

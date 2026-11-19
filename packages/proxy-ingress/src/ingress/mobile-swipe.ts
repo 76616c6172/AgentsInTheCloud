@@ -4,7 +4,6 @@ export const mobileSwipeScriptPath = "/.agents-in-the-cloud/mobile-swipe.js";
 const bridgeHeader = "x-agents-in-the-cloud-swipe-bridge";
 let script: Promise<string> | undefined;
 
-/** Same-origin bundle on each ingress, including the Desktop viewer's fetch backend. */
 export async function mobileSwipeScriptResponse(): Promise<Response> {
   script ??= (async () => {
     const build = await Bun.build({
@@ -19,7 +18,6 @@ export async function mobileSwipeScriptResponse(): Promise<Response> {
   });
 }
 
-/** Authorize just our script; retain all other CSP restrictions, including sandbox. */
 export function allowMobileSwipeScript(policy: string, nonce: string, scriptUrl: string): string {
   return policy.split(",").map(part => {
     const directives = part.split(";").map(value => value.trim()).filter(Boolean);
@@ -46,7 +44,7 @@ export function injectMobileSwipeBridge(response: Response, publicOrigin: string
   const nonce = randomBytes(18).toString("base64");
   const scriptUrl = new URL(mobileSwipeScriptPath, publicOrigin).href;
   const headers = new Headers(response.headers);
-  headers.set(bridgeHeader, "1"); // Nested ingress must not inject a second bridge.
+  headers.set(bridgeHeader, "1");
   for (const name of ["content-length", "etag", "content-md5", "content-digest", "repr-digest"]) headers.delete(name);
   for (const name of ["content-security-policy", "content-security-policy-report-only"]) {
     const policy = headers.get(name);

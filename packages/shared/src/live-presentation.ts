@@ -1,14 +1,11 @@
 import { Type, type Static } from "typebox";
 import { escapeHtml, turboStream } from "./html.ts";
 
-/** A region owns its markup; nested independently-owned islands use data-turbo-permanent. */
 export interface LiveRegion {
   target: string;
   html: string;
   action?: "update" | "replace";
-  /** Replace this region's children rather than morphing client-enhanced markup. */
   morph?: boolean;
-  /** Append-only HTML prefix. Resetting the prefix sends an authoritative replacement. */
   appendOnly?: boolean;
   /** `html` as a sequence of blocks that are one element each. An update resends only the
    * blocks that changed since, by position, rather than the whole region. */
@@ -20,11 +17,11 @@ export interface LiveSubscription {
   unsubscribe(): void;
 }
 
-/** Digests of the regions a server-rendered page shows, by target. */
+/** Digests of the regions a page shows, by target: placed by the server render, or applied from
+ * streams since. A subscription's first snapshot omits regions whose digest is still current. */
 export const liveRegionDigestsSchema = Type.Record(Type.String(), Type.String());
 export type LiveRegionDigests = Readonly<Static<typeof liveRegionDigestsSchema>>;
 
-/** Carries a page's shown regions on the element whose controller subscribes; the Cable client sends them until a snapshot is applied. */
 export const liveShownAttribute = "data-live-shown";
 
 function liveRegionDigest(html: string): string {
@@ -37,7 +34,6 @@ function liveRegionHtml(region: LiveRegion): string {
   return region.children?.length ? fill(region.html, region.children) : region.html;
 }
 
-/** Places regions into the elements of `html` they target. */
 function fill(html: string, regions: readonly LiveRegion[], subscriber?: { id: string; shown: LiveRegionDigests }): string {
   const byTarget = new Map(regions.map(region => [region.target, region]));
   return new HTMLRewriter().on("[id]", { element(element) {
@@ -60,7 +56,6 @@ export function placeLiveRegions(shell: string, regions: readonly LiveRegion[], 
   return fill(shell, placed, { id: subscriberId, shown: liveRegionDigests(placed) });
 }
 
-/** What a page that placed these regions shows. A subscription's first snapshot omits those still current. */
 export function liveRegionDigests(regions: readonly LiveRegion[], digests: Record<string, string> = {}): LiveRegionDigests {
   for (const region of regions) {
     digests[region.target] = liveRegionDigest(region.html);
@@ -84,20 +79,20 @@ function sentRegion(region: LiveRegion, parent: string | undefined): SentRegion 
 }
 
 /** Streams that bring a block region from `before` to `after`: changed blocks morph in place,
- * then extra ones go and new ones follow. */
-function blockStreams(target: string, before: readonly string[], after: readonly string[]): string | undefined {
+ * then extra ones go and new ones follow. Only the last carries the region's digest, so a
+ * client that stops partway doesn't claim to show the result. */
+function blockStreams(target: string, before: readonly string[], after: readonly string[], digest: string): string | undefined {
   let same = 0;
   while (same < before.length && same < after.length && before[same] === after[same]) same++;
-  // With nothing in common (say, the first blocks moved elsewhere), one update is smaller.
   if (same === 0) return undefined;
   const children = (selector: string) => `[id="${target}"] > ${selector}`;
-  let html = "";
+  const streams: ((digest?: string) => string)[] = [];
   for (let index = same; index < Math.min(before.length, after.length); index++) {
-    html += turboStream("replace", children(`:nth-child(${index + 1})`), after[index], { targets: true, method: "morph" });
+    streams.push(digest => turboStream("replace", children(`:nth-child(${index + 1})`), after[index], { targets: true, method: "morph", region: target, digest }));
   }
-  if (after.length < before.length) html += turboStream("remove", children(`:nth-child(n+${after.length + 1})`), "", { targets: true });
-  if (after.length > before.length) html += turboStream("append", target, after.slice(before.length).join(""));
-  return html;
+  if (after.length < before.length) streams.push(digest => turboStream("remove", children(`:nth-child(n+${after.length + 1})`), "", { targets: true, region: target, digest }));
+  if (after.length > before.length) streams.push(digest => turboStream("append", target, after.slice(before.length).join(""), { digest }));
+  return streams.map((stream, index) => stream(index === streams.length - 1 ? digest : undefined)).join("");
 }
 
 /** `forced` regions are sent even when unchanged: the client lacks them or just lost them.
@@ -108,15 +103,15 @@ function regionStreams(regions: readonly LiveRegion[], previous: Map<string, Sen
   let html = "";
   for (const region of regions) {
     const before = previous.get(region.target);
-    // A region whose mount moved to another parent starts out empty there.
     const moved = before !== undefined && before.parent !== parent;
     const changed = forced || moved || before?.html !== region.html;
     let sent = false;
     if (forced && shown[region.target] === liveRegionDigest(region.html)) previous.set(region.target, sentRegion(region, parent));
     else if (changed) {
       const append = !forced && !moved && region.appendOnly && before !== undefined && region.html.startsWith(before.html);
-      const blocks = !forced && !moved && region.blocks && before?.blocks && (region.action ?? "update") === "update" ? blockStreams(region.target, before.blocks, region.blocks) : undefined;
-      html += blocks ?? turboStream(append ? "append" : region.action ?? "update", region.target, append ? region.html.slice(before.html.length) : region.html, append || region.morph === false ? {} : { method: "morph" });
+      const digest = liveRegionDigest(region.html);
+      const blocks = !forced && !moved && region.blocks && before?.blocks && (region.action ?? "update") === "update" ? blockStreams(region.target, before.blocks, region.blocks, digest) : undefined;
+      html += blocks ?? turboStream(append ? "append" : region.action ?? "update", region.target, append ? region.html.slice(before.html.length) : region.html, append || region.morph === false ? { digest } : { method: "morph", digest });
       previous.set(region.target, sentRegion(region, parent));
       sent = true;
     }
@@ -165,10 +160,8 @@ export function createLivePresentation(render: () => readonly LiveRegion[], inte
       if (!disposed && listeners.size && timer === undefined) timer = setTimeout(flush, intervalMs);
     },
     flush,
-    /** `shown` comes from the subscriber's server-rendered page; its snapshot omits regions still current. */
     subscribe(listener: (html: string) => void, shown?: LiveRegionDigests): LiveSubscription {
       if (disposed) throw new Error("Live presentation is disposed");
-      // Bring existing clients to the same published state before the new mount joins.
       flush();
       const regions = render();
       const html = regionStreams(regions, previous, true, shown);

@@ -36,7 +36,6 @@ async function json<T>(atelier: string, path: string, init: { method?: string; b
   return JSON.parse(text) as T;
 }
 
-/** The /ok button the composer scenarios expect. Written by the agent, so its turn ending must refresh the composer. */
 const promptTemplate = "---\ndescription: Reply with OK\ncomposer-button: true\n---\nReply with just the word OK.\n";
 const longPrompt = `First create the file /work/.agents-in-the-cloud/prompts/ok.md with exactly this content:\n\n${promptTemplate}\nThen, without using any more tools, write a long markdown explanation (about 1500 words, with headings, lists and two short code blocks) of how terminal emulators handle window resizing (SIGWINCH, PTY, tmux).`;
 
@@ -99,7 +98,6 @@ export async function stage(options: { atelier: string; workspaceId?: string; mo
   return { atelier, workspaceId: id, builtinId: builtin.id, piId: pi.id, terminalKey: terminal.key };
 }
 
-/** tmux window sizes inside the workspace container, by session name. Read-only: no hooks are installed. */
 export async function tmuxSizes(workspaceId: string): Promise<Record<string, string>> {
   const output = await workspaceExec(workspaceId, ["tmux", "list-windows", "-a", "-F", "#{session_name} #{window_width}x#{window_height}"]);
   return Object.fromEntries(output.trim().split("\n").filter(Boolean).map((line) => {
@@ -108,7 +106,6 @@ export async function tmuxSizes(workspaceId: string): Promise<Record<string, str
   }));
 }
 
-/** Runs through the workspace helper, so acceptance uses the same execution boundary as the app. */
 export async function workspaceExec(workspaceId: string, command: string[]): Promise<string> {
   const result = await execWorkspaceCommand(workspaceId, command);
   if (result.exitCode !== 0) throw new Error(`${command.join(" ")} failed: ${result.stderr}`);

@@ -47,7 +47,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       private frame?: TerminalFrame;
       private releaseTranscriptAnchor?: () => void;
       private transcriptSubscription?: CableSubscription;
-      // Transcript mode shows the transcript only while the agent waits between turns.
       private transcriptMode = false;
       private transcriptAvailable = false;
       private resize = new ResizeObserver(() => this.frame?.update());
@@ -79,7 +78,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         const stage = this.terminalTarget.parentElement!;
         this.frame = new TerminalFrame({
           stage, host: this.terminalTarget,
-          // The whole pane below the status line: composer and key row only clip it.
           measure: () => ({ width: stage.clientWidth, height: this.element.clientHeight - stage.offsetTop }),
           resized: () => this.viewer?.refresh(),
         });
@@ -94,7 +92,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
           nativeTextInput: true,
           onConnectionStateChange: (state) => {
             this.connected = state === "connected";
-            // The server shows why the CLI ended, and stops offering the composer.
             if (state === "ended") this.visitStream(`${this.urlValue}/tab`);
           },
           onLink: (link) => {
@@ -106,7 +103,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
           },
         });
       }
-      /** Follows a link whose response is a Turbo Stream. */
       private visitStream(href: string): void {
         const anchor = document.createElement("a");
         anchor.href = href;
@@ -236,7 +232,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         }
         this.syncTranscript();
       }
-      /** Only a pane in transcript mode receives the transcript itself. */
       private subscribeTranscript(): void {
         this.transcriptSubscription?.unsubscribe();
         const agentId = this.agentIdValue;
@@ -248,7 +243,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         if (showing === this.element.classList.contains("cli-transcript-mode")) return;
         this.element.classList.toggle("cli-transcript-mode", showing);
         if (showing) this.transcriptEndTarget.hidden = true;
-        // A full redraw is slow; the terminal only needs one after being hidden.
         else this.viewer?.refresh();
       }
       private transcriptEndTop(): number {
@@ -260,7 +254,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         this.syncTranscript();
         requestAnimationFrame(() => this.scrollToLatestExchange());
       }
-      /** Show the end of the answer unless that would hide its prompt. */
       private scrollToLatestExchange(): void {
         this.transcriptTarget.scrollTop = latestExchangeTop(this.transcriptTarget, this.transcriptContentTarget, this.transcriptEndTop());
         this.transcriptScrolled();
@@ -273,7 +266,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       }
       inputKeydown(event: KeyboardEvent): void {
         if (this.element.querySelector<HTMLElement>(".agent-completion-menu-host:not([hidden])")?.checkVisibility()) return;
-        // Enter inserts a newline on every keyboard; only ⌘/Ctrl+Enter sends.
         if (!composerSubmitKey(event)) return;
         event.preventDefault();
         this.formTarget.requestSubmit();
@@ -308,7 +300,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
           }
           this.sent();
         } catch (error) {
-          // Sending never discards the draft.
           if (!this.inputTarget.value) setTextInputValue(this.inputTarget, draftText);
           this.failed();
           showError(errorMessage(error));
@@ -331,10 +322,8 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
         catch (error) { this.failed(); status.textContent = errorMessage(error); status.hidden = false; }
         finally { this.sending = false; }
       }
-      /** The terminal replaces the transcript before anything else moves; the composer empties at once. */
       private startSending(fromComposer: boolean): void {
         changeLayout(() => {
-          // Don't wait for the agent to report its turn; the channel confirms it.
           this.transcriptAvailable = false;
           this.syncTranscript();
           if (fromComposer) setTextInputValue(this.inputTarget, "");
@@ -347,7 +336,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       private failed(): void {
         this.element.dispatchEvent(new Event("agent-composer:failed"));
       }
-      // Returns false when the server handled the prompt itself without terminal input.
       private async deliver(data: FormData): Promise<boolean> {
         if (!this.connected || !this.viewer) throw new Error("Terminal disconnected. Reconnect and try again.");
         const response = await fetch(this.formTarget.action, { method: "POST", body: data });

@@ -1,7 +1,6 @@
 import { appendComposerQuote, composerViewportHeight, focusComposerText, sizeComposer } from "./composer-editor.ts";
 import { changeLayout, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, mobileComposerMediaQuery, type AgentComposerQuoteDetail, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 
-/** The composer may grow to this share of the space above the keyboard (or of the window). */
 const composerMaxShare = 0.4;
 const longPressMs = 500;
 
@@ -28,7 +27,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     connect(): void {
       this.pane = this.element.closest<HTMLElement>('[data-workspace-pane-role="agent"]')!;
       this.updateDraftIndicator();
-      // Sizes a composer that is already open; opening it here sizes it as it opens.
       this.autosize();
       this.selected();
     }
@@ -55,7 +53,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       return window.matchMedia(mobileComposerMediaQuery).matches;
     }
 
-    /** Programmatic focus cannot raise a soft keyboard, so touch devices wait for a tap. */
     private get focusesOnOpen(): boolean {
       return !this.mobile && !focusLikelyOpensSoftwareKeyboard();
     }
@@ -82,11 +79,9 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       if (!isWorkspacePaneVisible(this.element) || this.activeSelection) return;
       this.activeSelection = true;
       const input = this.input;
-      if (!input) return; // Ended CLI sessions are read-only.
-      // Some agent types start ready to write, including on mobile.
+      if (!input) return;
       const created = this.pane.dataset.workspaceAgentCreated === "true";
       delete this.pane.dataset.workspaceAgentCreated;
-      // Otherwise, reading comes first on mobile and in CLI views.
       this.setOpen((created && this.openOnCreateValue) || (this.openOnSelectValue && !this.mobile));
       if (focusLikelyOpensSoftwareKeyboard()) this.blurInput();
       else if (document.hasFocus()) {
@@ -97,7 +92,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
 
     hidden(event: Event): void {
       if (event.target !== this.pane) return;
-      // Live-surface replacement briefly hides and re-shows the same pane.
       setTimeout(() => {
         if (this.element.isConnected && isWorkspacePaneVisible(this.element)) return;
         this.activeSelection = false;
@@ -119,7 +113,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       this.setOpen(false);
     }
 
-    /** Selected transcript text, to comment on: the composer opens with it and grows in one step. */
     quote(event: CustomEvent<AgentComposerQuoteDetail>): void {
       const input = this.input!;
       changeLayout(() => {
@@ -128,7 +121,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       });
     }
 
-    /** A prompt was accepted for sending. On mobile the composer and keyboard go away at once. */
     sending(): void {
       if (this.mobile) this.close();
     }
@@ -138,7 +130,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       if (this.mobile) this.close();
     }
 
-    /** Sending failed after the mobile composer closed: bring the draft and its error back. */
     failed(): void {
       if (this.mobile) this.setOpen(true);
     }
@@ -147,7 +138,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       if (this.composer && this.input) focusComposerText(this.composer, event);
     }
 
-    /** A focused terminal takes the space; the composer collapses and keeps its draft. */
     focused(event: FocusEvent): void {
       if (event.target instanceof Element && event.target.closest(".observable-terminal-host") && this.isOpen) this.close();
     }
@@ -158,7 +148,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       this.updateDraftIndicator();
     }
 
-    /** The keyboard arrangement changed: the maximum height depends on the space above it. */
     layout(): void {
       this.autosize();
     }
@@ -166,7 +155,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     autosize(): void {
       const composer = this.composer;
       if (!composer || !this.input || !this.isOpen) return;
-      // Persistent controls below the editor must fit even above a short landscape keyboard.
       const below = this.hasBottomControlsTarget ? this.bottomControlsTarget.getBoundingClientRect().height : 0;
       const available = this.element.clientHeight - below;
       sizeComposer(composer, Math.floor(Math.min(composerViewportHeight() * composerMaxShare, available)));
@@ -178,7 +166,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
       const draft = Boolean(input?.value.trim() || this.composer?.querySelector(".agent-chip"));
       this.openerTarget.parentElement!.toggleAttribute("data-draft", draft);
     }
-    // Holding open-composer opens it and starts dictation while the finger is still down.
     pressOpener(event: PointerEvent): void {
       if (event.button !== 0) return;
       clearTimeout(this.longPress);
@@ -187,7 +174,6 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
         this.suppressNextClick = true;
         this.setOpen(true);
         this.element.querySelector<HTMLButtonElement>(':scope > .composer [data-dictation-composer-target="button"]')!.click();
-        // The release lands wherever the finger is now, possibly on a composer button.
         const swallow = (click: MouseEvent): void => { click.preventDefault(); click.stopImmediatePropagation(); };
         const release = (): void => {
           document.removeEventListener("pointerup", release, true);

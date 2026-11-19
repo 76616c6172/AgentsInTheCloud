@@ -4,12 +4,9 @@ import { Value } from "typebox/value";
 import { liveRegionDigestsSchema, type LiveRegionDigests } from "./live-presentation.ts";
 
 export interface CableSubscriptionOptions {
-  /** Runs after the server's authoritative initial update has been applied to the DOM. */
   onReady?: () => void;
-  /** Runs when a previously ready subscription loses its Cable connection. */
   onDisconnected?: () => void;
   onRejected?: (reason: string) => void;
-  /** The server-rendered element this subscription continues. Its shown regions go with each subscribe until a snapshot is applied; a reconnect then gets a full snapshot. */
   shownIn?: Element;
 }
 

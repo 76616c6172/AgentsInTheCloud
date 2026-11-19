@@ -1,5 +1,3 @@
-/// <reference lib="dom" />
-
 import { observableWebSocketUrl } from "@agents-in-the-cloud/observable-terminal/client";
 import { composerSubmitKey, errorMessage, focusLikelyOpensSoftwareKeyboard, isWorkspacePaneVisible, isTextEntry, notifyInputListeners, setTextInputValue, type WorkspaceClientControllerConstructor } from "@agents-in-the-cloud/shared";
 import { Type, type Static } from "typebox";
@@ -87,7 +85,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private readonly hidden = (): void => {
-      // A live morph can briefly hide the selected pane; only stop when it stays hidden.
       setTimeout(() => {
         if (this.element.isConnected && !this.element.closest("dialog[open]") && !isWorkspacePaneVisible(this.element)) this.closing();
       }, 0);
@@ -157,11 +154,9 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       this.submitPending = false;
       this.pendingSubmitter = undefined;
       this.setState("loading", "Preparing dictation model…");
-      // Reveal without focusing the inert input: a single tap starts voice, not the keyboard.
       const focused = document.activeElement;
       this.element.dispatchEvent(new CustomEvent("dictation-composer:started", { bubbles: true }));
       this.input.blur();
-      // A CLI's native terminal editor may own the keyboard instead of the composer.
       if (focused instanceof HTMLElement && this.element.contains(focused) && isTextEntry(focused)) focused.blur();
       this.setProgress(0);
       const query = this.workspaceIdValue ? `?workspaceId=${encodeURIComponent(this.workspaceIdValue)}`
@@ -200,7 +195,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     private received(event: DictationEvent): void {
       if (event.type === "agents-in-the-cloud.dictation.status") {
         if (event.status === "loading") {
-          // A late loading update must not undo a queued finish/send.
           if (this.state === "finishing") return;
           this.setState("loading", event.message ?? "Preparing dictation model…");
           this.setProgress(event.progress ?? 0);
@@ -276,7 +270,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
         this.fail("Dictation disconnected. Your text is still here.");
         return;
       }
-      // The streaming model holds back its last words until it hears what follows; a commit alone drops them.
       this.socket.send(new Int16Array(Math.round(sampleRate * trailingSilenceSeconds)).buffer);
       this.commitAudio();
     }
@@ -322,7 +315,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
     }
 
     private renderTranscript(): void {
-      // Empty progress deltas and silent sessions must not erase selected draft text.
       if (!this.committed && !this.partial) return;
       setTextInputValue(this.input, this.transcript().text);
       this.input.scrollTop = this.input.scrollHeight;
@@ -385,7 +377,6 @@ export function createDictationComposerController(Controller: WorkspaceClientCon
       const dictationStateChanged = this.composer.hasAttribute("data-dictating") !== dictating;
       this.composer.toggleAttribute("data-dictating", dictating);
       this.input.readOnly = dictating;
-      // Recognised words stream into the field; it can't take focus until dictation stops.
       this.input.inert = dictating;
       if (dictationStateChanged) notifyInputListeners(this.input);
       if (state === "finishing") this.setProgress(100);

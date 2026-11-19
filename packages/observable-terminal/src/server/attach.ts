@@ -14,16 +14,13 @@ export interface ObservableTerminalEvents {
 
 export interface ObservableTerminalAttachOptions {
   session: string;
-  /** Attach only; never start a replacement server for a missing execution. */
   requireExistingServer?: boolean;
   cols: number;
   rows: number;
   readonly?: boolean;
-  /** Starts the tmux client, in a workspace or on this machine. */
   start: StartWorkspaceProcess;
   user?: WorkspaceHelperUser;
   workdir?: string;
-  /** Report a session that is missing, or ends while attached, as `session-missing` rather than a detach. */
   reportSessionMissing?: boolean;
 }
 
@@ -43,7 +40,6 @@ function tmuxAttachArgs(options: Omit<ObservableTerminalAttachOptions, "start">)
   // Tell tmux that the Gespenst client accepts OSC 8. Pi probes this client
   // feature before emitting file:// hyperlinks; RGB alone is not enough.
   if (!options.readonly) {
-    // tmux can check its own options without spawning shells, grep, and more tmux clients.
     args.push("if-shell", "-F", "#{m:*xterm-256color:hyperlinks*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:hyperlinks", ";");
     args.push("if-shell", "-F", "#{m:*xterm-256color:clipboard*,#{terminal-features}}", "", "set-option -gas terminal-features ,xterm-256color:clipboard", ";");
   }
@@ -63,7 +59,6 @@ export function buildAttachStart(options: Omit<ObservableTerminalAttachOptions, 
   };
 }
 
-/** Whether the session exists, without starting a tmux server. Unexpected tmux failures are errors. */
 async function sessionExists(options: ObservableTerminalAttachOptions): Promise<boolean> {
   const check = options.start({
     argv: ["tmux", "-N", "has-session", "-t", `=${options.session}`],
@@ -79,14 +74,12 @@ async function sessionExists(options: ObservableTerminalAttachOptions): Promise<
 export function attachObservableTerminal(options: ObservableTerminalAttachOptions, events: ObservableTerminalEvents): ObservableTerminalConnection {
   let client: WorkspaceProcess | undefined;
   let size = { cols: options.cols, rows: options.rows };
-  // Input that arrives while the session check runs, before the client exists.
   const pending: string[] = [];
   let closed = false;
   void (async () => {
     let exitCode = 0;
     let reason: "session-missing" | undefined;
     try {
-      // Checking first keeps tmux's own complaint about a missing session off the terminal.
       if (options.reportSessionMissing && !await sessionExists(options)) {
         exitCode = 1;
         reason = "session-missing";
@@ -97,7 +90,6 @@ export function attachObservableTerminal(options: ObservableTerminalAttachOption
         for (const data of pending.splice(0)) client.write(data);
         for await (const chunk of client.stdout) events.onData(chunk);
         exitCode = exitStatus(await client.exited);
-        // A session that ended while attached is gone, not a detach to reconnect from.
         if (options.reportSessionMissing && !closed && !await sessionExists(options)) reason = "session-missing";
       }
     } catch (error) {
@@ -121,7 +113,6 @@ export function attachObservableTerminal(options: ObservableTerminalAttachOption
     close: () => {
       if (closed) return;
       closed = true;
-      // Hang up this client, never the tmux server or the program in its pane.
       client?.signal("SIGHUP");
     },
   };

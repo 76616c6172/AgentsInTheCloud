@@ -275,7 +275,6 @@ test("a new persisted run after an interrupted run is not mistaken for steering"
 test("a finished tool call's outcome reads the same for every tool row", () => {
   expect(toolOutcomeLabel({ exitCode: 0 }, false)).toBe("");
   expect(toolOutcomeLabel({ exitCode: 2 }, false)).toBe("exitcode 2");
-  // A timed-out or stopped command is not an error result, but it did not succeed.
   expect(toolOutcomeLabel({ timedOut: true, exitCode: 0 }, false)).toBe("timed out");
   expect(toolOutcomeLabel({ aborted: true }, true)).toBe("aborted");
   expect(toolOutcomeLabel(undefined, true)).toBe("failed");

@@ -58,7 +58,6 @@ test("shows interruptions as stopped turns, and slash commands as the prompts th
 test("answers a command with its output, which history replaces once recorded", () => {
   const value = new ClaudeState();
   value.add({ kind: "user", uuid: "review", timestamp: Date.parse(time(0)), content: [{ type: "text", text: "/code-review" }], meta: false });
-  // Claude streams a command's output as a reply no model wrote, and records it under the same UUID as a row of its own.
   value.receive(sdk({ type: "assistant", uuid: "findings", session_id: "s", parent_tool_use_id: null, message: { id: "d774d465", model: "<synthetic>", content: [{ type: "text", text: "Two bugs." }], stop_reason: "end_turn" } }));
   expect(projectClaudeTranscript(value, false)[2]).toMatchObject({ type: "text", key: "findings:output", text: "Two bugs.", final: true });
   const command = [
@@ -75,7 +74,6 @@ test("answers a command with its output, which history replaces once recorded", 
     user("result", 8, [{ type: "tool_result", tool_use_id: "toolu_1", content: "Updated" }]),
     assistant("a2", 9, "msg_2", [{ type: "text", text: "Fixed both." }], "end_turn"),
   )));
-  // Prompts, as title suggestions read them, leave out the output.
   expect(value.rows.flatMap(row => row.kind === "user" && !row.meta && !row.content.some(block => block.type === "tool_result") ? [claudeText(row.content)] : [])).toEqual(["/code-review", "fix them all"]);
   const items = projectClaudeTranscript(value, false);
   expect(items.map(item => [item.type, "text" in item ? item.text : undefined])).toEqual([["user", "/code-review"], ["working", undefined], ["text", "Two bugs."], ["user", "fix them all"], ["working", undefined], ["text", "Fixed both."]]);
@@ -140,7 +138,6 @@ test("Claude's report on finished background work is a turn of its own, after th
     assistant("a2", 2, "msg_2", [{ type: "text", text: "Started the suite." }]),
   );
   const value = state(started);
-  // Claude starts reporting before history records the notification.
   value.add({ kind: "task", uuid: "announced", timestamp: Date.parse(time(8)), runId: "run-1", toolUseId: "toolu_1", status: "completed", summary: "Background command \"Run tests\" completed (exit code 0)" });
   const live = projectClaudeTranscript(value, true);
   expect(live.map(outline)).toEqual([["user", "Run the suite in the background"], ["working", undefined], ["text", "Started the suite."], ["message", "bun test", "finished"], ["working", undefined]]);
@@ -155,7 +152,6 @@ test("Claude's report on finished background work is a turn of its own, after th
     ["user", "Run the suite in the background"], ["working", undefined], ["text", "Started the suite."],
     ["message", "bun test", "finished"], ["working", undefined], ["text", "All tests pass."],
   ]);
-  // A resumed task finishes again under the same task ID, in a run of its own.
   value.add({ kind: "task", uuid: "announced-again", timestamp: Date.parse(time(20)), runId: "run-2", status: "completed", summary: "Background command \"Run tests\" completed" });
   value.merge(claudeRows(reported));
   expect(value.rows.at(-1)).toMatchObject({ uuid: "announced-again" });

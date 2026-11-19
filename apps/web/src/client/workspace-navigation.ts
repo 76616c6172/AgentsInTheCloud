@@ -5,8 +5,6 @@ import { registerWorkspaceControllers, workspaceSelectionController } from "./wo
 import { markActiveWorkspaceRow } from "./workspace-presentation.ts";
 
 const workspacePaneRevealDelayMs = 150;
-
-/** Points from the artwork to the first-workspace action. */
 class FirstWorkspaceGuideController extends Controller<HTMLElement> {
   static targets = ["origin", "svg", "path"];
   declare readonly originTarget: HTMLElement;
@@ -20,7 +18,6 @@ class FirstWorkspaceGuideController extends Controller<HTMLElement> {
   connect(): void {
     this.resizeObserver = new ResizeObserver(this.scheduleDraw);
     this.resizeObserver.observe(this.originTarget);
-    // Live shell morphs can clear the client-drawn path or replace the button.
     this.observer = new MutationObserver(this.scheduleDraw);
     this.observer.observe(this.element.closest(".fixed-shell-app")!, {
       subtree: true, childList: true, attributes: true,
@@ -70,7 +67,6 @@ class FirstWorkspaceGuideController extends Controller<HTMLElement> {
     const hidden = origin.width === 0 || destination.width === 0;
     this.svgTarget.style.visibility = hidden ? "hidden" : "";
     if (hidden) return;
-    // Anchor just left of the A robot's face in the 2400 × 1260 artwork.
     const start = { x: origin.left + origin.width * 490 / 2400, y: origin.top + origin.height * 150 / 1260 };
     const end = { x: destination.right + 5, y: destination.top + destination.height / 2 };
     const bend = Math.min(180, Math.max(40, Math.abs(start.x - end.x) * 0.7));
@@ -80,7 +76,6 @@ class FirstWorkspaceGuideController extends Controller<HTMLElement> {
   };
 }
 
-/** Slides the workspace pane between the workspace list and the "New workspace" template picker. */
 class WorkspacePaneController extends Controller<HTMLElement> {
   static targets = ["workspacesHeader", "pickerHeader", "body", "workspaces", "picker", "newWorkspace", "option", "value", "addFirst"];
   declare readonly workspacesHeaderTarget: HTMLElement;
@@ -93,14 +88,12 @@ class WorkspacePaneController extends Controller<HTMLElement> {
   declare readonly valueTarget: HTMLInputElement;
   declare readonly addFirstTarget: HTMLElement;
   declare readonly hasAddFirstTarget: boolean;
-  /** Undefined until a choice exists: with no templates yet, nothing is preselected. */
   private selected: string | undefined;
   private knownWorkspaceTemplateIds = new Set<string>();
   private optionsObserver?: MutationObserver;
 
   connect(): void {
     this.knownWorkspaceTemplateIds = new Set(this.optionTargets.map((option) => option.dataset.workspaceTemplateId!));
-    // Live updates may morph existing options in place, so watch the options rather than target connections.
     this.optionsObserver = new MutationObserver(this.optionsChanged);
     this.optionsObserver.observe(this.pickerTarget, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-workspace-template-id", "aria-checked"] });
     document.addEventListener("agents-in-the-cloud:mobile-workspace-pane-changed", this.mobileWorkspacePaneChanged);
@@ -111,7 +104,6 @@ class WorkspacePaneController extends Controller<HTMLElement> {
     this.optionsObserver?.disconnect();
   }
 
-  /** "New workspace" starts from the current workspace's template. */
   openPicker(): void {
     const active = this.element.querySelector<HTMLElement>("[data-workspace-entry-id][aria-current='page']");
     this.showPicker(this.hasAddFirstTarget ? undefined : active?.dataset.workspaceTemplateId ?? "");
@@ -121,7 +113,6 @@ class WorkspacePaneController extends Controller<HTMLElement> {
     window.dispatchEvent(new CustomEvent("workspace-pane:first-template-chosen"));
   }
 
-  /** A row's template icon starts from that row's template. */
   openPickerFor({ params }: { params: { workspaceTemplate: string } }): void {
     this.showPicker(params.workspaceTemplate);
   }
@@ -184,13 +175,11 @@ class WorkspacePaneController extends Controller<HTMLElement> {
     this.valueTarget.value = this.selected ?? "";
     for (const option of this.optionTargets) {
       const checked = option.dataset.workspaceTemplateId === this.selected;
-      // Only write real changes: the options observer watches this attribute.
       if (option.getAttribute("aria-checked") !== String(checked)) option.setAttribute("aria-checked", String(checked));
       option.tabIndex = checked || (this.selected === undefined && option === this.optionTargets[0]) ? 0 : -1;
     }
   }
 
-  /** Server updates refresh the options; a template that was just added becomes the choice, otherwise keep it. */
   private readonly optionsChanged = (): void => {
     const workspaceTemplateIds = this.optionTargets.map((option) => option.dataset.workspaceTemplateId!);
     const added = workspaceTemplateIds.find((workspaceTemplateId) => !this.knownWorkspaceTemplateIds.has(workspaceTemplateId));
@@ -245,14 +234,12 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   toggleWorkspacePanePinned(): void {
     this.workspacePanePinned = !this.workspacePanePinned;
     localStorage.setItem("agents-in-the-cloud:workspace-pane-pinned", String(this.workspacePanePinned));
-    // Unpinning resumes hover behavior; don't hide the button under the pointer.
     this.setWorkspacePaneCollapsed(false);
   }
 
   revealWorkspacePane(event: PointerEvent): void {
     if (event.pointerType !== "mouse" || window.matchMedia(phoneLayoutMediaQuery).matches) return;
     if (!this.element.classList.contains("is-workspace-pane-collapsed")) return;
-    // A pointer passing the window edge on its way elsewhere shouldn't open the sidebar.
     clearTimeout(this.revealTimer);
     this.revealTimer = setTimeout(() => this.setWorkspacePaneCollapsed(false), workspacePaneRevealDelayMs);
   }
@@ -279,7 +266,6 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   }
 
   private setWorkspacePaneCollapsed(collapsed: boolean): void {
-    // Opening hides the button that pinned it; keep focus on the pane's own toggle.
     const refocus = !collapsed && document.activeElement?.closest("[data-show-workspace-pane]");
     this.element.classList.toggle("is-workspace-pane-collapsed", collapsed);
     if (refocus) this.element.querySelector<HTMLButtonElement>("[data-collapse-workspace-pane]")!.focus({ preventScroll: true });
@@ -367,7 +353,6 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     return [...this.scrollTarget.querySelectorAll<HTMLElement>(":scope > [data-workspace-order]")];
   }
 
-  /** Server ranks remain authoritative; only the selected row's slot is browser-owned. */
   private arrangeWorkspaceRows(): HTMLElement[] {
     const rows = this.activeWorkspaceRows().sort((a, b) => Number(a.dataset.workspaceOrder) - Number(b.dataset.workspaceOrder));
     const pinned = this.pinnedWorkspace;
@@ -379,7 +364,6 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
         rows.splice(pinned.index, 0, selected);
       }
     }
-    // Move only out-of-order rows; leave the Parked disclosure after active rows.
     rows.forEach((row, index) => {
       const current = this.scrollTarget.children[index];
       if (current !== row) this.scrollTarget.insertBefore(row, current);

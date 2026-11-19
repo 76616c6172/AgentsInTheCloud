@@ -120,7 +120,6 @@ class LaunchComposerDialogController extends Controller<HTMLDialogElement> {
       const maxHeight = typing ? available - 16 : Math.min(available - 32, 860);
       this.element.style.setProperty("--launch-dialog-height", `${maxHeight}px`);
       if (typing) {
-        // Flex layout owns full-height typing; discard content-sizing overrides.
         this.input.style.removeProperty("height");
         this.input.style.removeProperty("overflow-y");
         revealComposerCaret(this.input);
@@ -151,7 +150,6 @@ class LaunchComposerDialogController extends Controller<HTMLDialogElement> {
     if (!event.detail.success) return;
     const prompt = this.input.value;
     if (prompt.trim()) localStorage.setItem(launchComposerPromptHistoryStorageKey, JSON.stringify([...this.promptHistory(), prompt]));
-    // Intentionally only dismiss the LaunchComposer here: do not select or wait for the launched Workspace.
     this.submissionAccepted = true;
     this.element.close();
   }

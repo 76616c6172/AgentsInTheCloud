@@ -78,7 +78,6 @@ export function createTerminalConnection(options: {
       }
       if (options.interactive) {
         if (suspended || document.hidden) return;
-        // A failed attach can open and immediately close; do not count it as recovery.
         if (openedAt && Date.now() - openedAt >= 10_000) retryAttempts = 0;
         if (retryAttempts >= retryDelays.length) { report("unavailable"); return; }
         report("reconnecting");

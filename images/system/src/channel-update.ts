@@ -23,7 +23,6 @@ export async function prepareChannelUpdate(settingsPath: string, images: {
   const settings: unknown = text === undefined ? {} : JSON.parse(text);
   if (!Value.Check(settingsSchema, settings)) throw new Error("Invalid update settings");
   const updateChannel = settings.releaseChannel ?? "latest";
-  // Older Nox settings have no repository; keep them on this distribution.
   const reference = `${settings.appRepository ?? appRepository}:${updateChannel}`;
   // Always refresh the mutable channel tag, even if Docker already has it.
   // Pin the result before dependencies are prepared or the app is stopped.

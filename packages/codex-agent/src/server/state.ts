@@ -5,7 +5,6 @@ import type {
 } from "../protocol.ts";
 import type { CodexNotification } from "./protocol.ts";
 
-/** A projection of Codex's native state. Final item snapshots replace streamed deltas. */
 export class CodexState {
   readonly turns: Turn[] = [];
   readonly completedItems = new Set<string>();

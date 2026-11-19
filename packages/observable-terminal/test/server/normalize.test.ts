@@ -83,7 +83,6 @@ test("receipt UUID sessions attach read-only without resizing the existing windo
   try {
     const start = buildAttachStart({ session, cols: 120, rows: 30, readonly: true, requireExistingServer: true });
     expect(start.terminal).toEqual({ cols: 120, rows: 30 });
-    // Read-only viewers supply their own PTY dimensions, never resize the execution.
     expect(start.argv).toEqual(["tmux", "-N", "attach-session", "-r", "-t", session]);
     expect((await run(["display-message", "-p", "-t", `${session}:`, "#{window_width}x#{window_height}"])).output.trim()).toBe("80x24");
   } finally { await run(["kill-server"]); }

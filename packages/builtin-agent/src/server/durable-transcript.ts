@@ -12,9 +12,7 @@ import { isJsonObject } from "@agents-in-the-cloud/core";
 import { codemodeTemplateRunEndEntry } from "./durable-codemode-templates.ts";
 import { buildTranscript, isFinalAssistantMessage, isToolViewDetails, toolDetailsIndicateError, type SessionImageRef, type ToolView, type TranscriptItem, type TranscriptRecord } from "@agents-in-the-cloud/agent/server/transcript";
 
-/** The native watch is an exact committed frame, not an AgentSession event stream. */
 export function durableViewState(view: ConversationView) {
-  // These documents are owned/versioned by the pinned Harness, not external input.
   return {
     // SAFETY: Harness owns/version-checks pi.agent before mounting this view.
     agent: (view.docs[AgentDoc.definition.kind] ?? {}) as AgentState,
@@ -39,7 +37,6 @@ export function activeConversationView(view: ConversationView): ConversationView
 
 const textBlockSchema = Type.Object({ type: Type.Literal("text"), text: Type.String() });
 
-/** What a running tool published: its output and details, shown until its result replaces them. */
 function applySlotProgress(tool: ToolView, slot: Pick<ToolSlot, "output" | "details">) {
   tool.resultText = slot.output;
   let details = slot.details;
@@ -96,7 +93,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   const timings = new Map<string, DurableTurnTiming>();
   let turn: string | undefined;
   let pendingBoundary = true;
-  // Code mode template calls that ended their run, as recorded when they finished.
   const runEndingCalls = new Set<string>();
 
   function appendMessage(message: Message, key: string, imageEntryId: string, offset: number, partial = false, diagnostics: readonly ToolDiagnostic[] = []) {
@@ -141,7 +137,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
       continue;
     }
     if (durableStopEntry.is(entry)) {
-      // The aborted tool results that follow still belong to this turn; the next input starts another.
       if (turn) {
         turnEnds.set(turn, { timestamp: entry.data.at, completed: false });
         timings.get(turn)!.stop(entry.data.at);
@@ -159,7 +154,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
     }
     if (CompactionEntry.is(entry) || ResetEntry.is(entry)) {
       const text = entry.model?.map(message => contentText(message.content)).join("\n") || "New session";
-      // The native compaction envelope is model-facing, not part of the summary.
       const summary = text.replace(/^The conversation history before this point was compacted into the following summary:\n\n<summary>\n([\s\S]*)\n<\/summary>$/, "$1");
       records.push({ kind: "note", id: String(entry.id), text: CompactionEntry.is(entry) ? summary : text, tone: CompactionEntry.is(entry) ? "summary" : "system" });
       pendingBoundary = true;
@@ -176,7 +170,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
       continue;
     }
     let offset = 0;
-    // Imported legacy tool results can contain only model messages, without native diagnostics.
     const diagnostics = ToolResultEntry.is(entry) ? entry.data?.diagnostics ?? [] : [];
     for (const [index, message] of (entry.model ?? []).entries()) {
       appendMessage(message, index === 0 ? String(entry.id) : `${entry.id}:message:${index}`, String(entry.id), offset, false, diagnostics);
@@ -193,7 +186,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
   const nestedCalls = new Map(contribution?.nested?.map(({ toolCallId, calls }) => [toolCallId, calls]));
   const scriptFiles = new Map(contribution?.scriptFiles?.map(({ toolCallId, file }) => [toolCallId, file]));
 
-  /** The calls a tool made to other tools, as an integration recorded them, with live progress while they run. */
   function attachNestedCalls(tool: ToolView) {
     const calls = nestedCalls.get(tool.callId)?.map((recorded): ToolView => {
       if (recorded.status !== "running") return recorded;
@@ -202,7 +194,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
         const slot = nestedSlots.get(nested.callId);
         if (slot) applySlotProgress(nested, slot);
       } else {
-        // The calling tool ended, for example by being stopped, before this call returned.
         nested.status = "error";
         nested.details = { aborted: true };
         nested.resultUnavailable = true;
@@ -220,7 +211,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
     const slot = slots.get(tool.callId);
     if (partialTools.has(tool.callId)) { tool.status = "streaming"; return; }
     if (!slot || slot.status === "done") {
-      // An assistant tool intent is not evidence of successful execution.
       tool.status = "error";
       tool.resultText = "Tool result unavailable: this call did not complete.";
       return;
@@ -232,7 +222,6 @@ export function projectDurableTranscript(view: ConversationView): TranscriptItem
 
   function visit(list: TranscriptItem[]) {
     for (const item of list) {
-      // Tree/rewind actions need native operations, never old SessionManager IDs.
       item.rewindEntryId = undefined;
       if (item.type === "tool") {
         updateTools(item.tool);

@@ -4,23 +4,18 @@ import { quotableSelection } from "@agents-in-the-cloud/shared/text-selection";
 interface PendingQuote {
   quote: ComposerQuote;
   transcript: HTMLElement;
-  /** Selected in a visual; the page cannot see or clear that selection itself. */
   frame?: HTMLIFrameElement;
   rect(): DOMRect;
 }
 
-/** Distance from the transcript's edges. */
 const inset = 8;
-/** Distance below the selection. */
 const offset = 4;
 
-/** Where quoted text came from: its transcript item or visual, or the transcript when it spans several. */
 function quoteSource(start: Element | null, end: Element | null): string {
   const source = start?.closest<HTMLElement>("[data-quote-source]");
   return source && source === end?.closest("[data-quote-source]") ? source.dataset.quoteSource! : "From the transcript";
 }
 
-/** A typed character that should start a comment, not a shortcut, a space or a key in a field. */
 function commentStart(event: KeyboardEvent): string | undefined {
   if (event.defaultPrevented || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return undefined;
   if ([...event.key].length !== 1 || !event.key.trim()) return undefined;
@@ -63,19 +58,16 @@ export function createTranscriptQuoteController(Controller: WorkspaceClientContr
       this.hide();
     }
 
-    /** A tap can clear the page selection before its click lands; the quote stays until the press ends. */
     press(): void {
       this.pressing = true;
     }
 
-    /** Releasing on the button itself is a click, which takes the quote; WebKit may deliver it a frame later. */
     release(event: PointerEvent): void {
       if (event.type === "pointerup" && event.target instanceof Node && this.actionTarget.contains(event.target)) return;
       this.pressing = false;
       this.selectionChanged();
     }
 
-    /** Pressing with a mouse would clear the page selection. */
     keepSelection(event: MouseEvent): void {
       event.preventDefault();
     }
@@ -159,7 +151,6 @@ export function createTranscriptQuoteController(Controller: WorkspaceClientContr
       this.positionFrame = requestAnimationFrame(() => { if (this.pending) this.position(); });
     };
 
-    /** At the transcript's right edge, just below the selection, kept inside the transcript. */
     private position(): void {
       const { transcript, rect } = this.pending!;
       const action = this.actionTarget;

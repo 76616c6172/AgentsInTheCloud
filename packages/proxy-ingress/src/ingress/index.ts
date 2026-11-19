@@ -45,7 +45,6 @@ export interface IngressStatus {
 export interface WorkspaceIngress {
   initialize(): Promise<void>;
   publishPort(workspaceId: string, port: number, protocol?: "http" | "https", hostname?: string): Promise<string>;
-  /** Origin serving the workspace filesystem; a file's URL is the origin plus its absolute path. */
   publishFiles(workspaceId: string): Promise<string>;
   openCanonical(app: WorkspaceAppRef, pathAndSearch: string): Promise<Response>;
   stopWorkspace(workspaceId: string): Promise<void>;
@@ -417,7 +416,6 @@ async function fetchWithStartupRetry(target: URL, init: RequestInit, workspacePo
         throw new WorkspaceAuthenticationError();
       }
       if (workspacePort !== undefined && response.headers.get(workspaceGatewayErrorHeader) === "upstream") {
-        // Consume the failed response before retrying so its connection is reusable.
         const message = (await response.text()).trim();
         throw new WorkspaceUpstreamError(message || "Workspace app connection failed", workspacePort);
       }
@@ -473,7 +471,6 @@ export function publicWorkspaceAppOrigin(request: Request): string {
   return publicAgentsInTheCloudOrigin(request);
 }
 
-/** The AgentsInTheCloud URL for the current browser connection, not a guarantee of reachability from other devices. */
 export function agentsInTheCloudUrl(request: Request): string {
   return publicAgentsInTheCloudOrigin(request);
 }

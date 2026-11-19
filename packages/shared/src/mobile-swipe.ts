@@ -6,19 +6,14 @@ export type MobileSwipeDirection = -1 | 1;
 const swipeIntentDistance = 8;
 const swipeNavigationDistance = 16;
 const swipeAxisBias = 1.25;
-// Flick speed is measured over the latest movement only; lifting after a longer pause is a release.
 const flickWindow = 100;
 
-/** A claimed swipe that follows the finger instead of navigating at a threshold. */
 export interface MobileSwipeDrag {
-  /** Signed horizontal distance from where the touch started, in CSS pixels. */
   move(distance: number): void;
-  /** Velocity is the latest horizontal speed in CSS pixels per millisecond. */
   end(distance: number, velocity: number): void;
   cancel(): void;
 }
 
-/** Shared recognizer; its owning Stimulus controller supplies visibility and navigation. */
 export function observeMobileSwipe(
   root: HTMLElement,
   navigationFor: (direction: MobileSwipeDirection) => (() => void) | undefined,
@@ -34,7 +29,6 @@ export function observeMobileSwipe(
   const start = (event: TouchEvent): void => {
     cancel();
     if (event.touches.length !== 1 || !(event.target instanceof Node) || !root.contains(event.target)) return;
-    // A fresh tap is not the compatibility click from the previous swipe.
     suppressClickUntil = 0;
     if (!navigationFor(-1) && !navigationFor(1)) return;
     const touch = event.touches[0]!;
@@ -48,7 +42,6 @@ export function observeMobileSwipe(
     const vertical = Math.abs(touch.screenY - current.y);
     if (!current.claimed) {
       if (Math.max(horizontal, vertical) < swipeIntentDistance) return;
-      // Yield definite vertical intent; let an ambiguous diagonal settle.
       if (vertical > horizontal * swipeAxisBias) { cancel(); return; }
       if (horizontal <= vertical * swipeAxisBias) return;
       if (!navigationFor(dx < 0 ? 1 : -1) || !event.cancelable) { cancel(); return; }
@@ -58,7 +51,6 @@ export function observeMobileSwipe(
     if (event.cancelable) event.preventDefault();
     event.stopImmediatePropagation();
     suppressClickUntil = Date.now() + 400;
-    // Only movement counts: touchend usually repeats the last position.
     const last = current.samples.at(-1)!;
     if (touch.screenX !== last.x && event.timeStamp > last.t) {
       current.samples.push({ x: touch.screenX, t: event.timeStamp });
@@ -71,7 +63,6 @@ export function observeMobileSwipe(
     if (!current.navigated && horizontal >= swipeNavigationDistance && horizontal > vertical * swipeAxisBias) {
       const navigate = navigationFor(dx < 0 ? 1 : -1);
       if (navigate) {
-        // One touch sequence moves one pane, even if the finger keeps moving.
         current.navigated = true;
         navigate();
       }
@@ -82,7 +73,6 @@ export function observeMobileSwipe(
     advance(event, event.touches[0]);
   };
   const finish = (event: TouchEvent): void => {
-    // A quick flick's last movement can arrive with touchend instead of touchmove.
     if (event.touches.length === 0) advance(event, event.changedTouches[0]);
     const drag = event.touches.length === 0 ? gesture?.drag : undefined;
     if (drag) {

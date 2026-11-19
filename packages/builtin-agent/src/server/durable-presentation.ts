@@ -1,10 +1,9 @@
 import type { Context } from "@earendil-works/chord";
 import { getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai/utils/transcript";
 import { type Conversation, type ConversationView, type WatchHandle } from "@earendil-works/pi-durable";
-import { StreamingMarkdownRenderer } from "@agents-in-the-cloud/markdown";
 import { createLivePresentation, type LiveRegion, type LiveRegionDigests } from "@agents-in-the-cloud/shared";
 import type { AgentRenderContext } from "@agents-in-the-cloud/agent/server/render-context";
-import { LiveTranscriptRenderer } from "./render-live-transcript.ts";
+import { LiveTranscriptRenderer, StreamingTexts } from "./render-live-transcript.ts";
 import { renderModelContextDetailFrame, renderTranscriptItemDetailFrame, type AgentModelContextView } from "@agents-in-the-cloud/agent/server/render-transcript";
 import type { AgentLivePresentationListener, AgentLivePresentationSubscription } from "./runtime-types.ts";
 import { findTranscriptItem, isTranscriptTarget, type TranscriptItem } from "@agents-in-the-cloud/agent/server/transcript";
@@ -25,7 +24,7 @@ const wholeWindow = Number.MAX_SAFE_INTEGER - 1;
  */
 export class DurableAgentPresentation {
   private readonly renderer = new LiveTranscriptRenderer();
-  private readonly markdown = new Map<string, { source: string; renderer: StreamingMarkdownRenderer; stableHtml: string; tailHtml: string; tailBlocks?: readonly string[] }>();
+  private readonly markdown: StreamingTexts;
   private readonly turns = new Map<string, { presentation: ReturnType<typeof createLivePresentation>; subscriptions: Set<AgentLivePresentationSubscription> }>();
   private readonly presentation = createLivePresentation(() => [this.transcriptRegion()], 50);
   private items: TranscriptItem[];
@@ -37,21 +36,8 @@ export class DurableAgentPresentation {
   private constructor(private readonly watch: WatchHandle<ConversationView>, ctx: AgentRenderContext, private readonly onCommit?: (view: ConversationView) => void | Promise<void>) {
     this.frame = activeConversationView(watch.value);
     this.items = projectDurableTranscript(this.frame);
-    this.ctx = { ...ctx, compactTools: true, streamingText: (key, source) => {
-      let cached = this.markdown.get(key);
-      if (!cached || !source.startsWith(cached.source)) {
-        cached = { source: "", renderer: new StreamingMarkdownRenderer(ctx.workspaceId), stableHtml: "", tailHtml: "" };
-        this.markdown.set(key, cached);
-      }
-      if (source !== cached.source) {
-        const update = cached.renderer.render(source);
-        cached.source = source;
-        cached.stableHtml += update.stableHtmlAddition;
-        cached.tailHtml = update.tailHtml;
-        cached.tailBlocks = update.tailBlocks;
-      }
-      return cached;
-    } };
+    this.markdown = new StreamingTexts(ctx.workspaceId);
+    this.ctx = { ...ctx, compactTools: true, streamingText: this.markdown.render };
     this.update(this.frame);
     watch.start(onValues(async value => {
       if (this.disposed) return;
@@ -65,20 +51,17 @@ export class DurableAgentPresentation {
   }
 
   static async attach(conversation: Pick<Conversation, "watch" | "context">, ctx: AgentRenderContext, context: Context, onCommit?: (view: ConversationView) => void | Promise<void>) {
-    // Start at the newest compaction or reset rather than the start of the history; later ones are cut in update().
     const { head } = await conversation.context(context);
     const watch = await conversation.watch(context, { from: head?.head, min: wholeWindow, max: wholeWindow });
     try { return new DurableAgentPresentation(watch, ctx, onCommit); }
     catch (error) { await watch.stop(); throw error; }
   }
 
-  /** Same exact frame used for transcript, busy state, settings, inbox and usage. */
   get state() { return durableViewState(this.frame); }
   get busy(): boolean { return Boolean(this.state.live.run || this.state.live.compactions?.length); }
   get branchId(): string { return this.ctx.branchId!; }
   get closed() { return this.watch.closed; }
 
-  /** `view` holds the active context only. */
   private update(view: ConversationView) {
     this.frame = view;
     const branch = `${view.conversation.id}:${view.entries.find(entry => entry.head !== undefined)?.id ?? "root"}`;
@@ -101,15 +84,7 @@ export class DurableAgentPresentation {
     this.modelContext = { systemPrompt: getCurrentSystemPrompt(messages), tools: getCurrentTools(messages) };
     this.presentation.invalidate();
     for (const channel of this.turns.values()) channel.presentation.invalidate();
-    // A finalized partial gets a persisted entry identity. Don't retain every
-    // old incremental parser for the lifetime of a long conversation.
-    const liveKeys = new Set<string>();
-    const collect = (items: TranscriptItem[]) => { for (const item of items) {
-      if (item.type === "text" && item.live) liveKeys.add(item.key);
-      if (item.type === "working") collect(item.items);
-    } };
-    collect(this.items);
-    for (const key of this.markdown.keys()) if (!liveKeys.has(key)) this.markdown.delete(key);
+    this.markdown.retainLive(this.items);
   }
 
   private assertOpen() { if (this.disposed) throw new Error("Durable presentation is detached"); }

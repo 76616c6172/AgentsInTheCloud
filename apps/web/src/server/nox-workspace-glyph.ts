@@ -15,7 +15,6 @@ interface GlyphWorkspace {
 
 const dotPositions = [4.5, 9.5, 14.5, 19.5];
 
-/** FNV-1a, as the template swatch colors use, feeding mulberry32. */
 function random(seed: string): () => number {
   let state = 0x811c9dc5;
   for (const char of seed) state = Math.imul(state ^ char.charCodeAt(0), 0x01000193) >>> 0;
@@ -27,7 +26,6 @@ function random(seed: string): () => number {
   };
 }
 
-/** Two braille cells, mirrored: a 4×4 grid whose right half reflects its left. */
 export function workspaceGlyphDots(workspaceId: string): boolean[][] {
   const next = random(workspaceId);
   for (;;) {
@@ -52,7 +50,6 @@ function srgbToLinear(channel: number): number {
   return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
 }
 
-/** OKLCH hue of a template color, or undefined when it is too grey to have one. */
 export function templateHue(color: string): number | undefined {
   const oklch = /^oklch\(\s*[\d.]+\s+([\d.]+)\s+([\d.]+)\s*\)$/.exec(color);
   if (oklch) return Number(oklch[1]) < 0.02 ? undefined : Number(oklch[2]);
@@ -68,14 +65,12 @@ export function templateHue(color: string): number | undefined {
   return (Math.atan2(bAxis, a) * 180 / Math.PI + 360) % 360;
 }
 
-/** The template gives a hue; a little seeded lightness keeps same-template siblings from looking stamped out. */
 function glyphTint(workspace: Pick<GlyphWorkspace, "id" | "workspaceTemplate">) {
   const { workspaceTemplate } = workspace;
   const hue = workspaceTemplate && templateHue(workspaceTemplate.swatchColor ?? workspaceTemplateSwatchColor(workspaceTemplate.id));
   return { hue, lightness: (random(`${workspace.id}:lightness`)() - 0.5) * 0.06 };
 }
 
-/** Attributes and contents for the row's "new workspace from this template" button. */
 export function noxWorkspaceGlyph(workspace: GlyphWorkspace) {
   const { hue, lightness } = glyphTint(workspace);
   const attributes = [

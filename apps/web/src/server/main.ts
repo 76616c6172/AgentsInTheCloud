@@ -66,7 +66,7 @@ const workspaceStartupOperations = {
   imageOutdated: (id: string) => workspaceImageOutdated(id, undefined, agentsInTheCloudEvents),
   get provisioning() { return app.provisioning; },
 };
-const cableServer = createCableServer({ registry, channels: [...workspaceModules.flatMap((module) => module.cableChannels ?? []), { name: "surface", subscribe: (identifier, listener, _events, shown) => app.subscribeSurface(identifier, listener, shown) }, { name: "shell", subscribe: (_identifier, listener) => app.subscribeShell(listener) }], events: agentsInTheCloudEvents });
+const cableServer = createCableServer({ registry, channels: [...workspaceModules.flatMap((module) => module.cableChannels ?? []), { name: "surface", subscribe: (identifier, listener, _events, shown) => app.subscribeSurface(identifier, listener, shown) }, { name: "shell", subscribe: (_identifier, listener, _events, shown) => app.subscribeShell(listener, shown) }], events: agentsInTheCloudEvents });
 
 app = createWebApp({
   registry,
@@ -100,7 +100,6 @@ app = createWebApp({
 
 agentsInTheCloudEvents.on("workspace_user_activity", ({ workspaceId }) => registry.touch(workspaceId));
 agentsInTheCloudEvents.on("workspace_title_changed", ({ workspaceId, title }) => registry.setTitle(workspaceId, title || null));
-// Discover identity and template metadata before serving. Runtime health is checked in the background.
 const persistedWorkspaces = (await listWorkspaces({ inspectImages: false })).workspaces;
 await registry.seed(persistedWorkspaces.map((workspace) => ({ ...workspace, provisioning: !workspace.parked })));
 
@@ -179,7 +178,6 @@ async function serveStatic(pathname: string, request: Request): Promise<Response
 
   const entry = legacyStaticFiles[pathname];
   if (!entry) return undefined;
-  // Installed apps paint their system bars from the manifest, so it follows the chosen theme.
   if (pathname === "/manifest.webmanifest") {
     const theme = readThemeSetting();
     const { background } = agentsInTheCloudThemes.find(({ id }) => id === theme)!;
@@ -195,7 +193,6 @@ async function serveStatic(pathname: string, request: Request): Promise<Response
 
 async function compressDynamicResponse(request: Request, response: Response): Promise<Response> {
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-  // Event streams stay open; buffering them for compression prevents delivery.
   if (contentType.startsWith("text/event-stream")) return response;
   const compressible = contentType.startsWith("text/") || contentType.includes("json") || contentType.includes("javascript") || contentType.includes("xml");
   if (request.method === "HEAD" || !response.body || !compressible || response.headers.has("content-encoding")) return response;
@@ -277,7 +274,6 @@ const server = Bun.serve<SocketData>({
   idleTimeout: 255,
   async fetch(request, server) {
     const url = new URL(request.url);
-    // MCP has a separate bearer-token boundary; it is not a management route.
     const mcpResponse = await handleAgentMcpRequest(request);
     if (mcpResponse) return mcpResponse;
 
@@ -337,7 +333,6 @@ function resumeWorkspace(id: string): void {
   }).catch((error) => console.error(`Workspace startup failed for ${id}`, error));
 }
 
-// Drain preparation before releasing durable writer leases; shutdown is not user Stop.
 let hostStopping = false;
 for (const signal of ["SIGINT", "SIGTERM"] as const) process.on(signal, () => {
   if (hostStopping) return;

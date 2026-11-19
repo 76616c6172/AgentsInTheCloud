@@ -4,7 +4,6 @@ import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-ba
 export const dictationComposerController = "dictation-composer";
 
 export function renderDictationComposerControl(mobile = false): string {
-  // The voice ribbon is the control's only content, at rest and while listening.
   const button = buttonHtml({
     type: "button",
     variant: mobile ? "primary" : "secondary",
@@ -19,7 +18,6 @@ export function renderDictationComposerControl(mobile = false): string {
   return `${button}<span class="dictation-status" data-dictation-composer-target="status" aria-live="polite">Dictate</span><div class="dictation-error" data-dictation-composer-target="error" hidden>${error}</div>`;
 }
 
-/** Always available on phones, independently of whether the Agent composer is open. */
 export function renderMobileDictationControl(): string {
   return `<div class="dictation-dock" data-agent-composer-target="bottomControls"><div class="dictation-mobile-control">${renderDictationComposerControl(true)}</div></div>`;
 }

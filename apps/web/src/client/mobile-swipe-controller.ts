@@ -12,21 +12,16 @@ interface SwipePresentation {
 
 interface SwipeNavigation {
   navigate: () => void;
-  /** The workspace list drawer, the Agent↔Work slide, or a step between the spread's stops. */
   motion: "drawer" | "pane" | "spread";
-  /** Past the spread's end, a swipe only gives a little; claiming it keeps the browser from going back. */
   stay?: true;
 }
 
-// A flick commits regardless of distance; a slow drag commits past halfway.
 const flickVelocity = 0.3;
-// Past the spread's end the pages give at most this far.
 const spreadGive = 40;
 // A release carries the finger's speed: an ease-out cubic starts at three times its average speed,
 // so the settle lasts three times what the remaining distance takes at the finger's speed.
 const carriedEase = "cubic-bezier(0.33, 1, 0.68, 1)";
 const carriedDuration = { min: 110, max: 280 };
-// Slower than this, a release has nothing to carry and settles at the usual pace.
 const carriedSpeed = 0.15;
 
 /**
@@ -41,7 +36,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   private readonly media = matchMedia(phoneLayoutMediaQuery);
   private readonly spreadMedia = matchMedia(noxSpreadMediaQuery);
   private readonly frameOrigins = new WeakMap<Window, string>();
-  /** A pane or spread move still settling; it commits its navigation when the motion ends. */
   private motion?: { finish: () => void };
   private settleTimer?: ReturnType<typeof setTimeout>;
 
@@ -64,7 +58,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.media.removeEventListener("change", this.syncFrames);
   }
 
-  /** Sidebar navigation is available during preparation and deletion, not just in Agent/Work views. */
   private get workspaceElement(): HTMLElement | null {
     const element = this.element.querySelector<HTMLElement>(".workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)");
     return element && !element.closest("[inert]") ? element : null;
@@ -85,7 +78,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   }
 
   private resolveNavigation(direction: MobileSwipeDirection): SwipeNavigation | undefined {
-    // The overlay scrollbars are popovers too, shown while touch scrolling; they don't hold swipes.
     if (!this.media.matches || !this.workspaceElement
       || document.querySelector("dialog[open], :popover-open:not(.scrollbar), .workspace-ssh-trust-overlay")) return;
     const navigation = workspaceNavigationController()!;
@@ -99,7 +91,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   /* The spread's stops run Agent | Work → Work on its own (nox-spread.ts); the list opens over
    * Agent | Work as it does on a phone. */
   private resolveSpreadNavigation(direction: MobileSwipeDirection): SwipeNavigation | undefined {
-    // A touch on the split handle is resizing the pages.
     if (this.element.hasAttribute("data-nox-spread-resize")) return;
     const navigate = this.presentation?.mobileSwipeNavigation(direction);
     if (navigate) return { navigate, motion: "spread" };
@@ -110,26 +101,21 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   private readonly navigationFor = (direction: MobileSwipeDirection): (() => void) | undefined => {
     const resolved = this.resolveNavigation(direction);
     if (!resolved) return;
-    // The drawer and the spread's pages transition by themselves when their state changes.
     if (resolved.motion !== "pane") return resolved.navigate;
-    // Frames navigate in one step: play the same motion a drag would.
     return () => {
       this.settleMotion();
       const current = this.resolveNavigation(direction);
       if (!current || current.motion !== "pane") return current?.navigate();
       const start = this.beginPaneMotion(direction);
-      // Apply the starting position before moving, so the transition has somewhere to start from.
       void this.presentationElement!.offsetWidth;
       this.settlePane(1 - start, current.navigate, this.carry(0, 0));
     };
   };
 
-  /** Swipes in this document follow the finger; frames still navigate in one step. */
   private readonly dragFor = (direction: MobileSwipeDirection): MobileSwipeDrag | undefined => {
     this.settleMotion();
     const resolved = this.resolveNavigation(direction);
     if (!resolved) return;
-    // A claimed swipe consumes later move events; abandon any pending row hold first.
     document.dispatchEvent(new Event("agents-in-the-cloud:mobile-swipe-start"));
     if (resolved.motion === "drawer") return this.drawerDrag(resolved);
     if (resolved.motion === "spread") return this.spreadDrag(direction, resolved);
@@ -191,7 +177,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     };
   }
 
-  /** Without a target the pages only spring back from the give past the end. */
   private settleSpread(target: number | undefined, navigate: (() => void) | undefined, duration: number): void {
     const app = this.element;
     app.removeAttribute("data-nox-spread-drag");
@@ -202,7 +187,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
       this.motion = undefined;
       if (navigate) navigate();
       else if (target !== undefined) this.presentation?.endMobileSwipePreview();
-      // The new stop holds the same --nox-spread, so dropping the inline value doesn't move anything.
       app.style.removeProperty("--nox-spread");
       app.removeAttribute("data-nox-spread-motion");
     };
@@ -210,7 +194,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     this.motion = { finish };
   }
 
-  /** The list's open state is its class; the finger sets --nox-drawer-progress until it lets go. */
   private drawerDrag(resolved: SwipeNavigation): MobileSwipeDrag {
     const opening = !this.sidebarOpen;
     const travel = this.element.querySelector<HTMLElement>(":scope > .fixed-shell-workspace-pane")!.offsetWidth;
@@ -239,7 +222,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     };
   }
 
-  /** Agent is progress 0 and Work is 1; both panes stay visible while they slide. */
   private paneDrag(direction: MobileSwipeDirection, resolved: SwipeNavigation): MobileSwipeDrag {
     const start = this.beginPaneMotion(direction);
     const presentation = this.presentationElement!;
@@ -261,7 +243,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     };
   }
 
-  /** Shows the incoming pane live and returns the starting progress. */
   private beginPaneMotion(direction: MobileSwipeDirection): number {
     const presentation = this.presentationElement!;
     const start = direction === 1 ? 0 : 1;
@@ -271,7 +252,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
     return start;
   }
 
-  /** Animates to the target; navigation commits once the outgoing pane has left the screen. */
   private settlePane(target: number, navigate: (() => void) | undefined, duration: number): void {
     const element = this.presentationElement!;
     const presentation = this.presentation!;
@@ -282,7 +262,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
       this.motion = undefined;
       if (navigate) navigate();
       else presentation.endMobileSwipePreview();
-      // The destination now holds the same progress, so dropping the inline value doesn't move anything.
       element.removeAttribute("data-nox-pane-motion");
       element.style.removeProperty("--nox-pane-progress");
     };
@@ -320,7 +299,6 @@ export class MobileSwipeController extends Controller<HTMLElement> {
   };
 
   private probe(frame: HTMLIFrameElement): void {
-    // No sensitive data: discover the actual origin after ingress redirects.
     frame.contentWindow?.postMessage({ type: mobileSwipeMessage, action: "probe" }, "*");
   }
 

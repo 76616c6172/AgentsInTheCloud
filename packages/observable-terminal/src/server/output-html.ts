@@ -1,6 +1,5 @@
 import { escapeHtml } from "@agents-in-the-cloud/shared";
 
-// Finished output keeps the theme palette of the live terminal it came from.
 const ansi16 = [
   "var(--terminal-black)", "var(--terminal-red)", "var(--terminal-green)", "var(--terminal-yellow)", "var(--terminal-blue)", "var(--terminal-magenta)", "var(--terminal-cyan)", "var(--terminal-white)",
   "var(--terminal-bright-black)", "var(--terminal-bright-red)", "var(--terminal-bright-green)", "var(--terminal-bright-yellow)", "var(--terminal-bright-blue)", "var(--terminal-bright-magenta)", "var(--terminal-bright-cyan)", "var(--terminal-bright-white)",
@@ -119,7 +118,6 @@ function ansiToHtml(text: string): string {
         continue;
       }
     }
-    // Drop non-SGR terminal controls but keep newlines/tabs printable.
     if (text.charCodeAt(i) < 32 && text[i] !== "\n" && text[i] !== "\t") {
       i++;
       continue;
@@ -151,7 +149,6 @@ function colorizePlainBuildOutput(text: string): string {
   }).join("\n");
 }
 
-/** Finished terminal output as HTML, in the theme's colors; plain build output gets some of its own. */
 export function terminalOutputHtml(text: string): string {
   if (hasAnsiSgr(text)) return ansiToHtml(text);
   return colorizePlainBuildOutput(text);
