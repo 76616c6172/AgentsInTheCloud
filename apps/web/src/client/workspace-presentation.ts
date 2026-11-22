@@ -452,6 +452,7 @@ export function createWorkspacePresentationController(
       if (!intent?.work && this.state.phoneDestination.startsWith("work:") && !workViews.includes(this.state.phoneDestination.slice(5))) this.state.phoneDestination = `work:${this.state.activeWorkViewKey ?? ""}`;
       if (this.isSpread) this.state.workPaneVisible = true;
       if (!this.state.activeWorkViewKey) this.workAlone = false;
+      if (!workViews.length) this.workPaneFocused = false;
       this.persist();
     }
 

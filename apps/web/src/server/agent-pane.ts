@@ -8,7 +8,7 @@ import { panelHtml } from "@agents-in-the-cloud/design-system/panel";
 import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
 import { tabHtml, tabStripHtml } from "@agents-in-the-cloud/design-system/tab-strip";
 import { domId, escapeHtml } from "@agents-in-the-cloud/shared";
-import type { WorkspacePresentation } from "./workspace-presentation.ts";
+import { renderWorkLauncherCommand, type WorkspacePresentation } from "./workspace-presentation.ts";
 import { barButton, behaviorTurboStream, fullscreenViewAttributes, paneContentHtml, selectorCloseForm, type LiveIslands, type ViewCloseAction } from "./workspace-view-markup.ts";
 
 export interface AgentPaneContribution {
@@ -153,6 +153,17 @@ function renderAgentComposerAction(): string {
   return `<span class="nox-agent-action nox-agent-composer-action">${action}<span class="status-dot attention agent-composer-draft-dot" aria-hidden="true"></span></span>`;
 }
 
+function renderAgentViewsAction(presentation: WorkspacePresentation): string {
+  const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher");
+  if (!launchers.length) return "";
+  return `<span class="nox-agent-action nox-agent-views-action">${popupHtml({
+    id: domId("nox_views_menu", presentation.workspace.id),
+    label: "Open a view",
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Panel, label: "Open a view" } },
+    contentHtml: launchers.map((command) => renderWorkLauncherCommand(command, presentation.workspace.id)).join(""),
+  })}</span>`;
+}
+
 function renderAgentActions(presentation: WorkspacePresentation): string {
   const parkButton = buttonHtml({ type: "submit", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Park, label: "Park workspace" } });
   const parkWorkspace = `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/park" data-action="submit->workspace-navigation#parkWorkspace">${parkButton}</form>`;
@@ -163,7 +174,7 @@ function renderAgentActions(presentation: WorkspacePresentation): string {
     cancelCaption: "Oops",
   });
   const deleteWorkspace = `<form class="fixed-shell-delete-workspace" data-turbo="true" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/delete">${deleteConfirmation}</form>`;
-  const itemsHtml = `${renderAgentViewSwitch()}${renderAgentComposerAction()}${parkWorkspace}${deleteWorkspace}${barButton("Show Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Panel, "data-show-work-pane")}`;
+  const itemsHtml = `${renderAgentViewSwitch()}${renderAgentComposerAction()}${renderAgentViewsAction(presentation)}${parkWorkspace}${deleteWorkspace}${barButton("Show Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Panel, "data-show-work-pane")}`;
   return buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml });
 }
 

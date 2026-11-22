@@ -357,6 +357,12 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   :is(.fixed-shell-workspace-main, .fixed-shell-agent-pane, .fixed-shell-work-pane) > .panel > .panel__header strong.panel__title { font-weight: var(--weight-medium); }
   .nox-workspace-group { font-size: var(--text-code); }
 
+  /* Like Amp, the Work pane exists only while a Work view is open: the Agent pane takes the
+   * whole width until then, and the header's views menu opens the first one. */
+  .fixed-workspace-presentation:not(:has([data-workspace-pane-role="work"])) .fixed-shell-work-pane { display: none; }
+  .fixed-workspace-presentation:not(:has([data-workspace-pane-role="work"])) .fixed-shell-agent-pane { flex: 1 1 auto; }
+  .fixed-workspace-presentation:not(:has([data-workspace-pane-role="work"])) .nox-agent-views-action { display: flex; }
+
   /* The transcript reads as one centered column; the scrollbar stays at the pane's edge. */
   .agent-transcript-surface { max-width: 660px; margin-inline: auto; }
 
