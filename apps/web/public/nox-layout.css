@@ -27,7 +27,7 @@ svg.brand-icon path[fill] { fill: currentColor; }
  * history-renderer updates merge cleanly; hide only the label, not its controls. */
 .changes-diff-endpoints-header > strong { display: none; }
 
-/* Single-pane touch layouts stay edge-to-edge; desktop gets a light window frame. */
+/* Panes are edge-to-edge everywhere; desktop separates them with hairlines. */
 .fixed-shell-app {
   --panel-border-width: 0px;
   --panel-radius: 0px;
@@ -240,9 +240,6 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   [data-theme="nox-oscura"] .fixed-shell-app[data-nox-drawer-drag]:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) > .fixed-shell-app-main { box-shadow: none; }
 }
 
-/* Desktop and mobile share the list's grouping and bottom-action divider. */
-.fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .workspace-pane-footer { border-top: 1px solid var(--line); }
-
 /* Group rows by status under "label ─── count" headings. Headings follow the rows in
  * the DOM so counters hold each group's total; order places them above their rows. */
 .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) .fixed-shell-workspace-scroll { counter-reset: nox-attention nox-busy nox-idle; }
@@ -333,15 +330,35 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
 }
 
 @media (min-width: 701px) and (not ((hover: none) and (pointer: coarse))) {
+  :root {
+    --text-body: 13px;
+    --text-title: 15px;
+  }
+
   .fixed-shell-app {
     --fixed-workspace-width: 240px;
     --fixed-agent-width: 61.8%;
-    --fixed-shell-gap: 4px;
-    --panel-border-width: 1px;
-    --panel-radius: 8px;
+    --fixed-shell-gap: 0px;
     --nox-pane-border: color-mix(in srgb, var(--line) 70%, var(--bg));
-    --panel-outline: linear-gradient(var(--nox-pane-border), var(--nox-pane-border));
   }
+
+  /* Flush, square panes: one hairline between neighbours instead of framed windows. */
+  .fixed-shell-workspace-pane { box-sizing: border-box; border-right: 1px solid var(--nox-pane-border); }
+  .fixed-shell-work-pane { box-sizing: border-box; border-left: 1px solid var(--nox-pane-border); }
+
+  /* Quiet chrome, after Amp: low headers that share the pane's surface, muted ghost icons,
+   * and a smaller type scale. Secondary text keeps --text-code (12px). */
+  :is(.fixed-shell-workspace-main, .fixed-shell-agent-pane, .fixed-shell-work-pane) > .panel > .panel__header {
+    min-height: 36px;
+    padding-inline: 6px;
+    border-bottom-color: transparent;
+  }
+  :is(.fixed-shell-workspace-main, .fixed-shell-agent-pane, .fixed-shell-work-pane) > .panel > .panel__header .button.icon-only { --button-foreground: var(--text-muted); }
+  :is(.fixed-shell-workspace-main, .fixed-shell-agent-pane, .fixed-shell-work-pane) > .panel > .panel__header strong.panel__title { font-weight: var(--weight-medium); }
+  .nox-workspace-group { font-size: var(--text-code); }
+
+  /* The transcript reads as one centered column; the scrollbar stays at the pane's edge. */
+  .agent-transcript-surface { max-width: 660px; margin-inline: auto; }
 
   .fixed-shell-workspace-pane,
   .fixed-shell-agent-pane,
@@ -402,6 +419,7 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
     inset: 0;
     width: 100%;
     min-width: 0;
+    border-left: 0;
   }
 }
 
