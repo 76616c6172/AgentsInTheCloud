@@ -54,6 +54,13 @@ describe("MITM leaf certificates", () => {
     expect(openssl(["x509", "-fingerprint", "-sha256", "-noout", "-in", renewed.certPath])).not.toBe(nearExpiryFingerprint);
   });
 
+  test("cover hostnames longer than a certificate common name allows", async () => {
+    const ca = await ensureMitmCa({ agentsInTheCloudDataDir: dataDir, dockerHostAgentsInTheCloudDataDir: dataDir, dockerBridgeHost: "127.0.0.1" });
+    const hostname = "76616c6172--ep-pal-deepseek-v4-1-flash-server.us-west.modal.direct";
+    const leaf = await ensureLeafCertificate(ca, hostname);
+    expect(openssl(["x509", "-noout", "-checkhost", hostname, "-in", leaf.certPath])).toBe(`Hostname ${hostname} does match certificate`);
+  });
+
   test.skipIf(process.platform !== "linux")("create a leaf when the CA directory is on a different filesystem from the system temporary directory", async () => {
     const crossDeviceDataDir = await mkdtemp("/dev/shm/agents-in-the-cloud-mitm-ca-test-");
     try {

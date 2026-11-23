@@ -10,6 +10,7 @@ type LeafCertificate = { certPath: string; keyPath: string; renewAt: number };
 
 const leafCertificateRenewalWindowMs = 24 * 60 * 60 * 1000;
 const leafCertificateLifetimeDays = 7;
+const maxCommonNameLength = 64;
 
 export async function ensureMitmCa(context?: AgentsInTheCloudRuntimeContext): Promise<MitmCa> {
   const runtime = context ?? getAgentsInTheCloudRuntimeContext();
@@ -53,7 +54,7 @@ export async function ensureLeafCertificate(ca: MitmCa, hostnames: string | read
     const temporaryKeyPath = join(tmp, "leaf-key.pem");
     const subjectAltName = names.map(name => net.isIP(name) ? `IP:${name}` : `DNS:${name}`).join(", ");
     await writeFile(ext, `basicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\nsubjectAltName=${subjectAltName}\n`);
-    await runOpenSsl(["req", "-newkey", "rsa:2048", "-nodes", "-subj", `/CN=${names[0]}`, "-keyout", temporaryKeyPath, "-out", csr]);
+    await runOpenSsl(["req", "-newkey", "rsa:2048", "-nodes", "-subj", `/CN=${leafCommonName(names[0]!)}`, "-keyout", temporaryKeyPath, "-out", csr]);
     await runOpenSsl(["x509", "-req", "-in", csr, "-CA", ca.certPath, "-CAkey", ca.keyPath, "-CAcreateserial", "-days", String(leafCertificateLifetimeDays), "-sha256", "-extfile", ext, "-out", temporaryCertPath]);
     await chmod(temporaryKeyPath, 0o600);
     await rename(temporaryKeyPath, keyPath);
@@ -63,6 +64,10 @@ export async function ensureLeafCertificate(ca: MitmCa, hostnames: string | read
     if (tmp) await rm(tmp, { recursive: true, force: true });
     await release();
   }
+}
+
+function leafCommonName(hostname: string): string {
+  return hostname.length <= maxCommonNameLength ? hostname : "AgentsInTheCloud workspace";
 }
 
 async function certificateRenewalTime(certPath: string): Promise<number> {
