@@ -1,6 +1,7 @@
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { connectCustomOpenAIEndpoint, customOpenAIProtocols, customOpenAIDefaults, CustomEndpointInputError, type CustomOpenAIProtocol, type CustomOpenAIEndpointInput } from "./custom-openai-endpoint.ts";
 import { availableProviderModels } from "./known-model-provider-incorrectness.ts";
+import { isNoxModelProvider } from "./nox-model-providers.ts";
 import { listAccounts, providerLabel, sortByPopularity, type Account } from "./accounts.ts";
 import { modelUnavailableReason, providerAvailability } from "./provider-availability.ts";
 import { providerUsageFrameId, supportedUsageProviders } from "./provider-usage.ts";
@@ -60,7 +61,7 @@ function providerChoices(runtime: Runtime): ProviderChoice[] {
   return sortByPopularity(runtime.getProviders().map((provider) => ({
     provider: provider.id,
     label: providerLabel(provider),
-    methods: [provider.auth.oauth && "oauth", provider.auth.apiKey?.login && "api_key"].filter((method): method is AuthMethod => Boolean(method)),
+    methods: [provider.auth.oauth && "oauth", (provider.auth.apiKey?.login || isNoxModelProvider(provider.id)) && "api_key"].filter((method): method is AuthMethod => Boolean(method)),
   })));
 }
 

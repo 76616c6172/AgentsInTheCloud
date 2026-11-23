@@ -6,6 +6,7 @@ import { syncSubscriptionClis } from "./subscription-cli.ts";
 import { anthropicUsageSource, observeAnthropicSubscriptionResponse } from "./anthropic-subscription-usage.ts";
 import { forgetSubscriptionInference } from "./recent-subscription-activity.ts";
 import { defaultProviderModels, modelDisplayName } from "./hardcoded-provider-knowledge.ts";
+import { noxModelProviders } from "./nox-model-providers.ts";
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { arch, platform, release } from "node:os";
 import { dirname, join } from "node:path";
@@ -136,7 +137,7 @@ function withoutOfficialModelDuplicates(providers: JsonObject, officialRuntime: 
 }
 
 async function materializeCustomModelProviders(providers: JsonObject): Promise<CustomModelsSaveResult> {
-  const filtered = withoutOfficialModelDuplicates(providers, await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false }));
+  const filtered = withoutOfficialModelDuplicates({ ...noxModelProviders, ...providers }, await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false }));
   await updateModelSettings((settings) => { settings.providers = filtered.providers; });
   return { skippedOfficialModels: filtered.skippedOfficialModels };
 }
