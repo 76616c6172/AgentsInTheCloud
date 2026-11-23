@@ -365,6 +365,12 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
 
   /* The transcript reads as one centered column; the scrollbar stays at the pane's edge. */
   .agent-transcript-surface { max-width: 660px; margin-inline: auto; }
+  /* The sidebar button and More are the Agent header's only controls; give them room to hit. */
+  :is([data-show-workspace-pane], [data-collapse-workspace-pane], [data-nox-agent-menu]).button.icon-only { width: 32px; height: 32px; --button-icon-size: 18px; }
+  [id^="nox_agent_menu"] { max-height: calc(100dvh - 56px) !important; }
+  .nox-agent-menu-label { display: block; padding: 6px 8px 2px; color: var(--text-muted); font-size: var(--text-code); }
+  [id^="nox_agent_menu"] .destructive-confirmation__trigger { width: 100%; justify-content: flex-start; padding-left: 30px; --button-border: transparent; --button-background: transparent; --button-foreground: var(--danger); }
+  .fixed-shell-agent-pane:not(:has(.fixed-shell-surface.is-active :is([data-cli-transcript-button="transcript"], .cli-transcript-mode, .cli-transcript-pending, .agent-composer-pane:not(.agent-composer-open) [data-agent-composer-target="opener"]))) [id^="nox_agent_menu"] > hr:first-of-type { display: none; }
 
   .fixed-shell-workspace-pane,
   .fixed-shell-agent-pane,
@@ -384,8 +390,8 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
     display: block;
     position: absolute;
     z-index: 9;
-    inset: 0 auto 0 0;
-    width: calc(var(--fixed-shell-gap) + 4px);
+    inset: 36px auto 0 0;
+    width: calc(var(--fixed-shell-gap) + 14px);
   }
   .fixed-shell-workspace-scroll { padding: 1px 4px 4px; }
 

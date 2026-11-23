@@ -117,13 +117,7 @@ function renderAgentNavigation(islands: LiveIslands, presentation: WorkspacePres
       tabsHtml: presentation.agents.map((agent) => renderAgentTab(presentation.workspace.id, { ...agent, title: presentation.agents.length === 1 && agent.untitled ? presentation.workspace.title : agent.title })).join(""),
     })
     : `<div class="fixed-shell-workspace-title"><strong>${escapeHtml(presentation.workspace.title)}</strong></div>`;
-  const menu = popupHtml({
-    id: domId("agent_types", presentation.workspace.id), label: "New agent",
-    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Plus, label: "New agent" } },
-    width: "content",
-    contentHtml: agentTypeOptions(presentation, true),
-  });
-  return `${islands.island(agentTabsDomId(presentation.workspace.id), agents, "span", "contents")}${menu}`;
+  return islands.island(agentTabsDomId(presentation.workspace.id), agents, "span", "contents");
 }
 
 function agentEmptyId(workspaceId: string): string { return domId("agent_empty", workspaceId); }
@@ -148,33 +142,35 @@ export function renderAgentViewSwitch(menu = false): string {
   }) : barButton(label, commandAction, icon, 'data-command-id="cli-agent.toggle-mode"')}</span>`).join("");
 }
 
-function renderAgentComposerAction(): string {
-  const action = barButton("Open composer", "click->agents-in-the-cloud-shortcuts#runCommand", Icons.Keyboard, 'data-command-id="agent.toggle-composer"');
-  return `<span class="nox-agent-action nox-agent-composer-action">${action}<span class="status-dot attention agent-composer-draft-dot" aria-hidden="true"></span></span>`;
+function menuRow(label: string, iconHtml: string, attributesHtml: string): string {
+  return contentRowHtml({ kind: "compact", width: "fill", label: { kind: "text", text: label }, leadingHtml: iconHtml, element: { tag: "button", attributesHtml: `role="menuitem" ${attributesHtml}` } });
 }
 
-function renderAgentViewsAction(presentation: WorkspacePresentation): string {
-  const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher");
-  if (!launchers.length) return "";
-  return `<span class="nox-agent-action nox-agent-views-action">${popupHtml({
-    id: domId("nox_views_menu", presentation.workspace.id),
-    label: "Open a view",
-    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Panel, label: "Open a view" } },
-    contentHtml: launchers.map((command) => renderWorkLauncherCommand(command, presentation.workspace.id)).join(""),
-  })}</span>`;
+function menuSection(label: string, itemsHtml: string): string {
+  return itemsHtml ? `<hr class="popup-menu__separator"><span class="nox-agent-menu-label">${label}</span>${itemsHtml}` : "";
 }
 
-function renderAgentActions(presentation: WorkspacePresentation): string {
-  const parkButton = buttonHtml({ type: "submit", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Park, label: "Park workspace" } });
-  const parkWorkspace = `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/park" data-action="submit->workspace-navigation#parkWorkspace">${parkButton}</form>`;
+function renderAgentMoreMenu(presentation: WorkspacePresentation): string {
+  const workspaceId = presentation.workspace.id;
+  const composer = `<span class="nox-agent-action nox-agent-composer-action">${menuRow("Open composer", Icons.Keyboard, 'type="button" data-action="click->agents-in-the-cloud-shortcuts#runCommand" data-command-id="agent.toggle-composer"')}<span class="status-dot attention agent-composer-draft-dot" aria-hidden="true"></span></span>`;
+  const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher").map((command) => renderWorkLauncherCommand(command, workspaceId)).join("");
+  const park = `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/park" data-action="submit->workspace-navigation#parkWorkspace">${menuRow("Park workspace", Icons.Park, 'type="submit"')}</form>`;
   const deleteConfirmation = destructiveConfirmationHtml({
-    id: domId("delete_workspace", presentation.workspace.id),
-    trigger: { type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Trash, label: "Delete workspace" } },
+    id: domId("delete_workspace", workspaceId),
+    trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Delete workspace" }, attributesHtml: 'role="menuitem"' },
     confirmCaption: "Yes, delete",
     cancelCaption: "Oops",
   });
-  const deleteWorkspace = `<form class="fixed-shell-delete-workspace" data-turbo="true" method="post" action="/workspaces/${encodeURIComponent(presentation.workspace.id)}/delete">${deleteConfirmation}</form>`;
-  const itemsHtml = `${renderAgentViewSwitch()}${renderAgentComposerAction()}${renderAgentViewsAction(presentation)}${parkWorkspace}${deleteWorkspace}${barButton("Show Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Panel, "data-show-work-pane")}`;
+  const deleteWorkspace = `<form class="fixed-shell-delete-workspace" data-turbo="true" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/delete">${deleteConfirmation}</form>`;
+  return popupHtml({
+    id: domId("nox_agent_menu", workspaceId), label: "More", placement: "below", width: "content",
+    trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-nox-agent-menu" },
+    contentHtml: `${renderAgentViewSwitch(true)}${composer}${menuSection("New agent", presentation.agentTypes.length ? agentTypeOptions(presentation, true) : "")}${menuSection("Open", launchers)}${menuSection("Workspace", park + deleteWorkspace)}`,
+  });
+}
+
+function renderAgentActions(presentation: WorkspacePresentation): string {
+  const itemsHtml = `${renderAgentMoreMenu(presentation)}${barButton("Show Work pane", "click->workspace-presentation#toggleWorkPane", Icons.Panel, "data-show-work-pane")}`;
   return buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml });
 }
 
@@ -183,7 +179,7 @@ export function renderAgentPane(islands: LiveIslands, presentation: WorkspacePre
   return `<div class="fixed-shell-agent-pane">${islands.island(domId("workspace_warnings", presentation.workspace.id), presentation.warningsHtml ?? "", "div", "workspace-warning-stack")}${panelHtml({
     element: { tag: "section",  attributesHtml: 'data-workspace-role-region="agent" data-workspace-presentation-target="agentPane" aria-label="Agent"' },
     chrome: "outlined",
-    headerHtml: `${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `${Icons.Cloud}<i class="status-dot attention nox-workspace-attention" aria-hidden="true"></i>`, 'data-show-workspace-pane aria-pressed="false"')}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(islands, presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
+    headerHtml: `${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `${Icons.Menu}<i class="status-dot attention nox-workspace-attention" aria-hidden="true"></i>`, 'data-show-workspace-pane aria-pressed="false"')}<div id="${agentNavigationDomId(presentation.workspace.id)}" class="fixed-shell-agent-navigation">${renderAgentNavigation(islands, presentation)}</div><div id="${agentActionsDomId(presentation.workspace.id)}" class="fixed-shell-agent-actions">${renderAgentActions(presentation)}</div>`,
     bodyHtml: `<div id="${agentBodiesDomId(presentation.workspace.id)}" class="fixed-shell-agent-bodies">${panes || renderAgentEmpty(presentation)}</div>`,
   })}</div>`;
 }

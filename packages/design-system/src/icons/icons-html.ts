@@ -28,6 +28,7 @@ export const Icons = {
   Forward: iconHtml('<path d="m9 18 6-6-6-6"/>'),
   Files: iconHtml('<path d="M4 5h6l2 2h8v12H4z"/>'),
   Keyboard: iconHtml('<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M6 12h.01M10 12h.01M14 12h.01M18 12h.01M7 16h10"/>'),
+  Menu: iconHtml('<path d="M4 6h16M4 12h16M4 18h16"/>'),
   More: iconHtml('<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>'),
   Next: iconHtml('<path d="M4 12h14M13 7l5 5-5 5"/><circle cx="5" cy="6" r="1.5" fill="currentColor" stroke="none"/>'),
   Panel: iconHtml('<path d="M4 4h16v16H4zM15 4v16"/>'),
