@@ -3,6 +3,7 @@ import { getPopularProviderRank } from "./hardcoded-provider-knowledge.ts";
 import { providerAccountSummary } from "./provider-accounts.ts";
 import { providerConnections, type ProviderConnection } from "./provider-connections.ts";
 import { usesProviderSubscription } from "./subscription.ts";
+import { cliModelConnections } from "./cli-connections.ts";
 
 type AccountRuntime = Pick<ModelRuntime, "getProviders" | "getProviderAuthStatus" | "listCredentials" | "getAuth">;
 
@@ -40,5 +41,6 @@ export async function listAccounts(runtime: AccountRuntime): Promise<Account[]> 
       connection,
     };
   }));
-  return sortByPopularity(accounts.filter((account) => account !== undefined));
+  const cliAccounts = await Promise.all(cliModelConnections().map(connection => connection.account()));
+  return sortByPopularity([...accounts, ...cliAccounts].filter((account) => account !== undefined));
 }

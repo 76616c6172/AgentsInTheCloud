@@ -1,3 +1,4 @@
+import { cliModelConnection, cliModelConnections } from "./cli-connections.ts";
 import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { connectCustomOpenAIEndpoint, customOpenAIProtocols, customOpenAIDefaults, CustomEndpointInputError, type CustomOpenAIProtocol, type CustomOpenAIEndpointInput } from "./custom-openai-endpoint.ts";
 import { availableProviderModels } from "./known-model-provider-incorrectness.ts";
@@ -22,7 +23,7 @@ import {
   disconnectModelProvider,
   getEnabledModels,
   getCustomModelsJson,
-  hasAvailableEnabledModel,
+  hasAvailableAgentModel,
   seedProviderEnabledModels,
   loginPiOAuthProvider,
   setCustomModelsJson,
@@ -58,18 +59,18 @@ type AuthMethod = "oauth" | "api_key";
 type ProviderChoice = { provider: string; label: string; methods: AuthMethod[] };
 
 function providerChoices(runtime: Runtime): ProviderChoice[] {
-  return sortByPopularity(runtime.getProviders().map((provider) => ({
+  return sortByPopularity([...runtime.getProviders().map((provider) => ({
     provider: provider.id,
     label: providerLabel(provider),
     methods: [provider.auth.oauth && "oauth", (provider.auth.apiKey?.login || isNoxModelProvider(provider.id)) && "api_key"].filter((method): method is AuthMethod => Boolean(method)),
-  })));
+  })), ...cliModelConnections().map(connection => ({ provider: connection.id, label: connection.label, methods: ["oauth" as const] }))]);
 }
 
 type CatalogueEntry = ModelRef & { label: string; providerLabel: string; enabled: boolean };
 
 async function catalogue(runtime: Runtime, accounts: Account[]): Promise<CatalogueEntry[]> {
   const enabledModels = new Set((await getEnabledModels()).map(modelKey));
-  const perProvider = await Promise.all(accounts.filter((account) => account.connection === "connected").map(async (account) => {
+  const perProvider = await Promise.all(accounts.filter((account) => account.connection === "connected" && !cliModelConnection(account.provider)).map(async (account) => {
     const rank = (id: string) => getPopularModelRank(account.provider, id) ?? Number.MAX_SAFE_INTEGER;
     return (await availableProviderModels(runtime, account.provider))
       .map((model): CatalogueEntry => ({ provider: account.provider, id: model.id, label: modelDisplayName(model.name ?? model.id), providerLabel: account.label, enabled: enabledModels.has(modelKey({ provider: account.provider, id: model.id })) }))
@@ -89,6 +90,8 @@ function usageNote(account: Account): string | undefined {
   if (account.connection === "needs_attention") return usage
     ? "Sign in again to use this provider and see its usage."
     : "Sign in again to use this provider.";
+  const cli = cliModelConnection(account.provider);
+  if (cli) return `For ${cli.agentLabel}. Choose its model when starting an agent. Use /usage in the CLI to check your allowance.`;
   if (account.method !== "subscription" && usage?.credential !== "api_key") return "API keys don’t have usage limits to show.";
   if (account.provider === "openai") return "Check your subscription usage on ChatGPT.";
   if (!usage) return `AgentsInTheCloud can’t read ${account.label} usage limits yet.`;
@@ -157,7 +160,7 @@ function connectFrame(host: ModelsHost, body: string, frameId = ids.connect(host
 function unconnectedProviders(runtime: Runtime, accounts: Account[]) {
   const connected = new Set(accounts.map((account) => account.provider));
   const choices = providerChoices(runtime).filter((provider) => !connected.has(provider.provider));
-  const popular = choices.filter((provider) => getPopularProviderRank(provider.provider) !== undefined);
+  const popular = choices.filter((provider) => getPopularProviderRank(provider.provider) !== undefined || cliModelConnection(provider.provider));
   return { popular, other: choices.filter((provider) => !popular.includes(provider)) };
 }
 
@@ -289,9 +292,9 @@ async function renderModelsPanel(host: ModelsHost, options: PanelOptions = {}): 
     <div class="model-accounts">${accounts.map((account) => renderAccountCard(account, host, options.focus === account.id)).join("")}</div>
   </section>` : ""}
   ${connect}`;
-  const models = accounts.length ? await renderEnabledModelsSection(runtime, accounts, host, options.focus === "models") : "";
+  const models = accounts.some(account => !cliModelConnection(account.provider)) ? await renderEnabledModelsSection(runtime, accounts, host, options.focus === "models") : "";
   const advanced = host === "settings" ? renderCustomModelsSettings({ source: await getCustomModelsJson(), ...options.customModels }) : "";
-  const actions = host === "onboarding" ? onboardingActions(await hasAvailableEnabledModel()) : "";
+  const actions = host === "onboarding" ? onboardingActions(await hasAvailableAgentModel()) : "";
   const error = options.error ? `<p class="settings-error" role="alert">${escapeHtml(options.error)}</p>` : "";
   return `<div id="${ids.panel(host)}" class="models-panel">${error}${providers}${models}${advanced}${actions}</div>`;
 }
@@ -435,7 +438,9 @@ async function startOAuthFlow(target: Pick<PendingOAuthFlow, "provider" | "label
   }
   const flow: PendingOAuthFlow = { id: crypto.randomUUID(), provider: target.provider, label: target.label, host: target.host, reconnect: target.reconnect, loginMethod, revision: 0, status: "pending", abort: new AbortController() };
   pendingOAuthFlows.set(flow.id, flow);
-  void loginPiOAuthProvider(target.provider, {
+  const cli = cliModelConnection(target.provider);
+  const login = cli ? cli.login.bind(cli) : (interaction: Parameters<typeof loginPiOAuthProvider>[1]) => loginPiOAuthProvider(target.provider, interaction);
+  void login({
     signal: flow.abort.signal,
     notify: (event) => {
       if (event.type === "auth_url") { flow.revision++; flow.authUrl = event.url; }
@@ -443,7 +448,7 @@ async function startOAuthFlow(target: Pick<PendingOAuthFlow, "provider" | "label
     },
     prompt: (prompt) => handleOAuthPrompt(flow, prompt),
   }).then(async () => {
-    await seedProviderEnabledModels(target.provider);
+    if (!cli) await seedProviderEnabledModels(target.provider);
     flow.status = "complete";
     flow.prompt = undefined;
   }).catch((error) => {
@@ -673,7 +678,7 @@ export async function handleModelsRequest(request: Request, url: URL, renderPick
     return response(renderCatalogue(await catalogue(runtime, await listAccounts(runtime)), host, url.searchParams.get("q") ?? ""));
   }
   if (url.pathname === "/models/finish" && request.method === "POST") {
-    if (!await hasAvailableEnabledModel()) return response("Choose at least one available model", { status: 422 });
+    if (!await hasAvailableAgentModel()) return response("Choose at least one available model", { status: 422 });
     return await finishOnboarding();
   }
   if (url.pathname === "/models/catalogue/refresh" && request.method === "POST") {
@@ -766,7 +771,11 @@ export async function handleModelsRequest(request: Request, url: URL, renderPick
   }
   match = url.pathname.match(/^\/models\/providers\/([^/]+)\/forget$/);
   if (match && request.method === "POST") {
-    await disconnectModelProvider(decodeURIComponent(match[1]!));
+    const provider = decodeURIComponent(match[1]!);
+    for (const flow of pendingOAuthFlows.values()) if (flow.provider === provider) flow.abort.abort();
+    const cli = cliModelConnection(provider);
+    if (cli) await cli.disconnect();
+    else await disconnectModelProvider(provider);
     return panelResponse(host, renderPickerUpdates);
   }
   return undefined;
@@ -788,7 +797,7 @@ async function handleEnabledModelsAction(request: Request, enable: boolean, rend
     current.splice(index, 1);
   }
   await setEnabledModels(current);
-  const ready = await hasAvailableEnabledModel();
+  const ready = await hasAvailableAgentModel();
   const updates = await Promise.all(modelsHosts.map(async (host) => replace(ids.enabledModels(host), await renderEnabledModelsList(runtime, host))
     + (entry ? replace(ids.catalogueRow(host, entry), catalogueRow({ ...entry, enabled: enable }, host)) : "")
     + (host === "onboarding" ? replace(ids.continue(host), continueButton(host, ready)) : "")));

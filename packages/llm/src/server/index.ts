@@ -1,4 +1,4 @@
-export { getCustomModelsJson, setCustomModelsJson, getEnabledModels, hasConnectedModelProvider, hasAvailableEnabledModel, setEnabledModels, cheapestProviderModel, createPiModelRuntime, disconnectModelProvider, seedProviderEnabledModels, type EnabledModel } from "./pi-config-models.ts";
+export { getCustomModelsJson, setCustomModelsJson, getEnabledModels, hasConnectedModelProvider, hasAvailableEnabledModel, hasAvailableAgentModel, setEnabledModels, cheapestProviderModel, createPiModelRuntime, disconnectModelProvider, seedProviderEnabledModels, type EnabledModel } from "./pi-config-models.ts";
 export { getAgentModelPreference, setAgentModelPreference, getAgentModelThinkingLevel, setAgentModelThinkingLevel } from "./agent-model-preferences.ts";
 export { popularProviderIds } from "./hardcoded-provider-knowledge.ts";
 export { modelRefValue, parseModelRef, type ModelRef } from "./model-reference.ts";
@@ -15,3 +15,4 @@ export { requireProviderSubscription, usesProviderSubscription } from "./subscri
 
 export { availableProviderModels, cheapestAvailableProviderModel } from "./known-model-provider-incorrectness.ts";
 export { codexAccountId } from "./codex-token.ts";
+export { registerCliModelConnection, type CliModelConnection } from "./cli-connections.ts";

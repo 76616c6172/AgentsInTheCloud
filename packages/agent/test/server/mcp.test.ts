@@ -119,3 +119,19 @@ test("native-prompt credentials omit MCP guidance while preserving tools and sur
   const forged = `${Buffer.from(JSON.stringify({ ...identity, instructionDelivery: undefined })).toString("base64url")}.${token.split(".")[1]}`;
   expect(f.credentials.authenticate(forged)).toBeUndefined();
 });
+
+test("SSE GET flushes before initialized so clients can open their notification stream during handshake", async () => {
+  const f = await fixture();
+  const headers = { Authorization: `Bearer ${f.token}`, Accept: "application/json, text/event-stream", "Content-Type": "application/json" };
+  const initialize = await fetch(f.url, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "google-handshake", version: "1" } } }) });
+  expect(initialize.status).toBe(200);
+  await initialize.text();
+  const sessionHeaders = { ...headers, "mcp-session-id": initialize.headers.get("mcp-session-id")! };
+  const stream = await fetch(f.url, { headers: sessionHeaders, signal: AbortSignal.timeout(2000) });
+  expect(stream.status).toBe(200);
+  const reader = stream.body!.getReader();
+  expect(new TextDecoder().decode((await reader.read()).value)).toBe(": connected\n\n");
+  const ready = await fetch(f.url, { method: "POST", headers: sessionHeaders, body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) });
+  expect(ready.status).toBe(202);
+  await reader.cancel();
+});

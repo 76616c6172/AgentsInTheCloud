@@ -18,6 +18,7 @@
       "name": "@agents-in-the-cloud/web",
       "dependencies": {
         "@agents-in-the-cloud/agent": "workspace:*",
+        "@agents-in-the-cloud/antigravity-agent": "workspace:*",
         "@agents-in-the-cloud/artifact-preview": "workspace:*",
         "@agents-in-the-cloud/browser": "workspace:*",
         "@agents-in-the-cloud/builtin-agent": "workspace:*",
@@ -75,6 +76,20 @@
         "@wasm-fmt/ruff_fmt": "0.15.20",
         "@wasm-fmt/shfmt": "0.2.7",
         "beautiful-mermaid": "1.1.3",
+        "typebox": "^1.0.57",
+      },
+    },
+    "packages/antigravity-agent": {
+      "name": "@agents-in-the-cloud/antigravity-agent",
+      "dependencies": {
+        "@agents-in-the-cloud/agent": "workspace:*",
+        "@agents-in-the-cloud/cli-agent": "workspace:*",
+        "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/llm": "workspace:*",
+        "@agents-in-the-cloud/proxy-egress": "workspace:*",
+        "@agents-in-the-cloud/shared": "workspace:*",
+        "@agents-in-the-cloud/workspace": "workspace:*",
+        "@earendil-works/pi-ai": "catalog:",
         "typebox": "^1.0.57",
       },
     },
@@ -568,6 +583,8 @@
   },
   "packages": {
     "@agents-in-the-cloud/agent": ["@agents-in-the-cloud/agent@workspace:packages/agent"],
+
+    "@agents-in-the-cloud/antigravity-agent": ["@agents-in-the-cloud/antigravity-agent@workspace:packages/antigravity-agent"],
 
     "@agents-in-the-cloud/artifact-preview": ["@agents-in-the-cloud/artifact-preview@workspace:packages/artifact-preview"],
 

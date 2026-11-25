@@ -2,7 +2,7 @@ import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 
 interface AgentTypeChoice { id: string; label: string; iconHtml: string }
 
-const agentOrder = ["builtin", "pi", "claude", "claude-cli", "codex", "codex-cli"];
+const agentOrder = ["builtin", "pi", "claude", "claude-cli", "codex", "codex-cli", "antigravity"];
 
 export function renderAgentTypePicker(agentTypes: readonly AgentTypeChoice[], options: {
   attributes: (agentType: AgentTypeChoice) => string;

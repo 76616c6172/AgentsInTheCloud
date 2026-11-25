@@ -7,7 +7,7 @@ import { agentsInTheCloudBrandIconHtml, Icons } from "@agents-in-the-cloud/desig
 import type { GitHostingProvider } from "@agents-in-the-cloud/core";
 import { escapeHtml, providerBadgeHtml, turboStreamResponse } from "@agents-in-the-cloud/shared";
 import { connectedGitHostingProviders, gitHostingProvider, gitHostingProviders } from "@agents-in-the-cloud/git-hosting";
-import { hasAvailableEnabledModel, renderModelsDialog } from "@agents-in-the-cloud/llm/server";
+import { hasAvailableAgentModel, renderModelsDialog } from "@agents-in-the-cloud/llm/server";
 import { renderGitHostingConnectButton, renderGitHostingConnection } from "../settings/git-hosting.ts";
 import { update } from "@agents-in-the-cloud/shared/http";
 
@@ -69,7 +69,7 @@ function connectProviderHtml(provider: GitHostingProvider, needsModelsStep: bool
 export async function renderOnboardingDialog(options: { includeCompleted?: boolean; resumeAfterConnect?: boolean; provider?: GitHostingProvider } = {}): Promise<string> {
   if (options.resumeAfterConnect) return renderModelsDialog({ host: "onboarding" });
   if (!options.includeCompleted && await onboardingCompleted()) return "";
-  const modelsReady = await hasAvailableEnabledModel();
+  const modelsReady = await hasAvailableAgentModel();
   if (!options.includeCompleted && connectedGitHostingProviders().length > 0) return modelsReady ? "" : renderModelsDialog({ host: "onboarding" });
 
   const needsModelsStep = options.includeCompleted || !modelsReady;

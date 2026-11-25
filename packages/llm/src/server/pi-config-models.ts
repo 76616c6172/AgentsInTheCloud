@@ -1,4 +1,5 @@
 import { availableProviderModels } from "./known-model-provider-incorrectness.ts";
+import { cliModelConnections } from "./cli-connections.ts";
 import { providerAvailability } from "./provider-availability.ts";
 import type { ModelRef } from "./model-reference.ts";
 import { readJsonSettings, updateJsonSettings } from "@agents-in-the-cloud/core/json-settings";
@@ -167,6 +168,12 @@ export async function setCustomModelsJson(source: string): Promise<CustomModelsS
 export async function getEnabledModels(): Promise<EnabledModel[]> { return (await getModelSettings()).enabledModels ?? []; }
 export function hasConnectedModelProvider(runtime: Pick<ModelRuntime, "getProviders" | "getProviderAuthStatus">): boolean {
   return runtime.getProviders().some((provider) => runtime.getProviderAuthStatus(provider.id).configured);
+}
+
+export async function hasAvailableAgentModel(): Promise<boolean> {
+  if (await hasAvailableEnabledModel()) return true;
+  const accounts = await Promise.all(cliModelConnections().map(connection => connection.account()));
+  return accounts.some(account => account?.connection === "connected");
 }
 
 export async function hasAvailableEnabledModel(): Promise<boolean> {

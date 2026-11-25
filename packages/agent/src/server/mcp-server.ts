@@ -22,7 +22,15 @@ export function createAgentMcpServer(options: AgentMcpServerOptions) {
       if (sessionId) {
         const session = sessions.get(sessionId);
         if (!session || (session.identity.workspaceId !== identity.workspaceId || session.identity.agentId !== identity.agentId)) return new Response("Unknown MCP session", { status: 404 });
-        return session.transport.handleRequest(request);
+        const response = await session.transport.handleRequest(request);
+        if (request.method !== "GET" || response.status !== 200) return response;
+        // Flush the SSE headers immediately. Some clients open this stream before
+        // sending initialized, so waiting for the first notification deadlocks them.
+        const stream = response.body!.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+          start(controller) { controller.enqueue(new TextEncoder().encode(": connected\n\n")); },
+          transform(chunk, controller) { controller.enqueue(chunk); },
+        }));
+        return new Response(stream, response);
       }
       if (request.method !== "POST") return new Response("MCP initialization required", { status: 400 });
       const tools = new Map(options.tools(identity).map((tool) => [tool.name, tool]));
