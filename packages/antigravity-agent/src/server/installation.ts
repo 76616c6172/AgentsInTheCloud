@@ -22,7 +22,7 @@ if [ ! -x "$binary" ]; then
   staging="$(mktemp -d "$(dirname "$binary")/.install-XXXXXX")"
   trap 'rm -rf "$staging"' EXIT
   curl --fail --silent --show-error --location --proto '=https' --max-time 60 "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/\${os}_\${arch}.json" -o "$staging/manifest.json"
-  node -e ${shellQuote(metadataScript)} "$staging/manifest.json" "$staging"
+  bun -e ${shellQuote(metadataScript)} "$staging/manifest.json" "$staging"
   curl --fail --silent --show-error --location --proto '=https' --max-time 300 "$(cat "$staging/url")" -o "$staging/payload"
   (cd "$staging"; sha512sum --check checksum)
   tar -xzf "$staging/payload" -C "$staging" antigravity
