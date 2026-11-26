@@ -601,11 +601,9 @@ export function createWorkspacePresentationController(
         destination.setAttribute("aria-current", selected ? "page" : "false");
       });
       this.element.querySelector<HTMLElement>("[data-mobile-work]")!.setAttribute("aria-current", !sidebarOpen && this.state.phoneDestination.startsWith("work:") ? "page" : "false");
-      const spread = this.isSpread;
       this.element.querySelectorAll<HTMLElement>("[data-nox-phone-tab]").forEach((tab) => {
-        const selected = tab.dataset.noxPhoneTab === "list" ? sidebarOpen
-          : spread ? tab.dataset.agentId !== undefined ? tab.dataset.agentId === this.state.activeAgentId : tab.dataset.workViewKey === this.state.activeWorkViewKey
-            : tab.dataset.noxPhoneTab === this.state.phoneDestination && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
+        const selected = tab.dataset.noxPhoneTab === this.state.phoneDestination
+          && (tab.dataset.agentId === undefined || tab.dataset.agentId === this.state.activeAgentId);
         tab.setAttribute("aria-selected", String(selected));
         tab.tabIndex = selected ? 0 : -1;
       });

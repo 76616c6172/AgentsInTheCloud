@@ -16,8 +16,7 @@ import { closeForm, renderMobileWorkViewCloser, renderMobileWorkViews, renderWor
  * view as a labelled tab; the open one is filled, and shows × when it can close. Tapping a tab
  * switches at once. Swipes still move between the agent and Work sides (mobile-swipe), and a
  * selected Browser tab (data-nox-tools) opens its toolbar (nox-workspace-chrome). + opens new
- * agents and Work views. In the spread both sides are on screen, so each keeps its own tab lit
- * (syncMobileNavigationSelection). */
+ * agents and Work views. */
 export function renderNoxPhoneHeader(islands: LiveIslands, presentation: WorkspacePresentation, inert: boolean): string {
   const workspaceId = presentation.workspace.id;
   const tabs = [...presentation.agents.map(renderAgentTab), ...presentation.workViews.map(renderWorkTab)].join("");

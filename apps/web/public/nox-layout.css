@@ -170,7 +170,7 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
     --nox-settle-ease: var(--motion-ease-out);
   }
   .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) {
-    /* About four fifths of a phone, two fifths of an unfolded screen. */
+    /* About four fifths of a phone; the spread overrides this to half the screen. */
     --nox-drawer-width: min(calc(100vw - 72px), max(41vw, 320px), 420px);
     --nox-drawer-shift: calc(var(--nox-drawer-progress, 0) * var(--nox-drawer-width));
     --nox-drawer-motion: transform var(--nox-settle) var(--nox-settle-ease);
@@ -477,12 +477,13 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   }
 }
 @keyframes nox-chrome-settle { from { opacity: 0; transform: translateY(-4px); } }
-/* Nox spread (nox-spread.ts): an unfolded foldable or a tablet held wide shows Agent | Work side
- * by side, and a swipe on shows Work on its own; upright it keeps the phone's single page.
- * --nox-spread is the stop: Agent | Work (1) or Work alone (2). -b runs 0 → 1 between them, so a
- * swipe (inline --nox-spread) and a tap (the stop changing) move alike. The agent page's width
- * at Agent | Work is --nox-spread-split, which the presentation sets. The workspace list opens
- * over them as a drawer, as on a phone. */
+/* Nox spread (nox-spread.ts): an unfolded foldable or a tablet held wide shows two panes at a
+ * time — Workspaces | Agent with the list open, Agent | Work with it closed — and a swipe on
+ * shows Work on its own; upright it keeps the phone's single page. --nox-spread is the stop:
+ * Agent | Work (1) or Work alone (2). -b runs 0 → 1 between them, so a swipe (inline
+ * --nox-spread) and a tap (the stop changing) move alike. The agent page's width at Agent | Work
+ * is --nox-spread-split, which the presentation sets. The list takes the left half so Work stays
+ * off screen while the list is open. */
 @media (hover: none) and (pointer: coarse) and (min-width: 600px) and (min-height: 480px) and (orientation: landscape) {
   .fixed-shell-app {
     --nox-spread: 1;
@@ -490,8 +491,14 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
     --nox-spread-duration: var(--nox-settle);
     --nox-spread-motion: left var(--nox-spread-duration) var(--nox-settle-ease), width var(--nox-spread-duration) var(--nox-settle-ease), translate var(--nox-spread-duration) var(--nox-settle-ease);
   }
+  .fixed-shell-app:has(.workspace-detail-mount.visible > :is(.workspace-boot, .fixed-workspace-presentation)) {
+    --nox-drawer-width: 50vw;
+  }
   .fixed-shell-app:has(.workspace-detail-mount.visible > .fixed-workspace-presentation[data-nox-work-alone]) { --nox-spread: 2; }
-  .fixed-workspace-presentation > .fixed-shell-main { overflow: clip; }
+  .fixed-workspace-presentation > .fixed-shell-main {
+    --nox-spread-agent-width: max(var(--nox-spread-split, 50%), calc(var(--nox-spread-split, 50%) + var(--nox-drawer-progress, 0) * (50% - var(--nox-spread-split, 50%))));
+    overflow: clip;
+  }
   /* Past the end, a swipe moves the pages by --nox-spread-give and they spring back. */
   .fixed-workspace-presentation > .fixed-shell-main > :is(.fixed-shell-agent-pane, .fixed-shell-work-pane) {
     opacity: 1; visibility: visible; pointer-events: auto;
@@ -500,15 +507,15 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   }
   /* The agent's right edge is Work's left edge at every stop. */
   .fixed-workspace-presentation > .fixed-shell-main > .fixed-shell-agent-pane {
-    left: calc(-1 * var(--nox-spread-b) * var(--nox-spread-split, 50%)); right: auto; width: var(--nox-spread-split, 50%);
+    left: calc(-1 * var(--nox-spread-b) * var(--nox-spread-agent-width)); right: auto; width: var(--nox-spread-agent-width);
     border-inline-end: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
   }
   .fixed-workspace-presentation > .fixed-shell-main > .fixed-shell-work-pane {
-    left: calc((1 - var(--nox-spread-b)) * var(--nox-spread-split, 50%)); right: auto;
-    width: calc(100% - (1 - var(--nox-spread-b)) * var(--nox-spread-split, 50%));
+    left: calc((1 - var(--nox-spread-b)) * var(--nox-spread-agent-width)); right: auto;
+    width: calc(100% - (1 - var(--nox-spread-b)) * var(--nox-spread-agent-width));
   }
   /* Under the finger the pages follow at once. */
-  .fixed-shell-app:is([data-nox-spread-drag], [data-nox-spread-resize]) { --nox-spread-duration: 0s; }
+  .fixed-shell-app:is([data-nox-spread-drag], [data-nox-spread-resize], [data-nox-drawer-drag]) { --nox-spread-duration: 0s; }
 }
 
 @media (prefers-reduced-motion: reduce) {
