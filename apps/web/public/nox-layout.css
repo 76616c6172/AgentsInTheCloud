@@ -271,19 +271,15 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   .fixed-shell-agent-pane > .panel > .panel__header { display: none; }
   .nox-phone-header { grid-area: 1 / 1; position: relative; z-index: 4; display: grid; padding-top: env(safe-area-inset-top, 0px); border-bottom: 1px solid color-mix(in srgb, var(--line) 60%, transparent); background: var(--bg); }
 
-  /* The title row: the sidebar button, the workspace's glyph, name and template (which open More), then More. */
+  /* The title row: the sidebar button, the workspace name and template (which open More), then More. */
   .nox-phone-header__top { display: flex; align-items: center; gap: 2px; min-width: 0; height: 42px; padding: 2px 4px 0; }
   .nox-phone-header__top > .button[data-show-workspace-list] { position: relative; flex: none; }
   .nox-phone-title {
-    display: flex; flex: 1; align-items: center; gap: 9px; min-width: 0; height: 36px; padding: 0 8px 0 4px; border: 0; border-radius: var(--radius-control);
+    display: flex; flex: 1; align-items: center; min-width: 0; height: 36px; padding: 0 8px 0 4px; border: 0; border-radius: var(--radius-control);
     background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .nox-phone-title:active { background: var(--accent-soft); }
   .nox-phone-title:focus-visible { outline: 1px solid var(--accent); outline-offset: -1px; }
-  .nox-phone-title__glyph {
-    flex: none; width: 20px; height: 20px; background: var(--nox-glyph-color, var(--text-muted));
-    mask: var(--nox-glyph-mask) center / contain no-repeat, var(--nox-glyph-vignette); mask-composite: intersect;
-  }
   .nox-phone-title__text { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
   .nox-phone-title__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-bright); font-size: 15px; font-weight: var(--weight-semibold); }
   .nox-phone-title__template { flex: 0 10 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-muted); font-size: 13px; }

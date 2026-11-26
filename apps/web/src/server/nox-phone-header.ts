@@ -11,8 +11,8 @@ import { closeForm, renderMobileWorkViewCloser, renderMobileWorkViews, renderWor
  * workspace: when the workspace list opens, the whole workspace, this header included, slides
  * aside beside it (nox-layout.css).
  *
- * The top row names the workspace: a sidebar button that opens the list, the workspace's glyph,
- * title and template (which open More), and More. The tab row below lists every agent and Work
+ * The top row names the workspace: a sidebar button that opens the list, the workspace title
+ * and template (which open More), and More. The tab row below lists every agent and Work
  * view as a labelled tab; the open one is filled, and shows × when it can close. Tapping a tab
  * switches at once. Swipes still move between the agent and Work sides (mobile-swipe), and a
  * selected Browser tab (data-nox-tools) opens its toolbar (nox-workspace-chrome). + opens new
@@ -58,7 +58,7 @@ function renderTitleRow(islands: LiveIslands, presentation: WorkspacePresentatio
   const list = barButton("Workspaces", "click->workspace-navigation#showWorkspacePane", `${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i>`, "data-show-workspace-list");
   const name = `<strong class="nox-phone-title__name">${escapeHtml(title)}</strong>${workspaceTemplate ? `<span class="nox-phone-title__template">${escapeHtml(workspaceTemplate.title)}</span>` : ""}`;
   return `<div class="nox-phone-header__top">${list}
-    <button type="button" class="nox-phone-title" aria-haspopup="menu" aria-controls="${moreMenuId}" popovertarget="${moreMenuId}"><span class="nox-phone-title__glyph" aria-hidden="true"></span>${islands.island(domId("phone_title", id), name, "span", "nox-phone-title__text")}</button>
+    <button type="button" class="nox-phone-title" aria-haspopup="menu" aria-controls="${moreMenuId}" popovertarget="${moreMenuId}">${islands.island(domId("phone_title", id), name, "span", "nox-phone-title__text")}</button>
     ${renderMoreMenu(islands, presentation)}
   </div>`;
 }
