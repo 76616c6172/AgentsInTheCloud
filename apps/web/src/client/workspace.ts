@@ -16,6 +16,7 @@ import { PwaReminderController } from "./pwa-reminder.ts";
 import { MobileSwipeController } from "./mobile-swipe-controller.ts";
 import { NoxWorkspaceHoldController } from "./nox-workspace-hold-controller.ts";
 import { NoxWorkspaceChromeController } from "./nox-workspace-chrome-controller.ts";
+import { NoxWorkspaceListController } from "./nox-workspace-list-controller.ts";
 import { registerWorkspaceAppFrameController } from "./workspace-app-frame.ts";
 import { installWorkspaceCable } from "./workspace-cable.ts";
 import { clientHooks } from "./workspace-client-hooks.ts";
@@ -61,6 +62,7 @@ registerWorkspaceControllers({
   "mobile-swipe": MobileSwipeController,
   "nox-workspace-chrome": NoxWorkspaceChromeController,
   "nox-workspace-hold": NoxWorkspaceHoldController,
+  "nox-workspace-list": NoxWorkspaceListController,
   "workspace-presentation": createWorkspacePresentationController(Controller, application, clientHooks),
 });
 registerWorkspaceNavigationControllers();

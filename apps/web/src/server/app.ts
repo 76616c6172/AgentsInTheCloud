@@ -368,6 +368,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
         active: entry.id === activeWorkspaceId,
         parked: entry.parked,
         workspaceTemplate,
+        phase: entry.phase,
         busy: entry.phase.busy,
         requestingAttention: entry.requestingAttention,
         attentionAt: entry.attentionAt,

@@ -1,4 +1,3 @@
-import { Icons } from "@agents-in-the-cloud/design-system/icons";
 import { workspaceTemplateSwatchColor } from "./workspace-template-presentation.ts";
 
 /* Nox: every workspace gets its own braille glyph, generated from its id, in place of the
@@ -78,8 +77,8 @@ export function noxWorkspaceGlyph(workspace: GlyphWorkspace) {
     workspace.busy ? " data-busy" : "",
     workspace.parked ? " data-parked" : "",
   ];
-  const mark = workspace.requestingAttention ? '<i class="status-dot attention" aria-hidden="true"></i>' : workspaceGlyphSvg(workspace.id);
-  return { attributesHtml: attributes.join(""), html: `${mark}<span class="nox-workspace-glyph__plus">${Icons.Plus}</span>` };
+  const badge = workspace.requestingAttention ? '<i class="status-dot attention nox-workspace-glyph__badge" aria-hidden="true"></i>' : "";
+  return { attributesHtml: attributes.join(""), html: `${workspaceGlyphSvg(workspace.id)}${badge}` };
 }
 
 /** Busy agents in a workspace show its glyph instead of a spinner (nox-layout.css). The rule scopes

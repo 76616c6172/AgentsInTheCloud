@@ -30,7 +30,7 @@ export class NoxWorkspaceHoldController extends Controller<HTMLElement> {
     this.suppressClick = false;
     this.element.classList.remove("nox-hold-released");
     this.gesture = { id: event.pointerId, x: event.clientX, y: event.clientY, started: performance.now() };
-    this.element.style.setProperty("--nox-hold-color", getComputedStyle(this.element.querySelector<HTMLElement>(".nox-workspace-mobile-glyph")!).color);
+    this.element.style.setProperty("--nox-hold-color", getComputedStyle(this.element.querySelector<HTMLElement>(".nox-workspace-glyph")!).color);
     this.element.classList.add("nox-hold-charging");
     window.addEventListener("pointerdown", this.anotherPointer, true);
     window.addEventListener("pointermove", this.move, true);

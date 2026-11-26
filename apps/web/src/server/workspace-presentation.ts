@@ -1,7 +1,6 @@
 import { workspaceTemplateChoiceHtml } from "./workspace-template-presentation.ts";
 import { noxWorkspaceHoldAttributes, noxWorkspaceHoldInk, noxWorkspaceHoldLaunch } from "./nox-workspace-hold.ts";
 import { noxWorkspaceGlyph, noxWorkspaceGlyphStyle } from "./nox-workspace-glyph.ts";
-import { disclosureHtml } from "@agents-in-the-cloud/design-system/disclosure";
 import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { addBadgeHtml } from "@agents-in-the-cloud/design-system/add-badge";
 import { buttonHtml, type ButtonVariant } from "@agents-in-the-cloud/design-system/button";
@@ -15,9 +14,9 @@ import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@ag
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { agentPaneSlotDomId, renderAgentPane, renderMobileAgentAttention, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderNoxPhoneHeader } from "./nox-phone-header.ts";
-import { renderNoxWorkspaceListBar } from "./nox-workspace-list.ts";
+import { noxWorkspaceSubtitle, renderNoxWorkspaceListBar, renderNoxWorkspaceListHeaderAction, renderNoxWorkspaceRows } from "./nox-workspace-list.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
-import type { WorkspaceDeletionState } from "./workspace-registry.ts";
+import type { WorkspaceDeletionState, WorkspacePhase } from "./workspace-registry.ts";
 import { outdatedImageMessage } from "./workspace-warnings.ts";
 import type { WorkspaceWorkViewState } from "@agents-in-the-cloud/workspace";
 import { barButton, behaviorTurboStream, busyAttentionIndicator, fullscreenViewAttributes, LiveIslands, paneContentHtml, selectorCloseForm, type ViewCloseAction } from "./workspace-view-markup.ts";
@@ -34,6 +33,7 @@ export interface WorkspacePaneEntry {
   active?: boolean;
   parked: boolean;
   workspaceTemplate?: { id: string; title: string; swatchColor?: string };
+  phase?: WorkspacePhase;
   busy?: boolean;
   requestingAttention?: boolean;
   attentionAt?: number;
@@ -105,16 +105,24 @@ function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): strin
   const busyAgents = workspace.busyAgentKeys?.length ? ` data-workspace-busy-agents="${escapeHtml(JSON.stringify(workspace.busyAgentKeys))}"` : "";
   const label = parked ? `Unpark and open ${workspace.title}` : workspace.title;
   const status = workspaceStatus(workspace);
+  const subtitle = noxWorkspaceSubtitle(workspace);
   const tooltip = [workspaceTemplate?.title, label, status.label].filter(Boolean).join(" · ");
-  const newFromTemplate = workspaceTemplate ? `New workspace from ${workspaceTemplate.title}` : "New empty workspace";
   const glyph = noxWorkspaceGlyph(workspace);
+  const filterAttributes = [
+    `data-nox-ws-state="${subtitle.state}"`,
+    workspace.requestingAttention ? 'data-nox-ws-attention="true"' : "",
+    workspace.busy ? 'data-nox-ws-busy="true"' : "",
+    subtitle.timestamp !== undefined ? `data-nox-activity-at="${subtitle.timestamp}" data-nox-subtitle-base="${escapeHtml(subtitle.base)}"` : "",
+  ].filter(Boolean).join(" ");
   const row = contentRowHtml({
     width: "fill",
-    kind: "compact",
-    container: { attributesHtml: `${parked ? "" : `data-workspace-order="${index}"`} ${workspaceTemplate ? noxWorkspaceHoldAttributes : ""}` },
+    kind: "multiline",
+    container: { attributesHtml: `${parked ? "" : `data-workspace-order="${index}"`} ${filterAttributes}${workspaceTemplate ? ` ${noxWorkspaceHoldAttributes}` : ""}` },
+    leadingHtml: `<span class="nox-workspace-glyph"${glyph.attributesHtml} aria-hidden="true">${glyph.html}</span>`,
     label: { kind: "text", text: workspace.title },
-    trailingHtml: `${status.html}<span class="nox-workspace-glyph nox-workspace-mobile-glyph"${glyph.attributesHtml} aria-hidden="true">${glyph.html}</span>${workspaceTemplate ? noxWorkspaceHoldInk : ""}`,
-    leadingActionsHtml: `<button type="button" class="workspace-template-icon-button nox-workspace-glyph"${glyph.attributesHtml} title="${escapeHtml(newFromTemplate)}" aria-label="${escapeHtml(newFromTemplate)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(workspaceTemplate?.id ?? "")}">${glyph.html}</button>${workspaceTemplate ? noxWorkspaceHoldLaunch(workspaceTemplate.id) : ""}`,
+    description: subtitle.text,
+    trailingHtml: `${status.html}${workspaceTemplate ? noxWorkspaceHoldInk : ""}`,
+    leadingActionsHtml: workspaceTemplate ? noxWorkspaceHoldLaunch(workspaceTemplate.id) : undefined,
     primary: {
       tag: "button",
       attributesHtml: `${parked ? 'data-workspace-parked' : `id="${id}"`} type="${parked ? "submit" : "button"}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${label} · ${status.label}`)}"${workspace.active ? ' aria-current="page"' : ""} data-workspace-entry-id="${escapeHtml(workspace.id)}"${attentionAt}${lastActivityAt}${busyAgents}${workspaceTemplateAttribute}${parked ? "" : ' data-action="click->workspace-navigation#selectWorkspace"'}`,
@@ -130,20 +138,8 @@ const workspaceTemplateDialogTarget = 'data-turbo-frame="_top" data-turbo-stream
 function workspaceRowDomId(id: string): string { return domId("workspace_row", id); }
 
 function renderWorkspaceRows(presentation: WorkspacePanePresentation): string {
-  const active = presentation.workspaces.filter((workspace) => !workspace.parked);
-  const parked = presentation.workspaces.filter((workspace) => workspace.parked);
-  const parkedGroup = parked.length ? disclosureHtml({
-    element: { id: "workspace_pane_parked" },
-    summary: { kind: "compact", width: "fill", attributesHtml: "data-workspace-parked", label: { kind: "text", text: "Parked" } },
-    bodyHtml: parked.map(renderWorkspaceRow).join(""),
-  }) : "";
-  return `${active.map(renderWorkspaceRow).join("")}${parkedGroup}${noxWorkspaceGroups}`;
+  return renderNoxWorkspaceRows(presentation.workspaces, renderWorkspaceRow);
 }
-
-/* Shared status headings. They follow the rows so CSS counters can total each
- * group, and CSS orders them visually; browser-owned row arrangement is unaffected. */
-const noxWorkspaceGroups = [["attention", "Needs you"], ["busy", "Working"], ["idle", "Idle"]]
-  .map(([group, label]) => `<div class="nox-workspace-group" data-nox-workspace-group="${group}" aria-hidden="true">${label}</div>`).join("");
 
 function renderNewWorkspaceRow(presentation: WorkspacePanePresentation): string {
   const guide = presentation.workspaces.length ? "" : ' data-first-workspace-destination="new-workspace"';
@@ -205,10 +201,10 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
   });
   const back = buttonHtml({ type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Back, label: "Back to workspaces" }, attributesHtml: 'data-action="workspace-pane#back"' });
   const revealActions = 'pointerenter->workspace-navigation#revealWorkspacePane pointerleave->workspace-navigation#leaveWorkspacePane focusout->workspace-navigation#leaveWorkspacePane';
-  return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane" data-action="${revealActions}"><div class="fixed-shell-workspace-main">${panelHtml({
+  return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane nox-workspace-list" data-action="${revealActions}"><div class="fixed-shell-workspace-main">${panelHtml({
     element: { tag: "aside",  attributesHtml: 'aria-label="Workspaces"' },
     chrome: "outlined",
-    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `<span class="nox-sidebar-icon-unpinned">${Icons.Sidebar}</span><span class="nox-sidebar-icon-pinned">${Icons.SidebarPinned}</span>`, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}` })}</div>
+    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `<span class="nox-sidebar-icon-unpinned">${Icons.Sidebar}</span><span class="nox-sidebar-icon-pinned">${Icons.SidebarPinned}</span>`, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}${renderNoxWorkspaceListHeaderAction(presentation.workspaces.length > 0)}` })}</div>
       <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New workspace</span></div>`,
     bodyHtml: `<div class="workspace-pane-viewport" data-workspace-pane-target="body"><div class="workspace-pane-slides">
       <section class="workspace-pane-slide" data-workspace-pane-target="workspaces" aria-label="Workspaces">

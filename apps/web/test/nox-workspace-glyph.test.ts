@@ -26,13 +26,13 @@ test("the glyph slot shows the workspace's state", () => {
   const idle = noxWorkspaceGlyph(workspace);
   expect(idle.attributesHtml).toBe(' data-tinted style="--glyph-hue: 262.9; --glyph-l: 0.017"');
   expect(idle.html).toContain('class="nox-workspace-glyph__svg"');
-  expect(idle.html).toContain('class="nox-workspace-glyph__plus"');
+  expect(idle.html).not.toContain("nox-workspace-glyph__badge");
 
   expect(noxWorkspaceGlyph({ ...workspace, busy: true }).attributesHtml).toContain(" data-busy");
   expect(noxWorkspaceGlyph({ ...workspace, parked: true }).attributesHtml).toContain(" data-parked");
   const attention = noxWorkspaceGlyph({ ...workspace, busy: true, requestingAttention: true });
-  expect(attention.html).toContain('class="status-dot attention"');
-  expect(attention.html).not.toContain("nox-workspace-glyph__svg");
+  expect(attention.html).toContain('class="nox-workspace-glyph__svg"');
+  expect(attention.html).toContain('class="status-dot attention nox-workspace-glyph__badge"');
 
   expect(noxWorkspaceGlyph({ id: "c27c3db1", parked: false }).attributesHtml).toBe("");
 });
