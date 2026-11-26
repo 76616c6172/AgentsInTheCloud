@@ -363,6 +363,21 @@ button.nox-workspace-glyph:is(:hover, :focus-visible) > .nox-workspace-glyph__pl
   .agent-transcript-surface { max-width: 660px; margin-inline: auto; }
   /* The sidebar button and More are the Agent header's only controls; give them room to hit. */
   :is([data-show-workspace-pane], [data-collapse-workspace-pane], [data-nox-agent-menu]).button.icon-only { width: 32px; height: 32px; --button-icon-size: 18px; }
+  /* Pinning swaps the sidebar icon instead of painting a pressed highlight behind it. */
+  .nox-sidebar-icon-unpinned,
+  .nox-sidebar-icon-pinned { display: inline-flex; }
+  .nox-sidebar-icon-pinned,
+  [data-collapse-workspace-pane][aria-pressed="true"] .nox-sidebar-icon-unpinned { display: none; }
+  [data-collapse-workspace-pane][aria-pressed="true"] .nox-sidebar-icon-pinned { display: inline-flex; }
+  :is([data-show-workspace-pane], [data-collapse-workspace-pane]).button.quiet[aria-pressed="true"] {
+    background: transparent;
+    color: var(--button-foreground);
+  }
+  :is([data-show-workspace-pane], [data-collapse-workspace-pane]).button.quiet[aria-pressed="true"]:is(:hover, :focus-visible) {
+    border-color: var(--button-hover-border);
+    background: var(--button-hover-background);
+    color: var(--button-hover-foreground);
+  }
   [id^="nox_agent_menu"] { max-height: calc(100dvh - 56px) !important; }
   .nox-agent-menu-label { display: block; padding: 6px 8px 2px; color: var(--text-muted); font-size: var(--text-code); }
   [id^="nox_agent_menu"] .destructive-confirmation__trigger { width: 100%; justify-content: flex-start; padding-left: 30px; --button-border: transparent; --button-background: transparent; --button-foreground: var(--danger); }

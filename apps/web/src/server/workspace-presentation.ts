@@ -208,7 +208,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
   return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane" data-action="${revealActions}"><div class="fixed-shell-workspace-main">${panelHtml({
     element: { tag: "aside",  attributesHtml: 'aria-label="Workspaces"' },
     chrome: "outlined",
-    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", Icons.Menu, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}` })}</div>
+    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `<span class="nox-sidebar-icon-unpinned">${Icons.Sidebar}</span><span class="nox-sidebar-icon-pinned">${Icons.SidebarPinned}</span>`, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}` })}</div>
       <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New workspace</span></div>`,
     bodyHtml: `<div class="workspace-pane-viewport" data-workspace-pane-target="body"><div class="workspace-pane-slides">
       <section class="workspace-pane-slide" data-workspace-pane-target="workspaces" aria-label="Workspaces">
