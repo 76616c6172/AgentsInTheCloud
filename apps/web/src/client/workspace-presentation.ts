@@ -337,6 +337,7 @@ export function createWorkspacePresentationController(
     }
 
     toggleWorkPane(): void {
+      if (!this.element.querySelector("[data-workspace-pane-role='work']")) return;
       this.workPaneFocused = !this.workPaneFocused;
       this.state.workPaneVisible = true;
       this.persistAndApply({ focus: true });

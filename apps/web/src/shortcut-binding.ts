@@ -1,10 +1,13 @@
 export function formatShortcutBinding(binding: string): string {
-  return binding.split("+").map((part) => {
+  const parts = binding.split("+");
+  const shifted = parts.includes("Shift");
+  return parts.map((part) => {
     switch (part) {
       case "Meta": return "⌘";
       case "Alt": return "⌥";
       case "Control": return "Ctrl+";
       case "Shift": return "⇧";
+      case "Backquote": return shifted ? "~" : "`";
       case "Comma": return ",";
       case "Period": return ".";
       case "Slash": return "/";

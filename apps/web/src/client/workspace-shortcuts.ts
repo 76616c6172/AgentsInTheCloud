@@ -1,7 +1,7 @@
 import { contentRowElement, contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml, isApplePlatform, type WorkspaceClientCommand, type WorkspacePaletteItem } from "@agents-in-the-cloud/shared";
+import { escapeHtml, isApplePlatform, phoneLayoutMediaQuery, type WorkspaceClientCommand, type WorkspacePaletteItem } from "@agents-in-the-cloud/shared";
 import { Controller } from "@hotwired/stimulus";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { submitFormWithFirstButton } from "./form-submission.ts";
@@ -17,6 +17,7 @@ const shortcutAliases = new Map([
   ["browser.open", ["Control+Digit2"]],
   ["terminal.open", ["Control+Digit3"]],
   ["files.open", ["Control+Digit4"]],
+  ["work-pane.toggle-focus", ["Shift+Backquote"]],
 ]);
 
 function commandBindings(command: WorkspaceClientCommand): readonly string[] {
@@ -76,10 +77,13 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   private readonly keydown = (event: KeyboardEvent): void => {
     if (event.repeat || event.isComposing || event.getModifierState("AltGraph")) return;
     const metaAlt = event.metaKey && event.altKey && !event.ctrlKey;
-    // Ctrl shortcuts work on every platform. Keep Ctrl+Alt prompt-template
-    // shortcuts off Apple platforms, without consuming AltGr text input.
     const control = event.ctrlKey && !event.metaKey && (!event.altKey || !isApplePlatform());
-    if (!metaAlt && !control) return;
+    const desktopWorkFocus = !event.metaKey && !event.ctrlKey && !event.altKey && event.shiftKey
+      && this.matchesShortcutKey(event, "Backquote")
+      && !window.matchMedia(phoneLayoutMediaQuery).matches
+      && !document.querySelector("dialog[open]")
+      && this.canToggleWorkPaneFocus();
+    if (!metaAlt && !control && !desktopWorkFocus) return;
 
     if (event.key === "Meta" || event.key === "Alt" || event.key === "Control") {
       if (metaAlt) this.scheduleShortcutOverlay();
@@ -256,6 +260,11 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     return document.querySelector(".workspace-detail-mount.visible .fixed-workspace-presentation");
   }
 
+  private canToggleWorkPaneFocus(): boolean {
+    const presentation = this.visibleWorkspacePresentation();
+    return Boolean(presentation?.querySelector('[data-workspace-pane-role="work"]'));
+  }
+
   private workspaceCommands(): WorkspaceCommandRegistration[] {
     const presentation = this.visibleWorkspacePresentation();
     if (presentation) {
@@ -369,6 +378,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       case "Semicolon": return event.key === ";" || event.key === ":";
       case "BracketLeft": return event.key === "[";
       case "BracketRight": return event.key === "]";
+      case "Backquote": return event.key === "~" || event.key === "`";
       default: return false;
     }
   }
