@@ -28,6 +28,7 @@ const hardcodedPopularModels: readonly (ProviderModelReference & { provider: str
   { provider: "openai-codex", id: "gpt-6.1-sol" },
   { provider: "openai-codex", id: "gpt-6-astra" },
   { provider: "openai-codex", id: "gpt-6-luna" },
+  { provider: "google", id: "gemini-4-neon" },
 ];
 
 const hardcodedProviderKnowledge: ProviderKnowledgeRegistry = {
@@ -39,6 +40,9 @@ const hardcodedProviderKnowledge: ProviderKnowledgeRegistry = {
   },
   anthropic: {
     apiKeyExample: "sk-ant-api03-abc123def456...",
+  },
+  google: {
+    apiKeyExample: "AQ.Ab123def456...",
   },
 };
 

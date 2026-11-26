@@ -43,6 +43,20 @@ export const noxModelProviders: JsonObject = {
       cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3 },
     }],
   },
+  google: {
+    models: [{
+      id: "gemini-4-neon",
+      name: "Gemini 4 Neon",
+      api: "google-generative-ai",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      reasoning: true,
+      input: ["text", "image"],
+      contextWindow: 1048576,
+      maxTokens: 65536,
+      thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: null },
+      cost: { input: 3, output: 15, cacheRead: 0.15, cacheWrite: 0 },
+    }],
+  },
 };
 
 export function isNoxModelProvider(provider: string): boolean {

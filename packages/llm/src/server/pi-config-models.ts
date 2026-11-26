@@ -138,8 +138,15 @@ function withoutOfficialModelDuplicates(providers: JsonObject, officialRuntime: 
 }
 
 async function materializeCustomModelProviders(providers: JsonObject): Promise<CustomModelsSaveResult> {
-  const filtered = withoutOfficialModelDuplicates({ ...noxModelProviders, ...providers }, await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false }));
-  await updateModelSettings((settings) => { settings.providers = filtered.providers; });
+  const official = await ModelRuntime.create({ modelsPath: null, allowModelNetwork: false, refreshOnCreate: false });
+  const shipped = withoutOfficialModelDuplicates(noxModelProviders, official).providers;
+  for (const [providerId, value] of Object.entries(shipped)) {
+    if (isJsonObject(value) && Array.isArray(value.models) && value.models.length === 0 && Object.keys(value).length === 1) {
+      delete shipped[providerId];
+    }
+  }
+  const filtered = withoutOfficialModelDuplicates(providers, official);
+  await updateModelSettings((settings) => { settings.providers = { ...shipped, ...filtered.providers }; });
   return { skippedOfficialModels: filtered.skippedOfficialModels };
 }
 
@@ -265,10 +272,13 @@ export async function validateModelProviderApiKey(provider: string, key: string,
   if (!trimmed) throw new Error("API key is required");
   const credentials = new InMemoryCredentialStore();
   await credentials.modify(provider, async () => ({ type: "api_key", key: trimmed }));
+  if (!customModel) await preparePiModelsJson();
   const runtime = instrumentModelRuntime(await ModelRuntime.create({ credentials, modelsPath: customModel ? null : piModelsJsonPath(), allowModelNetwork: false }));
   if (customModel) runtime.registerProvider(provider, { api: customModel.api, baseUrl: customModel.baseUrl, models: [customModel] });
   const models = runtime.getModels(provider);
-  const model = models[Math.floor(Math.random() * models.length)];
+  const preferred = defaultProviderModels(provider, models);
+  const candidates = preferred.length ? preferred : models;
+  const model = candidates[Math.floor(Math.random() * candidates.length)];
   if (!model) throw new Error(`No models found for provider "${provider}"`);
   const response = await runtime.completeSimple(model, { messages: [{ role: "user", content: "Reply with exactly: ok", timestamp: Date.now() }] }, { maxTokens: 1, sessionId: crypto.randomUUID(), signal: customModel ? AbortSignal.timeout(15_000) : undefined });
   if (response.stopReason === "error" || response.stopReason === "aborted") throw new Error(response.errorMessage ?? "Provider rejected the API key");

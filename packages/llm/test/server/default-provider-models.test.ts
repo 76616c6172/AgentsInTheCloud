@@ -67,10 +67,12 @@ describe("provider setup defaults", () => {
   test("uses the price rule when curated IDs are absent from the account catalogue", () => {
     expect(defaultProviderModels("anthropic", [model("claude-opus-4-8", 10), model("claude-haiku-4-5", 1)])[0]!.id).toBe("claude-opus-4-8");
   });
-  test("highlights Codex and leaves OpenAI in the other providers list", () => {
+  test("highlights Codex and Google Gemini and leaves OpenAI in the other providers list", () => {
     expect(getPopularProviderRank("openai-codex")).toBe(0);
+    expect(getPopularProviderRank("google")).toBeDefined();
     expect(getPopularProviderRank("openai")).toBeUndefined();
-    expect(getPopularProviderRank("google")).toBeUndefined();
+    expect(getPopularProviderRank("mistral")).toBeUndefined();
+    expect(defaultProviderModels("google", [model("gemini-3.8-flash", 0.75), model("gemini-4-neon", 3), model("gemini-4-argon", 2)]).map((entry) => entry.id)).toEqual(["gemini-4-neon"]);
   });
   test("drops the Claude brand prefix from model names", () => {
     expect(modelDisplayName("Claude Opus 5.5")).toBe("Opus 5.5");

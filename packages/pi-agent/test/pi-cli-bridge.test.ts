@@ -168,13 +168,26 @@ test("rejects foreign hosts, changed endpoints, disconnected providers and malfo
   await expect(transform(new Request("https://custom.example/", { headers: { authorization: "agents-in-the-cloud-pi-e30-end" } }))).rejects.toThrow("Invalid Pi credential placeholder");
 });
 
-test("supports query API keys without changing unrelated query semantics", async () => {
-  const runtime = fixture([model("google", "google-generative-ai", "https://generativelanguage.googleapis.com/v1beta")], { google: { auth: { apiKey: "secret+/=&" } } });
-  const config = await createPiCliConfiguration(runtime, []);
+test("supports query and header API keys for Google Gemini without leaking credentials", async () => {
+  const neon: Model<Api> = {
+    ...model("google", "google-generative-ai", "https://generativelanguage.googleapis.com/v1beta"),
+    id: "gemini-4-neon",
+    name: "Gemini 4 Neon",
+    thinkingLevelMap: { off: null, minimal: null, low: "low", medium: "medium", high: "high", xhigh: "xhigh", max: null },
+  };
+  const runtime = fixture([neon], { google: { auth: { apiKey: "AQ.secret+/=&" } } });
+  const config = await createPiCliConfiguration(runtime, [{ provider: "google", id: "gemini-4-neon", label: "Gemini 4 Neon" }]);
+  expect(config.enabledModels).toEqual(["google/gemini-4-neon"]);
+  expect(JSON.stringify(config)).not.toContain("AQ.secret");
+  expect(await piCliCredentialHosts(runtime)).toEqual(["generativelanguage.googleapis.com"]);
   const transform = createHttpHooks({ onRequest: createPiCliCredentialTransform(async () => runtime) }).httpHooks.onRequest;
-  const request = await transform(new Request(`https://generativelanguage.googleapis.com/v1beta/models?key=${config.auth.google!.key}&alt=sse`));
-  expect(new URL(request.url).searchParams.get("key")).toBe("secret+/=&");
-  expect(new URL(request.url).searchParams.get("alt")).toBe("sse");
+  const headerRequest = await transform(new Request("https://generativelanguage.googleapis.com/v1beta/models/gemini-4-neon:streamGenerateContent?alt=sse", {
+    headers: { "x-goog-api-key": config.auth.google!.key },
+  }));
+  expect(headerRequest.headers.get("x-goog-api-key")).toBe("AQ.secret+/=&");
+  const queryRequest = await transform(new Request(`https://generativelanguage.googleapis.com/v1beta/models?key=${config.auth.google!.key}&alt=sse`));
+  expect(new URL(queryRequest.url).searchParams.get("key")).toBe("AQ.secret+/=&");
+  expect(new URL(queryRequest.url).searchParams.get("alt")).toBe("sse");
   await expect(transform(new Request(`https://attacker.example/?key=${config.auth.google!.key}`))).rejects.toThrow("not allowed");
 });
 

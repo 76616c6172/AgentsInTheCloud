@@ -356,11 +356,17 @@ function renderConnectionMethods(provider: ProviderChoice, host: ModelsHost): st
     bodyHtml: `${openAISignInNotice(provider.provider)}<div class="model-setup-choices">${provider.methods.map((method) => `<form method="post" action="/models/providers/${encodeURIComponent(provider.provider)}/connect?${hostQuery(host)}&method=${method}" data-turbo="true">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: method === "oauth" ? "Use subscription" : "Use API key" } })}</form>`).join("")}</div>`,
   });
 }
+function apiKeyConnectionHint(provider: string): string {
+  return provider === "google"
+    ? '<p>Paste a Gemini API key from <a href="https://aistudio.google.com/api-keys" target="_blank" rel="noreferrer">Google AI Studio</a>.</p>'
+    : "";
+}
+
 function renderApiKeyConnectionStep(provider: ProviderChoice, host: ModelsHost, error = ""): string {
   const inputId = domId("provider_api_key", provider.provider);
   const formId = domId("provider_api_key_form", provider.provider);
   return renderConnectionStep(provider, host, {
-    bodyHtml: `${error ? `<p class="settings-error" role="alert">${escapeHtml(error)}</p>` : ""}
+    bodyHtml: `${error ? `<p class="settings-error" role="alert">${escapeHtml(error)}</p>` : ""}${apiKeyConnectionHint(provider.provider)}
       <form id="${formId}" class="form-stack" method="post" action="/models/providers/${encodeURIComponent(provider.provider)}/api-key?${hostQuery(host)}" data-turbo="true">
         <input id="${inputId}" class="text-field" type="password" aria-label="API key" data-1p-ignore name="secret" placeholder="${escapeHtml(getProviderApiKeyExample(provider.provider) ?? "API key")}" autocomplete="off" required autofocus>
       </form>`,

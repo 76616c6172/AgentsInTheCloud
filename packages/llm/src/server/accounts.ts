@@ -17,7 +17,10 @@ export interface Account {
 }
 
 export function providerLabel(provider: { id: string; name?: string }): string {
-  return provider.id === "openai-codex" ? "ChatGPT / Codex" : provider.id === "openai" ? "OpenAI - Sign in with ChatGPT" : provider.name ?? provider.id;
+  return provider.id === "openai-codex" ? "ChatGPT / Codex"
+    : provider.id === "openai" ? "OpenAI - Sign in with ChatGPT"
+    : provider.id === "google" ? "Google Gemini"
+    : provider.name ?? provider.id;
 }
 
 export function sortByPopularity<T extends { provider: string; label: string }>(items: T[]): T[] {

@@ -33,6 +33,26 @@ describe("API key validation", () => {
     for (const session of sessions) expect(session).toMatch(/^[0-9a-f-]{36}$/);
     expect(new Set(sessions).size).toBeGreaterThan(1);
   });
+
+  test("Google API key validation probes Gemini 4 Neon with x-goog-api-key instead of retired models", async () => {
+    const realFetch = globalThis.fetch;
+    const requests: { url: string; apiKey: string | null }[] = [];
+    globalThis.fetch = Object.assign(async (input: URL | RequestInfo, init?: RequestInit) => {
+      const request = new Request(input, init);
+      requests.push({ url: request.url, apiKey: request.headers.get("x-goog-api-key") });
+      return Response.json({ error: { code: 400, message: "API key not valid." } }, { status: 400 });
+    }, { preconnect: realFetch.preconnect });
+    try {
+      await expect(validateModelProviderApiKey("google", "AQ.test-key")).rejects.toThrow();
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    expect(requests.length).toBeGreaterThanOrEqual(1);
+    for (const entry of requests) {
+      expect(entry.url).toContain("https://generativelanguage.googleapis.com/v1beta/models/gemini-4-neon:");
+      expect(entry.apiKey).toBe("AQ.test-key");
+    }
+  });
 });
 
 describe("enabled model storage", () => {
