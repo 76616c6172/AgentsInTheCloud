@@ -80,7 +80,7 @@ class WorkspaceSelectionController extends Controller<HTMLElement> {
     const presentation = this.presentation(mount);
     await presentation?.prepareIntendedSurfaces();
     if (selection !== this.selection) return;
-    presentation?.focusSelectedAgent();
+    if (!document.querySelector("[data-nox-renaming]")) presentation?.focusSelectedAgent();
     this.changed();
     this.reportVisibility();
 

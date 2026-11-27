@@ -12,7 +12,7 @@ interface WorkspacePreparationOperations {
 async function prepare(id: string, registry: WorkspaceRegistry, operations: WorkspacePreparationOperations, run: WorkspaceProvisionRun): Promise<void> {
   const entry = registry.get(id);
   const current = () => registry.get(id) === entry && !entry?.phase.deletion;
-  await run.step("workspace.preparation", "Prepare workspace", async () => {
+  await run.step("workspace.preparation", "Prepare thread", async () => {
     if (!current()) return;
     try {
       await operations.prepareRuntime(id, (detail) => run.report({ detail }));
@@ -50,7 +50,7 @@ export async function reprovisionWorkspaces(
     const restore = async () => {
       try {
         await operations.provisioning.run(id, async (run) => {
-          await run.step("workspace.container", parked ? "Keep workspace parked" : "Start workspace container", () => parked ? operations.stop(id) : operations.ensureStarted(id));
+          await run.step("workspace.container", parked ? "Keep thread parked" : "Start thread container", () => parked ? operations.stop(id) : operations.ensureStarted(id));
           if (!current() || parked) return;
           await prepare(id, registry, operations, run);
         });
@@ -70,7 +70,7 @@ export async function reprovisionWorkspaces(
         }
       } catch (error) {
         console.error(`could not inspect workspace image ${id}`, error);
-        if (current()) registry.setWarning(id, "image", "Could not check whether this workspace image is up to date.");
+        if (current()) registry.setWarning(id, "image", "Could not check whether this thread image is up to date.");
       }
     };
     return [restore(), inspectImage()];

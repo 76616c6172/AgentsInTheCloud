@@ -247,7 +247,7 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
   const { done: doneCount, running: runningCount, idle: idleCount } = countNoxWorkspaceStatuses(active);
 
   const statusStrip = active.length || projects.length
-    ? `<div class="nox-status-strip" role="toolbar" aria-label="Workspace status">
+    ? `<div class="nox-status-strip" role="toolbar" aria-label="Thread status">
         <button type="button" class="nox-status-chip${doneCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="attention" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="attention" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--attention" aria-hidden="true"></i><span data-nox-filter-chip-label>${doneCount} Done</span></button>
         <button type="button" class="nox-status-chip${runningCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="running" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="running" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--running" aria-hidden="true"></i><span data-nox-filter-chip-label>${runningCount} Running</span></button>
         <button type="button" class="nox-status-chip${idleCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="idle" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="idle" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--idle" aria-hidden="true"></i><span data-nox-filter-chip-label>${idleCount} Idle</span></button>
@@ -258,7 +258,7 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
 
   let index = 0;
   const groupsHtml = groupWorkspacesByTemplate(active).map((group) => {
-    const addLabel = group.id ? `New workspace from ${group.label}` : "New empty workspace";
+    const addLabel = group.id ? `New thread from ${group.label}` : "New empty thread";
     const addHref = group.id ? `/launch-composer?workspaceTemplate=${encodeURIComponent(group.id)}` : "/launch-composer";
     const rowsHtml = group.workspaces.map((workspace) => renderRow(workspace, index++)).join("");
     return `<section class="nox-template-group" data-nox-template-group="${escapeHtml(group.id)}">
@@ -272,7 +272,7 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
   }).join("");
 
   const emptyFilter = active.length
-    ? '<p class="nox-list-empty-filter">No workspaces match this filter.</p>'
+    ? '<p class="nox-list-empty-filter">No threads match this filter.</p>'
     : "";
 
   const parkedHtml = parked.length
@@ -300,7 +300,7 @@ export function renderNoxHubSidebarButton(): string {
 
 export function renderNoxWorkspaceListHeaderAction(hasWorkspaces: boolean): string {
   const guide = hasWorkspaces ? "" : ' data-first-workspace-destination="new-workspace"';
-  return `<button type="button" class="nox-header-new" title="New workspace" aria-label="New workspace" data-workspace-pane-target="newWorkspace" data-action="workspace-pane#openPicker"${guide}>${noxComposeIcon}</button>`;
+  return `<button type="button" class="nox-header-new" title="New thread" aria-label="New thread" data-workspace-pane-target="newWorkspace" data-action="workspace-pane#openPicker"${guide}>${noxComposeIcon}</button>`;
 }
 
 export function renderNoxWorkspaceListBar(settingsAttributesHtml: string): string {
@@ -309,6 +309,6 @@ export function renderNoxWorkspaceListBar(settingsAttributesHtml: string): strin
     <a class="nox-list-bar__item" href="/models" data-turbo-stream="true">${item(renderNoxUsageGauge(), "Models")}</a>
     <a class="nox-list-bar__item" href="/settings" ${settingsAttributesHtml}>${item(Icons.Settings, "Settings")}</a>
     <span class="nox-list-bar__spacer" aria-hidden="true"></span>
-    <button type="button" class="nox-list-bar__new" data-action="workspace-pane#openPicker" aria-label="New workspace" title="New workspace">${noxComposeIcon}</button>
+    <button type="button" class="nox-list-bar__new" data-action="workspace-pane#openPicker" aria-label="New thread" title="New thread">${noxComposeIcon}</button>
   </nav>`;
 }

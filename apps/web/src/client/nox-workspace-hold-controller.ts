@@ -26,6 +26,7 @@ export class NoxWorkspaceHoldController extends Controller<HTMLElement> {
 
   start(event: PointerEvent): void {
     if (!this.media.matches || event.button !== 0 || !event.isPrimary) return;
+    if (this.element.hasAttribute("data-nox-renaming") || (event.target instanceof Element && event.target.closest("[data-nox-rename-form]"))) return;
     this.cancel();
     this.suppressClick = false;
     this.element.classList.remove("nox-hold-released");

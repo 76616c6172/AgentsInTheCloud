@@ -10,11 +10,11 @@ export interface WorkspaceWarning {
   action?: { href: string; caption: string };
 }
 
-export const outdatedImageMessage = "New workspaces get a newer image, after an AgentsInTheCloud update or a Dockerfile change. Make a new workspace to use it.";
+export const outdatedImageMessage = "New threads get a newer image, after an AgentsInTheCloud update or a Dockerfile change. Make a new thread to use it.";
 
 const warningTitles = {
-  preparation: "Workspace preparation needs attention",
-  image: "Workspace image needs attention",
+  preparation: "Thread preparation needs attention",
+  image: "Thread image needs attention",
   naming: undefined,
 } satisfies Record<WorkspaceWarningKind, string | undefined>;
 
@@ -29,10 +29,10 @@ export function workspaceWarnings(entry: WorkspaceEntry, workspaceTemplate: Work
     if (entry.init.configurationFingerprint && entry.init.configurationFingerprint !== configuration.configurationFingerprint) {
       // The kind is persisted with dismissals, so it keeps its original name.
       // This identifier is persisted with dismissed warnings; keep it stable.
-      add("project-settings-changed", "Template settings have changed", "Secrets and SSH keys already apply to this workspace. Other changes only apply to new workspaces.", configuration.configurationFingerprint!, { href: `/workspace-templates/${encodeURIComponent(workspaceTemplateId)}/settings`, caption: "Template settings" });
+      add("project-settings-changed", "Template settings have changed", "Secrets and SSH keys already apply to this thread. Other changes only apply to new threads.", configuration.configurationFingerprint!, { href: `/workspace-templates/${encodeURIComponent(workspaceTemplateId)}/settings`, caption: "Template settings" });
     }
   }
   for (const warning of entry.warnings ?? []) add(warning.kind, warningTitles[warning.kind], warning.message, warning.message);
-  if (entry.imageOutdated && !warnings.some((warning) => warning.kind === "image")) add("image", "Workspace image is outdated", outdatedImageMessage, "outdated");
+  if (entry.imageOutdated && !warnings.some((warning) => warning.kind === "image")) add("image", "Thread image is outdated", outdatedImageMessage, "outdated");
   return warnings;
 }

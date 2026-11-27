@@ -438,9 +438,49 @@ html[data-theme="daylight"] {
   letter-spacing: -.008em;
 }
 .fixed-shell-workspace-scroll .content-row--multiline .content-row__label-text {
+  width: fit-content;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.fixed-shell-app:not(:has(#nox_hub_surface)) .fixed-shell-workspace-scroll .content-row:has(> .content-row__primary[aria-current="page"]) [data-nox-rename-trigger] {
+  cursor: text;
+  border-radius: 4px;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 140ms ease, background 140ms ease;
+}
+.fixed-shell-app:not(:has(#nox_hub_surface)) .fixed-shell-workspace-scroll .content-row:has(> .content-row__primary[aria-current="page"]) [data-nox-rename-trigger]:hover {
+  text-decoration-color: color-mix(in srgb, var(--text-bright) 42%, transparent);
+}
+.fixed-shell-workspace-scroll .content-row[data-nox-renaming] .content-row__label {
+  visibility: hidden;
+}
+.nox-workspace-rename-form {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 5px;
+  inset-inline: 34px 7px;
+  margin: 0;
+  display: flex;
+}
+.nox-workspace-rename-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 1px 5px;
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--text-bright);
+  font: inherit;
+  font-size: 13px;
+  font-weight: var(--weight-medium);
+  line-height: 1.3;
+  letter-spacing: -.008em;
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 .fixed-shell-workspace-scroll .content-row:has(> .content-row__primary[aria-current="page"]) .content-row__label {
   font-weight: var(--weight-medium);
@@ -584,6 +624,8 @@ html[data-theme="daylight"] {
   .fixed-shell-workspace-scroll .content-row > .content-row__primary { padding: 10px 11px; gap: 12px; }
   .fixed-shell-workspace-scroll .content-row--multiline .content-row__label { font-size: 15px; }
   .fixed-shell-workspace-scroll .content-row--multiline .content-row__description { font-size: 13px; }
+  .nox-workspace-rename-form { inset-block-start: 8px; inset-inline: 41px 9px; }
+  .nox-workspace-rename-input { font-size: 15px; }
   .nox-parked__toggle { font-size: 13.5px; padding: 8px 16px; }
 }
 

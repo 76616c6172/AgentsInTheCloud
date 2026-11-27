@@ -85,7 +85,7 @@ function parseResult<S extends TSchema>(tool: ToolView, schema: S): Static<S> | 
   }
 }
 
-function workspaceActionLink(workspaceId: string, label = "Open workspace"): string {
+function workspaceActionLink(workspaceId: string, label = "Open thread"): string {
   return actionLinkHtml({
     href: `/workspaces/${encodeURIComponent(workspaceId)}`,
     variant: "quiet",
@@ -129,13 +129,13 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
     summary(tool) {
       const result = parseResult(tool, listWorkspacesResultSchema);
       const state = stringArg(tool, "state");
-      const base = state ? `List ${state} workspaces` : "List workspaces";
+      const base = state ? `List ${state} threads` : "List threads";
       return result ? `${base} · ${result.workspaces.length}` : base;
     },
     detail(_ctx, tool) {
       const result = parseResult(tool, listWorkspacesResultSchema);
       const workspaces = result?.workspaces ?? [];
-      if (!workspaces.length) return `<p class="nox-hub-tool-empty">No matching workspaces.</p>`;
+      if (!workspaces.length) return `<p class="nox-hub-tool-empty">No matching threads.</p>`;
       return `<div class="nox-hub-tool-list">${workspaces.map((ws) => {
         const id = ws.id ?? "";
         const title = ws.title ?? id;
@@ -153,7 +153,7 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
   ["create_workspace", {
     summary(tool) {
       const result = parseResult(tool, createWorkspaceResultSchema);
-      const title = result?.title || stringArg(tool, "title") || stringArg(tool, "template") || "New workspace";
+      const title = result?.title || stringArg(tool, "title") || stringArg(tool, "template") || "New thread";
       const agent = result?.agentTypeId || stringArg(tool, "agent_type") || "pi";
       return `Launch ${title} (${agent})`;
     },
@@ -174,7 +174,7 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
   ["get_workspace_status", {
     summary(tool) {
       const result = parseResult(tool, statusResultSchema);
-      const label = result?.workspace?.title ?? stringArg(tool, "workspace_id") ?? "workspace";
+      const label = result?.workspace?.title ?? stringArg(tool, "workspace_id") ?? "thread";
       return result?.workspace?.state ? `Status · ${label} (${result.workspace.state})` : `Status · ${label}`;
     },
     detail(_ctx, tool) {
@@ -183,7 +183,7 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
       const latest = result?.latest_message ?? undefined;
       const id = ws?.id ?? stringArg(tool, "workspace_id");
       const rows = [
-        { label: "Workspace", html: escapeHtml(ws?.title ?? id ?? "") },
+        { label: "Thread", html: escapeHtml(ws?.title ?? id ?? "") },
         ...(ws?.state ? [{ label: "State", html: escapeHtml(ws.state) }] : []),
         ...(ws?.provisioningError ? [{ label: "Error", html: escapeHtml(ws.provisioningError) }] : []),
         ...(latest ? [{ label: "Latest", html: `<pre class="nox-hub-tool-pre">${escapeHtml(latest)}</pre>` }] : []),
@@ -194,7 +194,7 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
   ["read_workspace", {
     summary(tool) {
       const result = parseResult(tool, readWorkspaceResultSchema);
-      const title = result?.workspace_title || stringArg(tool, "workspace_id") || "workspace";
+      const title = result?.workspace_title || stringArg(tool, "workspace_id") || "thread";
       const question = stringArg(tool, "question");
       return question ? `Read ${title} · "${question.slice(0, 48)}${question.length > 48 ? "…" : ""}"` : `Read ${title}`;
     },
@@ -213,7 +213,7 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
   ["send_workspace_message", {
     summary(tool) {
       const result = parseResult(tool, sendMessageResultSchema);
-      const title = result?.workspace_title || stringArg(tool, "workspace_id") || "workspace";
+      const title = result?.workspace_title || stringArg(tool, "workspace_id") || "thread";
       return `Message ${title}`;
     },
     detail(_ctx, tool) {
@@ -231,7 +231,7 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
     summary(tool) {
       const ids = Value.Check(waitArgsSchema, tool.args) ? tool.args.workspace_ids.length : 0;
       const mode = stringArg(tool, "mode") ?? "all";
-      return `Wait for ${ids} workspace${ids === 1 ? "" : "s"} (${mode})`;
+      return `Wait for ${ids} thread${ids === 1 ? "" : "s"} (${mode})`;
     },
     detail(_ctx, tool) {
       const result = parseResult(tool, waitResultSchema);
@@ -253,7 +253,7 @@ export const hubToolPresentations: ReadonlyMap<string, AgentToolPresentation> = 
   ["park_workspace", {
     summary(tool) {
       const parked = Value.Check(parkArgsSchema, tool.args) ? tool.args.parked : false;
-      return `${parked ? "Park" : "Unpark"} ${stringArg(tool, "workspace_id") ?? "workspace"}`;
+      return `${parked ? "Park" : "Unpark"} ${stringArg(tool, "workspace_id") ?? "thread"}`;
     },
     detail(_ctx, tool) {
       const id = stringArg(tool, "workspace_id");

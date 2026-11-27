@@ -49,16 +49,16 @@ export type WorkspaceCleanupResult = { deleted: number; errors: string[] };
 function renderForceDeleteWorkspaces(result?: WorkspaceCleanupResult): string {
   const confirmation = destructiveConfirmationHtml({
     id: "delete_all_workspaces",
-    trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Delete all workspaces" } },
-    confirmCaption: "Delete all workspaces",
+    trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Delete all threads" } },
+    confirmCaption: "Delete all threads",
     cancelCaption: "Cancel",
   });
-  const deleted = result === undefined ? "" : `<p class="developer-tools-status" role="status">Deleted ${escapeHtml(result.deleted)} workspace${result.deleted === 1 ? "" : "s"}.</p>`;
+  const deleted = result === undefined ? "" : `<p class="developer-tools-status" role="status">Deleted ${escapeHtml(result.deleted)} thread${result.deleted === 1 ? "" : "s"}.</p>`;
   const errors = result?.errors.length ? `<p class="settings-error">${escapeHtml(result.errors.join("\n"))}</p>` : "";
   return `<div id="settings_force_delete_workspaces" class="developer-tools-action">
     <div class="developer-tools-copy">
-      <div>Workspaces</div>
-      <p>Permanently delete every workspace and its files.</p>
+      <div>Threads</div>
+      <p>Permanently delete every thread and its files.</p>
       ${deleted}${errors}
     </div>
     <div class="developer-tools-control"><form method="post" action="/settings/workspaces/force-delete" data-turbo="true">${confirmation}</form></div>
@@ -88,7 +88,7 @@ async function renderDeveloperTools(): Promise<string> {
 
 registerSettingsContribution({ id: "access", label: "Connection mode", order: 15, render: renderConnectionModeSettings });
 registerSettingsContribution({ id: "theme", label: "Theme", order: 10, render: renderThemeSettings });
-registerSettingsContribution({ id: globalWorkspaceSettingsSectionId, label: "Global workspace settings", order: 25, render: renderGlobalWorkspaceSettings });
+registerSettingsContribution({ id: globalWorkspaceSettingsSectionId, label: "Global thread settings", order: 25, render: renderGlobalWorkspaceSettings });
 registerSettingsContribution({ id: "commit-identity", label: "Commit identity", order: 20, render: renderCommitIdentitySettings });
 for (const module of workspaceModules) {
   for (const contribution of module.settingsContributions ?? []) registerSettingsContribution(contribution);
@@ -129,7 +129,7 @@ export async function renderSettingsFrame(request: Request, sectionId?: string):
     ${take("theme", "dictation", "commit-identity", "git-hosting", "update-channel", "update", "access")}
     ${connectionModeManaged() ? "" : `<section class="settings-sec settings-sec-url" id="settings-sec-url"><h2>AgentsInTheCloud URL</h2>${agentsInTheCloudUrlHtml(agentsInTheCloudUrl(request), "settings_agents_in_the_cloud_url_qr")}</section>`}
     ${take(...inline.keys())}
-    <div class="app-settings-disclosures">${disclosure("models", "Models")}${disclosure(globalWorkspaceSettingsSectionId, "Global workspace settings that apply to all new workspaces")}${disclosure("host", "Host")}${disclosure("developer-tools", "Developer tools")}</div>
+    <div class="app-settings-disclosures">${disclosure("models", "Models")}${disclosure(globalWorkspaceSettingsSectionId, "Global thread settings that apply to all new threads")}${disclosure("host", "Host")}${disclosure("developer-tools", "Developer tools")}</div>
   </div>`;
   const header = `<h1 class="panel__title" tabindex="-1" data-app-settings-heading>${Icons.Settings}<span>Settings</span></h1>${buttonHtml({ type: "button", variant: "secondary", content: { kind: "icon-only", iconHtml: Icons.Close, label: "Close settings" }, attributesHtml: 'data-action="app-settings#close"' })}`;
   return `<turbo-frame id="${appSettingsFrameId}" data-app-settings-target="frame">${panelHtml({ element: { tag: "section", attributesHtml: 'aria-label="Settings"' }, headerHtml: header, bodyHtml: `<div class="template-settings-content app-settings-content"${sectionId ? ` data-app-settings-anchor="settings-sec-${escapeHtml(sectionId)}"` : ""} data-app-settings-location="/settings${sectionId ? `?section=${encodeURIComponent(sectionId)}` : ""}">${content}</div>`, bodyLayout: "full-bleed", bodyOverflow: "scroll" })}</turbo-frame>`;
@@ -173,7 +173,7 @@ export async function handleSettingsPageRequest(request: Request, url: URL, opti
   if (url.pathname === "/settings/workspaces/force-delete" && request.method === "POST" && forceDeleteWorkspacesEnabled()) {
     const result = options.forceDeleteAllWorkspaces
       ? await options.forceDeleteAllWorkspaces()
-      : { deleted: 0, errors: ["Workspace deletion is not available."] };
+      : { deleted: 0, errors: ["Thread deletion is not available."] };
     return stream(replace("settings_force_delete_workspaces", renderForceDeleteWorkspaces(result)));
   }
   if ((url.pathname === "/settings/commit-identity" || url.pathname === "/settings/git-identity") && request.method === "POST") {

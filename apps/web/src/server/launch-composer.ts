@@ -78,10 +78,10 @@ export function renderLaunchWorkspaceTemplate(workspaceTemplates: readonly Works
     </form>
     <input type="hidden" data-launch-template-action="${escapeHtml(launchWorkspaceAction(selected?.id, autoSelect))}" value="${escapeHtml(selected?.id ?? "")}">
     ${popupHtml({
-      id: `${frameId}_menu`, label: "Workspace template", width: "content",
-      trigger: { variant: "secondary", content: { kind: "caption", caption: selected?.name ?? "Empty workspace", iconHtml: workspaceTemplateIconHtml(selected) } },
+      id: `${frameId}_menu`, label: "Template", width: "content",
+      trigger: { variant: "secondary", content: { kind: "caption", caption: selected?.name ?? "Empty thread", iconHtml: workspaceTemplateIconHtml(selected) } },
       contentHtml: [...ordered, undefined].map(template => workspaceTemplateChoiceHtml(template ? { ...template, title: template.name } : undefined, {
-        emptyLabel: "Empty workspace",
+        emptyLabel: "Empty thread",
         primaryAttributesHtml: `type="submit" name="workspaceTemplate" value="${escapeHtml(template?.id ?? "")}" form="${selectionFormId}" role="menuitemradio" aria-checked="${template?.id === selected?.id}"`,
         settingsAttributesHtml: 'data-action="click->dialog#close"',
       })).join(""),

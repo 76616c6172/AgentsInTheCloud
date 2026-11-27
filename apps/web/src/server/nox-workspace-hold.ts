@@ -4,7 +4,7 @@ export const noxWorkspaceHoldAttributes = 'data-controller="nox-workspace-hold" 
 
 export function noxWorkspaceHoldLaunch(workspaceTemplateId: string): string {
   const query = new URLSearchParams({ workspaceTemplate: workspaceTemplateId, autoSelect: "true" });
-  return `<a hidden href="/launch-composer?${escapeHtml(query.toString())}" data-turbo="true" data-turbo-frame="launch_composer" data-nox-workspace-hold-target="launch">New workspace from this template</a>`;
+  return `<a hidden href="/launch-composer?${escapeHtml(query.toString())}" data-turbo="true" data-turbo-frame="launch_composer" data-nox-workspace-hold-target="launch">New thread from this template</a>`;
 }
 
 export const noxWorkspaceHoldInk = `<span class="nox-workspace-ink" aria-hidden="true">

@@ -110,21 +110,21 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
   private registerBuiltinCommands(): void {
     clientHooks.registerCommand({
       id: "workspace.open-previous",
-      label: "Open previous workspace",
+      label: "Open previous thread",
       scope: "global",
       binding: "Control+Comma",
       run: () => this.openAdjacentWorkspace(-1),
     });
     clientHooks.registerCommand({
       id: "workspace.open-next",
-      label: "Open next workspace",
+      label: "Open next thread",
       scope: "global",
       binding: "Control+Period",
       run: () => this.openAdjacentWorkspace(1),
     });
     clientHooks.registerCommand({
       id: "workspace.open-oldest-attention",
-      label: "Open oldest workspace needing attention",
+      label: "Open oldest thread needing attention",
       scope: "global",
       binding: "Control+Slash",
       run: () => this.openOldestAttentionWorkspace(),
@@ -216,15 +216,15 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     if (!this.visibleWorkspaceDeleteForm()) return [];
     return [{
       id: "workspace.delete",
-      label: "Delete workspace",
-      description: "Delete the current workspace",
+      label: "Delete thread",
+      description: "Delete the current thread",
       scope: "workspace",
       binding: "Meta+Alt+Backspace",
       run: () => this.deleteVisibleWorkspace(),
     }, {
       id: "workspace.force-delete",
-      label: "Force delete workspace",
-      description: "Delete the current workspace without checking for outstanding changes",
+      label: "Force delete thread",
+      description: "Delete the current thread without checking for outstanding changes",
       scope: "workspace",
       binding: "Meta+Alt+Shift+Backspace",
       run: () => this.deleteVisibleWorkspace(true),
@@ -408,7 +408,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       element: {  },
       iconHtml: Icons.Search,
       titleCaption: "Command palette",
-      bodyHtml: `<label>Search commands, workspaces, and destinations
+      bodyHtml: `<label>Search commands, threads, and destinations
         <input class="text-field palette-input" id="agents-in-the-cloud-palette-input" type="search" role="combobox" spellcheck="false" autocomplete="off" aria-label="Search command palette" aria-autocomplete="list" aria-controls="agents-in-the-cloud-palette-results" aria-expanded="true">
       </label><div class="palette-results action-list" id="agents-in-the-cloud-palette-results" role="listbox" aria-label="Command palette results"></div>`,
     });
@@ -470,7 +470,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     if (!results) return;
     if (this.paletteItems.length === 0) {
       this.paletteInput!.removeAttribute("aria-activedescendant");
-      results.innerHTML = `<div class="empty-state palette-empty"><strong>No results found</strong><span>Try another command, workspace, or destination.</span></div>`;
+      results.innerHTML = `<div class="empty-state palette-empty"><strong>No results found</strong><span>Try another command, thread, or destination.</span></div>`;
       return;
     }
     results.innerHTML = this.paletteItems.map((item, index) => contentRowHtml({
@@ -521,7 +521,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       return {
         id: `workspace:${workspaceId}`,
         title,
-        subtitle: parked ? "Parked workspace" : "Workspace",
+        subtitle: parked ? "Parked thread" : "Thread",
         badge: visible ? "open" : undefined,
         keywords: [workspaceId, parked ? "parked" : ""],
         score: matchScore > 0 ? matchScore + (visible ? 15 : 0) - (parked ? 8 : 0) : 0,

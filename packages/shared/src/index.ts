@@ -427,8 +427,8 @@ export const recentWorkspaceTemplateStorageKey = "agents-in-the-cloud:recent-wor
 
 export const launchComposerCommand = {
   id: "agent.open-launch-composer",
-  label: "New workspace",
-  description: "Open the launch composer, using the selected workspace’s template when available.",
+  label: "New thread",
+  description: "Open the launch composer, using the selected thread’s template when available.",
   binding: "Control+KeyN",
 } as const;
 

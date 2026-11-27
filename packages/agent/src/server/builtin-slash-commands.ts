@@ -37,7 +37,7 @@ export const builtinSlashCommands: readonly BuiltinSlashCommand[] = [{
   source: "agents-in-the-cloud",
   name: "park",
   trigger: "/park",
-  description: "Park this workspace.",
+  description: "Park this thread.",
 }];
 
 

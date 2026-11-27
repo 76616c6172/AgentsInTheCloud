@@ -122,7 +122,7 @@ function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): strin
     kind: "multiline",
     container: { attributesHtml: `${parked ? "" : `data-workspace-order="${index}"`} ${filterAttributes}${workspaceTemplate ? ` ${noxWorkspaceHoldAttributes}` : ""}` },
     leadingHtml: `<span class="nox-workspace-glyph"${glyph.attributesHtml} aria-hidden="true">${glyph.html}</span>`,
-    label: { kind: "text", text: workspace.title },
+    label: { kind: "text", text: workspace.title, textAttributesHtml: parked ? undefined : "data-nox-rename-trigger" },
     description: subtitle.text,
     trailingHtml: `${status.html}${workspaceTemplate ? noxWorkspaceHoldInk : ""}`,
     leadingActionsHtml: workspaceTemplate ? noxWorkspaceHoldLaunch(workspaceTemplate.id) : undefined,
@@ -150,7 +150,7 @@ function renderNewWorkspaceRow(presentation: WorkspacePanePresentation): string 
     width: "fill",
     kind: "compact",
     leadingHtml: Icons.Plus,
-    label: { kind: "text", text: "New workspace" },
+    label: { kind: "text", text: "New thread" },
     element: { tag: "button", attributesHtml: `type="button" data-workspace-pane-target="newWorkspace" data-action="workspace-pane#openPicker"${guide}` },
   });
 }
@@ -172,9 +172,9 @@ function renderWorkspaceTemplateOptions(presentation: WorkspacePanePresentation)
       label: { kind: "text", text: "A repo I haven’t added yet…" },
       element: { tag: "a", attributesHtml: `href="/workspace-templates/new" ${workspaceTemplateDialogTarget}` },
     })
-    : `<a class="workspace-template-first" href="/workspace-templates/new" ${workspaceTemplateDialogTarget} data-workspace-pane-target="addFirst" data-action="click->workspace-pane#addFirstTemplate"${presentation.workspaces.length ? "" : ' data-first-workspace-destination="first-template"'}>${addBadgeHtml()}<span><strong>Add your first template</strong><span>Point us at a git repo once. Every new workspace can start as a fresh clone of it.</span></span></a>`;
+    : `<a class="workspace-template-first" href="/workspace-templates/new" ${workspaceTemplateDialogTarget} data-workspace-pane-target="addFirst" data-action="click->workspace-pane#addFirstTemplate"${presentation.workspaces.length ? "" : ' data-first-workspace-destination="first-template"'}>${addBadgeHtml()}<span><strong>Add your first template</strong><span>Point us at a git repo once. Every new thread can start as a fresh clone of it.</span></span></a>`;
   return `<div id="${workspaceTemplateOptionsDomId}" class="workspace-template-options action-list" role="radiogroup" aria-labelledby="workspace_template_question">
-    <p class="workspace-template-question" id="workspace_template_question">What should we put in your new workspace?</p>
+    <p class="workspace-template-question" id="workspace_template_question">What should we put in your new thread?</p>
     ${addWorkspaceTemplate}
     ${ordered.map((workspaceTemplate) => renderWorkspaceTemplateOption(workspaceTemplate)).join("")}
     ${renderWorkspaceTemplateOption()}
@@ -183,7 +183,7 @@ function renderWorkspaceTemplateOptions(presentation: WorkspacePanePresentation)
 
 function renderWorkspaceTemplatePicker(presentation: WorkspacePanePresentation, launchComposerBinding: string | undefined): string {
   const tip = launchComposerBinding
-    ? `<p class="workspace-template-picker-tip">Tip: <kbd>${escapeHtml(formatShortcutBinding(launchComposerBinding))}</kbd> starts one from the current workspace’s template, with a prompt.</p>`
+    ? `<p class="workspace-template-picker-tip">Tip: <kbd>${escapeHtml(formatShortcutBinding(launchComposerBinding))}</kbd> starts one from the current thread’s template, with a prompt.</p>`
     : "";
   return `<form class="workspace-template-picker" method="get" action="/launch-composer" data-turbo-frame="launch_composer" data-turbo="true" data-action="submit->workspace-pane#submitted keydown.esc->workspace-pane#back">
     <input type="hidden" name="workspaceTemplate" value="" data-workspace-pane-target="value">
@@ -202,15 +202,15 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
     width: "fill", kind: "compact", label: { kind: "text", text: "Settings" }, leadingHtml: Icons.Settings,
     element: { tag: "a", attributesHtml: `href="/settings" ${settingsAttributes}` },
   });
-  const back = buttonHtml({ type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Back, label: "Back to workspaces" }, attributesHtml: 'data-action="workspace-pane#back"' });
+  const back = buttonHtml({ type: "button", variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.Back, label: "Back to threads" }, attributesHtml: 'data-action="workspace-pane#back"' });
   const revealActions = 'pointerenter->workspace-navigation#revealWorkspacePane pointerleave->workspace-navigation#leaveWorkspacePane focusout->workspace-navigation#leaveWorkspacePane';
   return `<div class="fixed-shell-workspace-pane" data-controller="workspace-pane nox-workspace-list" data-action="${revealActions}"><div class="fixed-shell-workspace-main">${panelHtml({
-    element: { tag: "aside",  attributesHtml: 'aria-label="Workspaces"' },
+    element: { tag: "aside",  attributesHtml: 'aria-label="Threads"' },
     chrome: "outlined",
-    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `<span class="nox-sidebar-icon-unpinned">${Icons.Sidebar}</span><span class="nox-sidebar-icon-pinned">${Icons.SidebarPinned}</span>`, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">Workspaces</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}${renderNoxWorkspaceListHeaderAction(presentation.workspaces.length > 0)}` })}</div>
-      <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New workspace</span></div>`,
+    headerHtml: `<div class="workspace-pane-header" data-workspace-pane-target="workspacesHeader">${barButton("Pin sidebar", "click->workspace-navigation#toggleWorkspacePanePinned", `<span class="nox-sidebar-icon-unpinned">${Icons.Sidebar}</span><span class="nox-sidebar-icon-pinned">${Icons.SidebarPinned}</span>`, 'data-collapse-workspace-pane aria-pressed="false"', "quiet")}<span class="panel__title">Threads</span>${buttonGroupHtml({ orientation: "horizontal", semantics: "layout", itemsHtml: `${renderPwaReminder()}${moduleActionsHtml}${renderNoxWorkspaceListHeaderAction(presentation.workspaces.length > 0)}` })}</div>
+      <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New thread</span></div>`,
     bodyHtml: `<div class="workspace-pane-viewport" data-workspace-pane-target="body"><div class="workspace-pane-slides">
-      <section class="workspace-pane-slide" data-workspace-pane-target="workspaces" aria-label="Workspaces">
+      <section class="workspace-pane-slide" data-workspace-pane-target="workspaces" aria-label="Threads">
         ${renderNoxHubSidebarButton()}
         <div class="fixed-shell-pane-collections" data-workspace-pane-collections>
           <div id="${workspacePaneScrollDomId}" class="fixed-shell-workspace-scroll" data-workspace-navigation-target="scroll">${renderWorkspaceRows(presentation)}</div>
@@ -218,7 +218,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
         </div>
         <footer class="workspace-pane-footer"><div id="${workspacePaneNewWorkspaceDomId}">${renderNewWorkspaceRow(presentation)}</div>${settingsRow}</footer>${renderNoxWorkspaceListBar(settingsAttributes)}
       </section>
-      <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New workspace" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
+      <section class="workspace-pane-slide" data-workspace-pane-target="picker" aria-label="New thread" inert>${renderWorkspaceTemplatePicker(presentation, launchComposerBinding)}</section>
     </div></div>`,
   })}</div></div><div class="nox-workspace-edge" aria-hidden="true" data-action="pointerenter->workspace-navigation#revealWorkspacePane pointerleave->workspace-navigation#leaveWorkspacePane"></div><div class="nox-workspace-scrim" aria-hidden="true" data-action="click->workspace-navigation#closeWorkspacePane"></div>`;
 }
@@ -227,11 +227,11 @@ const agentsInTheCloudNextAttentionDomId = "fixed_shell_agents-in-the-cloud_next
 
 function renderAgentsInTheCloudNextAttentionButton(): string {
   const icon = `${Icons.Next}<i class="status-dot attention" aria-hidden="true"></i>`;
-  return barButton("Next workspace requesting attention", "click->agents-in-the-cloud-shortcuts#openAttentionWorkspace", icon, `id="${agentsInTheCloudNextAttentionDomId}" disabled`);
+  return barButton("Next thread requesting attention", "click->agents-in-the-cloud-shortcuts#openAttentionWorkspace", icon, `id="${agentsInTheCloudNextAttentionDomId}" disabled`);
 }
 
 export function renderAgentsInTheCloudBar(): string {
-  const close = barButton("Close workspace list", "click->workspace-navigation#closeWorkspacePane", Icons.Close, "data-close-workspace-pane disabled");
+  const close = barButton("Close thread list", "click->workspace-navigation#closeWorkspacePane", Icons.Close, "data-close-workspace-pane disabled");
   return `<nav class="fixed-shell-mobile-nav fixed-shell-agents-in-the-cloud-bar" aria-label="AgentsInTheCloud">${close}${renderAgentsInTheCloudNextAttentionButton()}</nav>`;
 }
 
@@ -388,8 +388,8 @@ interface MobileWorkspaceBarOptions {
 }
 
 export function renderMobileWorkspaceBar({ agentHtml = "", workHtml = "", inert = false }: MobileWorkspaceBarOptions = {}): string {
-  const workspace = barButton("Show workspaces", "click->workspace-navigation#showWorkspacePane", Icons.Workspace, "data-show-workspace-list");
-  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar" aria-label="Workspace panes"${inert ? " inert" : ""}>
+  const workspace = barButton("Show threads", "click->workspace-navigation#showWorkspacePane", Icons.Workspace, "data-show-workspace-list");
+  return `<nav class="fixed-shell-mobile-nav fixed-shell-workspace-bar" aria-label="Thread panes"${inert ? " inert" : ""}>
     ${workspace}${agentHtml}${workHtml}
   </nav>`;
 }
@@ -413,14 +413,14 @@ export function renderWorkspaceDeletionPresentation(workspaceId: string, deletio
   if (deletion.status === "checking") {
     content = '<div class="workspace-deletion-heading"><span class="status-spinner" aria-hidden="true"></span><h1>Checking if it’s safe to delete…</h1><p>AgentsInTheCloud is checking for local Git work and saved review comments.</p></div>';
   } else if (deletion.status === "deleting") {
-    const title = deletion.forced ? "Force deleting workspace…" : "Deleting workspace…";
-    const detail = deletion.forced ? "Local changes may be discarded." : "The safety check passed. AgentsInTheCloud is removing the workspace.";
+    const title = deletion.forced ? "Force deleting thread…" : "Deleting thread…";
+    const detail = deletion.forced ? "Local changes may be discarded." : "The safety check passed. AgentsInTheCloud is removing the thread.";
     content = `<div class="workspace-deletion-heading"><span class="status-spinner" aria-hidden="true"></span><h1>${title}</h1><p>${detail}</p></div>`;
   } else if (deletion.status === "blocked") {
     content = `<div class="workspace-deletion-evidence" aria-label="Work that may be lost">${evidenceHtml}</div><footer class="workspace-deletion-actions"><form method="post" action="/workspaces/${id}/delete/cancel" data-turbo="true">${deletionButton("Cancel deletion")}</form><form method="post" action="/workspaces/${id}/delete/confirm" data-turbo="true" data-controller="submit-shortcut" data-action="keydown@window->submit-shortcut#windowKeydown submit->submit-shortcut#submit turbo:submit-end->submit-shortcut#submitted"><input type="hidden" name="fingerprint" value="${escapeHtml(deletion.fingerprint)}">${deletionButton("Delete anyway", "danger")}</form></footer>`;
   } else {
     const bypass = deletion.operation === "checking" ? `<form method="post" action="/workspaces/${id}/delete?force=1" data-turbo="true">${deletionButton("Delete without review", "danger")}</form>` : "";
-    content = `<div class="workspace-deletion-heading"><h1>${deletion.operation === "checking" ? "Deletion review failed" : "Workspace deletion failed"}</h1><p class="workspace-deletion-error">${escapeHtml(deletion.error)}</p></div><footer class="workspace-deletion-actions"><form method="post" action="/workspaces/${id}/delete/cancel" data-turbo="true">${deletionButton("Cancel deletion")}</form><form method="post" action="/workspaces/${id}/delete/retry" data-turbo="true">${deletionButton("Retry review")}</form>${bypass}</footer>`;
+    content = `<div class="workspace-deletion-heading"><h1>${deletion.operation === "checking" ? "Deletion review failed" : "Thread deletion failed"}</h1><p class="workspace-deletion-error">${escapeHtml(deletion.error)}</p></div><footer class="workspace-deletion-actions"><form method="post" action="/workspaces/${id}/delete/cancel" data-turbo="true">${deletionButton("Cancel deletion")}</form><form method="post" action="/workspaces/${id}/delete/retry" data-turbo="true">${deletionButton("Retry review")}</form>${bypass}</footer>`;
   }
   const role = deletion.status === "failed" ? ' role="alert"' : deletion.status === "blocked" ? "" : ' role="status"';
   return `<div id="${domId("fixed_workspace", workspaceId)}" class="fixed-workspace-presentation workspace-deletion-presentation" data-workspace-id="${escapeHtml(workspaceId)}" data-workspace-commands="[]"><main class="workspace-deletion-state" data-deletion-status="${deletion.status}"${role}>${content}</main>${renderMobileWorkspaceBar()}</div>`;
@@ -479,7 +479,7 @@ export function renderWorkspaceParkConfirmation(id: string, title: string, workV
     element: { id: domId("workspace_park_confirmation", id), attributesHtml: "data-dialog-auto-show" },
     iconHtml: Icons.Park,
     titleCaption: `Park “${title}”?`,
-    bodyHtml: `<p>You have ${openViews} open in this workspace.</p><p>Parking will close ${singular ? "it" : "them"}. ${singular ? "It" : "They"} won’t reopen when you unpark.</p>`,
+    bodyHtml: `<p>You have ${openViews} open in this thread.</p><p>Parking will close ${singular ? "it" : "them"}. ${singular ? "It" : "They"} won’t reopen when you unpark.</p>`,
     footerHtml: `<form method="dialog">${buttonHtml({ type: "submit", variant: "primary", content: { kind: "caption", caption: "Cancel" } })}</form><form method="post" action="/workspaces/${encodeURIComponent(id)}/park?force=1" data-action="submit->workspace-navigation#parkWorkspace">${buttonHtml({ type: "submit", variant: "secondary", content: { kind: "caption", caption: "Force park" } })}</form>`,
   });
 }

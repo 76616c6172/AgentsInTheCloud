@@ -104,8 +104,9 @@ _Avoid_: Preload (without “images”), cached images
 The marker that identifies a workspace's template in the Workspace pane. By default it is a **swatch**: a colored square derived from the template id.
 _Avoid_: Chip, badge, avatar
 
-**Workspace**:
+**Workspace** (called **Thread** in the UI):
 An isolated environment in which a user collaborates with agents and inspects or operates on their work. A workspace may be created from a Workspace template or with nothing.
+In this fork, **workspace** and **thread** are used synonymously: user-facing UI copy refers to workspaces as **threads**, while the codebase, routes, APIs, and internal identifiers continue to call them **workspaces** (both to stay clear internally and to keep upstream merges straightforward).
 _Avoid_: Task, chat
 
 **Empty workspace**:

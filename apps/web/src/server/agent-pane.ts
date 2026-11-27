@@ -154,10 +154,10 @@ function renderAgentMoreMenu(presentation: WorkspacePresentation): string {
   const workspaceId = presentation.workspace.id;
   const composer = `<span class="nox-agent-action nox-agent-composer-action">${menuRow("Open composer", Icons.Keyboard, 'type="button" data-action="click->agents-in-the-cloud-shortcuts#runCommand" data-command-id="agent.toggle-composer"')}<span class="status-dot attention agent-composer-draft-dot" aria-hidden="true"></span></span>`;
   const launchers = (presentation.commands ?? []).filter((command) => command.placement === "work-launcher").map((command) => renderWorkLauncherCommand(command, workspaceId)).join("");
-  const park = `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/park" data-action="submit->workspace-navigation#parkWorkspace">${menuRow("Park workspace", Icons.Park, 'type="submit"')}</form>`;
+  const park = `<form class="fixed-shell-park-workspace" method="post" action="/workspaces/${encodeURIComponent(workspaceId)}/park" data-action="submit->workspace-navigation#parkWorkspace">${menuRow("Park thread", Icons.Park, 'type="submit"')}</form>`;
   const deleteConfirmation = destructiveConfirmationHtml({
     id: domId("delete_workspace", workspaceId),
-    trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Delete workspace" }, attributesHtml: 'role="menuitem"' },
+    trigger: { type: "button", variant: "danger", content: { kind: "caption", caption: "Delete thread" }, attributesHtml: 'role="menuitem"' },
     confirmCaption: "Yes, delete",
     cancelCaption: "Oops",
   });
@@ -165,7 +165,7 @@ function renderAgentMoreMenu(presentation: WorkspacePresentation): string {
   return popupHtml({
     id: domId("nox_agent_menu", workspaceId), label: "More", placement: "below", width: "content",
     trigger: { variant: "quiet", content: { kind: "icon-only", iconHtml: Icons.More, label: "More" }, attributesHtml: "data-nox-agent-menu" },
-    contentHtml: `${renderAgentViewSwitch(true)}${composer}${menuSection("New agent", presentation.agentTypes.length ? agentTypeOptions(presentation, true) : "")}${menuSection("Open", launchers)}${menuSection("Workspace", park + deleteWorkspace)}`,
+    contentHtml: `${renderAgentViewSwitch(true)}${composer}${menuSection("New agent", presentation.agentTypes.length ? agentTypeOptions(presentation, true) : "")}${menuSection("Open", launchers)}${menuSection("Thread", park + deleteWorkspace)}`,
   });
 }
 

@@ -247,6 +247,7 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
   leaveWorkspacePane(event: PointerEvent | FocusEvent): void {
     clearTimeout(this.revealTimer);
     if (this.workspacePanePinned || window.matchMedia(phoneLayoutMediaQuery).matches) return;
+    if (this.element.querySelector("[data-nox-renaming]")) return;
     if (event instanceof PointerEvent && event.pointerType !== "mouse") return;
     const regions = ".fixed-shell-workspace-pane, .nox-workspace-edge";
     if (event.relatedTarget instanceof Element && event.relatedTarget.closest(regions)) return;
@@ -294,7 +295,9 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
 
   async selectWorkspace(event: Event): Promise<void> {
     // SAFETY: This action is attached only to server-rendered Workspace entry elements.
-    const workspaceId = (event.currentTarget as HTMLElement).dataset.workspaceEntryId;
+    const target = event.currentTarget as HTMLElement;
+    if (target.closest("[data-nox-renaming]")) return;
+    const workspaceId = target.dataset.workspaceEntryId;
     if (workspaceId) await this.selectWorkspaceById(workspaceId);
   }
 

@@ -55,7 +55,7 @@ export function renderManageProjectsDialog(options: {
         </form>
       </div>`;
     }).join("")}</div>`
-    : `<p class="nox-projects-empty">Create a project to group templates and workspaces together, filter the sidebar, and scope Hub threads.</p>`;
+    : `<p class="nox-projects-empty">Create a project to group templates and threads together, filter the sidebar, and scope Hub threads.</p>`;
 
   const templateSection = templates.length && projects.length
     ? `<section class="nox-projects-section">
@@ -77,7 +77,7 @@ export function renderManageProjectsDialog(options: {
   const activeWorkspaces = workspaces.filter((ws) => !ws.parked);
   const workspaceSection = activeWorkspaces.length && projects.length
     ? `<section class="nox-projects-section">
-        <h3 class="nox-projects-heading">Workspaces</h3>
+        <h3 class="nox-projects-heading">Threads</h3>
         <div class="nox-projects-assignments">${activeWorkspaces.map((ws) => {
           const selected = resolveWorkspaceProjectId(projects, { workspaceId: ws.id, templateId: ws.templateId });
           const inherited = ws.templateId ? resolveTemplateProjectId(projects, ws.templateId) : undefined;
@@ -90,7 +90,7 @@ export function renderManageProjectsDialog(options: {
               <span class="nox-projects-assign-label">${escapeHtml(ws.title)}</span>
               ${note ? `<span class="nox-projects-assign-note">${escapeHtml(note)}</span>` : ""}
             </span>
-            <select class="popup-select" name="projectId" aria-label="Project for workspace ${escapeHtml(ws.title)}" data-controller="popup-select composer-selection-autosubmit" data-composer-selection-autosubmit-form-id-value="${escapeHtml(formId)}" data-action="change->composer-selection-autosubmit#submit">
+            <select class="popup-select" name="projectId" aria-label="Project for thread ${escapeHtml(ws.title)}" data-controller="popup-select composer-selection-autosubmit" data-composer-selection-autosubmit-form-id-value="${escapeHtml(formId)}" data-action="change->composer-selection-autosubmit#submit">
               ${projectOptionsHtml(projects, selected)}
             </select>
           </form>`;

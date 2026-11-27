@@ -21,7 +21,7 @@ export function renderNoxPhoneHeader(islands: LiveIslands, presentation: Workspa
   const workspaceId = presentation.workspace.id;
   const tabs = [...presentation.agents.map(renderAgentTab), ...presentation.workViews.map(renderWorkTab)].join("");
   const strip = islands.island(domId("phone_tabs_region", workspaceId), tabStripHtml({ id: domId("phone_tabs", workspaceId), label: "Agents and Work views", tabsHtml: tabs }), "span", "contents");
-  return `<header class="nox-phone-header" aria-label="Workspace" data-controller="nox-workspace-chrome"${inert ? " inert" : ""}>
+  return `<header class="nox-phone-header" aria-label="Thread" data-controller="nox-workspace-chrome"${inert ? " inert" : ""}>
     ${renderTitleRow(islands, presentation)}
     <div class="nox-phone-header__row">${strip}${renderNewTabMenu(presentation)}</div>
   </header>`;
@@ -54,7 +54,7 @@ function renderWorkTab(view: WorkPaneContribution): string {
 function renderTitleRow(islands: LiveIslands, presentation: WorkspacePresentation): string {
   const { id, title, workspaceTemplate } = presentation.workspace;
   const moreMenuId = workViewDomId(id, "mobile_more_menu");
-  const list = barButton("Workspaces", "click->workspace-navigation#showWorkspacePane", `${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i>`, "data-show-workspace-list");
+  const list = barButton("Threads", "click->workspace-navigation#showWorkspacePane", `${Icons.Sidebar}<i class="status-dot attention nox-phone-header__attention" aria-hidden="true"></i>`, "data-show-workspace-list");
   const name = `<strong class="nox-phone-title__name">${escapeHtml(title)}</strong>${workspaceTemplate ? `<span class="nox-phone-title__template">${escapeHtml(workspaceTemplate.title)}</span>` : ""}`;
   return `<div class="nox-phone-header__top">${list}
     <button type="button" class="nox-phone-title" aria-haspopup="menu" aria-controls="${moreMenuId}" popovertarget="${moreMenuId}">${islands.island(domId("phone_title", id), name, "span", "nox-phone-title__text")}</button>

@@ -34,7 +34,7 @@ export async function renderConnectionModeSettings(): Promise<string> {
   return `<turbo-frame id="settings_access" data-controller="connection-mode-settings">
     <section class="settings-sec" id="settings-sec-access">
       <div class="settings-choice-row"><h2>Where can you use AgentsInTheCloud?</h2>${modeToggle}</div>
-      ${!remote ? "<p>Use AgentsInTheCloud and Workspace previews in a browser on the computer where AgentsInTheCloud is installed. Tailscale is off.</p>" : ""}
+      ${!remote ? "<p>Use AgentsInTheCloud and thread previews in a browser on the computer where AgentsInTheCloud is installed. Tailscale is off.</p>" : ""}
       ${remote && !connected ? "<p>Tailscale isn’t connected yet.</p>" : ""}
       ${access.error ? `<p class="settings-error">${escapeHtml(access.error)}</p>` : ""}
       ${connectionAction}

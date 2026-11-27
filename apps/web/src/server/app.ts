@@ -258,7 +258,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   };
 
   function workspaceTitle(entry: WorkspaceEntry): string {
-    return entry.title || (isGitWorkspaceTemplateInit(entry.init) ? entry.init.name : undefined) || `Workspace ${entry.id}`;
+    return entry.title || (isGitWorkspaceTemplateInit(entry.init) ? entry.init.name : undefined) || `Thread ${entry.id}`;
   }
 
   const persistWorkspaceParked = deps.persistWorkspaceParked ?? setWorkspaceParked;
@@ -302,7 +302,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const draftId = crypto.randomUUID();
     const agentTypes = await orderedAgentTypes();
     const initialPrompt = registry.list().length === 0
-      ? "Hi, I think I'm about to make my first workspace in AgentsInTheCloud. Yay!\n\nIs it true that you have access to your own documentation and I can just ask you if I have a question about it?"
+      ? "Hi, I think I'm about to make my first thread in AgentsInTheCloud. Yay!\n\nIs it true that you have access to your own documentation and I can just ask you if I have a question about it?"
       : "";
     const content = await launchComposerContent({ context: launchComposerFooterContext(), draftId, agentType: agentTypes[0]!, agentTypes, workspaceTemplateId: workspaceTemplate?.id, initialPrompt });
     return `<turbo-frame id="${launchComposerFrameId}">${dialogHtml({
@@ -312,9 +312,9 @@ export function createWebApp(deps: WebAppDeps): WebApp {
         attributesHtml: `data-launch-composer-dialog-discard-url-value="${escapeHtml(content.discardUrl)}"`,
       },
       iconHtml: Icons.Workspace,
-      titleCaption: "Create workspace from a template, and then…",
+      titleCaption: "Create thread from a template, and then…",
       titleParts: {
-        before: "Create workspace from",
+        before: "Create thread from",
         controlHtml: renderLaunchWorkspaceTemplate((await listWorkspaceTemplates()).workspaceTemplates, workspaceTemplate, autoSelect),
         after: ", and then…",
       },
@@ -518,7 +518,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const snapshot = provisioning.snapshot(entry.id);
     const failed = entry.phase.kind === "provisioningPhase" && entry.phase.status === "failed";
     const needsDecision = failed || snapshot?.status === "failed" || snapshot?.status === "waiting";
-    const deleteButton = buttonHtml({ type: "submit", variant: "danger", content: { kind: "caption", caption: "Delete workspace" } });
+    const deleteButton = buttonHtml({ type: "submit", variant: "danger", content: { kind: "caption", caption: "Delete thread" } });
     const deleteAction = needsDecision ? `<form class="workspace-boot-actions" method="post" action="/workspaces/${encodeURIComponent(entry.id)}/delete">${deleteButton}</form>` : "";
     const sourceFailure = snapshot?.steps.find((step) => step.id === "workspace.source" && step.status === "failed");
     const sourceError = `${sourceFailure?.output ?? ""}\n${sourceFailure?.error ?? ""}`;
@@ -584,7 +584,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     }
     return `<div id="workspace_detail" class="workspace-detail-host" data-controller="workspace-selection" data-workspace-selection-max-preloaded-value="5">
       <div class="workspace-detail-empty" data-workspace-selection-target="empty"${selectedId ? " hidden" : ""}>${emptyWorkspaceArtworkHtml(pane)}</div>
-      <div class="workspace-detail-loading" data-workspace-selection-target="loading" hidden><div class="workspace-detail-loading-status" role="status"><span class="status-spinner" aria-hidden="true"></span> Loading workspace…</div></div>
+      <div class="workspace-detail-loading" data-workspace-selection-target="loading" hidden><div class="workspace-detail-loading-status" role="status"><span class="status-spinner" aria-hidden="true"></span> Loading thread…</div></div>
       <div id="workspace_mounts" style="display:contents">${mounts}</div>
     </div>`;
   }
@@ -725,7 +725,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
           maybeNameWorkspaceFromPrompt(id, launchPrompt, {
             events: deps.events,
             agentModel: options.context?.agent?.model ? parseModelRef(options.context.agent.model) : undefined,
-            onFailure: (message) => { if (registry.get(id)) registry.setWarning(id, "naming", `Couldn't name this workspace (${message}). You can name it with /name in the AgentsInTheCloud composer.`); },
+            onFailure: (message) => { if (registry.get(id)) registry.setWarning(id, "naming", `Couldn't name this thread (${message}). You can rename it by clicking its name in the sidebar or with /name in the composer.`); },
           });
         }
         if (options.context?.agent?.initialPrompt !== undefined && !options.context.agent.initialPrompt.trim()) registry.requestAttention(id);
@@ -872,7 +872,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     const server = port === 22 ? host : `${host}:${port}`;
     const keys = records.map(({ line, fingerprint }) => `<p><label><input type="checkbox" name="key" value="${escapeHtml(line)}" checked> <strong>${escapeHtml(line.split(" ")[1] ?? "SSH key")}</strong> <code>${escapeHtml(fingerprint)}</code></label></p>`).join("");
     const warning = changed
-      ? `<p>Your workspace is trying to SSH into <strong>${escapeHtml(server)}</strong>.</p><p>We have ssh'd into this address in the past, but the fingerprint the remote machine reports now is different from what it reported previously.</p><p>If you updated the machine, this is expected.</p><p>If you didn't update the machine, it might mean someone may be trying to impersonate it.</p>`
+      ? `<p>Your thread is trying to SSH into <strong>${escapeHtml(server)}</strong>.</p><p>We have ssh'd into this address in the past, but the fingerprint the remote machine reports now is different from what it reported previously.</p><p>If you updated the machine, this is expected.</p><p>If you didn't update the machine, it might mean someone may be trying to impersonate it.</p>`
       : `<p>AgentsInTheCloud received these public keys from <strong>${escapeHtml(server)}</strong>. A network scan does not prove this is the real server. Compare the fingerprints with a trusted source or your administrator before continuing.</p>`;
     const formId = domId("ssh_trust_form", workspaceId);
     const body = `${warning}<form id="${formId}" method="post" action="${escapeHtml(action)}" data-turbo="true">${keys}${changed ? `<p><label>Type <strong>${escapeHtml(server)}</strong> to confirm: <input class="text-field" name="confirmation" autocomplete="off" required></label></p>` : ""}</form>`;

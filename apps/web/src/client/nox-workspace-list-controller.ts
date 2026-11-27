@@ -42,20 +42,37 @@ function writeStoredProjectFilter(value: string): void {
   }
 }
 
+interface EditingRenameState {
+  workspaceId: string;
+  row: HTMLElement;
+  primary: HTMLElement;
+  label: HTMLElement;
+  form: HTMLFormElement;
+  input: HTMLInputElement;
+  originalTitle: string;
+  closing: boolean;
+}
+
 export class NoxWorkspaceListController extends Controller<HTMLElement> {
   private filter?: ListFilter;
   private projectFilter = "";
   private timer?: ReturnType<typeof setInterval>;
+  private editing?: EditingRenameState;
 
   connect(): void {
     this.projectFilter = readStoredProjectFilter();
     document.addEventListener("agents-in-the-cloud:workspace-pane-changed", this.sync);
+    this.element.addEventListener("click", this.handleLabelClick, true);
+    this.element.addEventListener("turbo:before-morph-element", this.preserveRenaming);
     this.timer = setInterval(this.refreshRelativeTimes, relativeTimeTickMs);
     this.sync();
   }
 
   disconnect(): void {
+    this.cancelRename(false);
     document.removeEventListener("agents-in-the-cloud:workspace-pane-changed", this.sync);
+    this.element.removeEventListener("click", this.handleLabelClick, true);
+    this.element.removeEventListener("turbo:before-morph-element", this.preserveRenaming);
     if (this.timer !== undefined) clearInterval(this.timer);
   }
 
@@ -75,9 +92,131 @@ export class NoxWorkspaceListController extends Controller<HTMLElement> {
   }
 
   private readonly sync = (): void => {
+    if (this.editing && !this.editing.row.isConnected) this.editing = undefined;
     this.syncFilter();
     this.refreshRelativeTimes();
   };
+
+  private readonly preserveRenaming = (event: Event): void => {
+    const editing = this.editing;
+    if (!editing) return;
+    // SAFETY: Turbo emits this event with its morph descriptor; removals carry no new element.
+    const { currentElement, newElement } = (event as CustomEvent<{ currentElement: Element; newElement?: Node }>).detail;
+    if (currentElement === editing.row && newElement instanceof Element) event.preventDefault();
+  };
+
+  private readonly handleLabelClick = (event: MouseEvent): void => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    if (document.getElementById("nox_hub_surface")) return;
+    const label = event.target instanceof Element ? event.target.closest<HTMLElement>("[data-nox-rename-trigger]") : null;
+    if (!label || !this.element.contains(label)) return;
+    const primary = label.closest<HTMLElement>("[data-workspace-entry-id]");
+    if (!primary || primary.hasAttribute("data-workspace-parked") || primary.getAttribute("aria-current") !== "page") return;
+    const row = primary.closest<HTMLElement>(".content-row");
+    const workspaceId = primary.dataset.workspaceEntryId;
+    if (!row || !workspaceId || row.hasAttribute("data-nox-renaming")) return;
+
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    this.startRename(workspaceId, row, primary, label);
+  };
+
+  private startRename(workspaceId: string, row: HTMLElement, primary: HTMLElement, label: HTMLElement): void {
+    if (this.editing) this.commitRename();
+    const originalTitle = label.textContent?.trim() ?? "";
+
+    const form = document.createElement("form");
+    form.className = "nox-workspace-rename-form";
+    form.dataset.noxRenameForm = "true";
+    form.method = "post";
+    form.action = `/workspaces/${encodeURIComponent(workspaceId)}/sidebar-title`;
+
+    const input = document.createElement("input");
+    input.className = "nox-workspace-rename-input";
+    input.type = "text";
+    input.name = "title";
+    input.value = originalTitle;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    input.setAttribute("aria-label", "Rename thread");
+    input.dataset.noxRenameInput = "true";
+
+    form.append(input);
+    row.dataset.noxRenaming = "true";
+    row.append(form);
+
+    const state: EditingRenameState = {
+      workspaceId,
+      row,
+      primary,
+      label,
+      form,
+      input,
+      originalTitle,
+      closing: false,
+    };
+    this.editing = state;
+
+    form.addEventListener("submit", (submitEvent) => {
+      submitEvent.preventDefault();
+      submitEvent.stopPropagation();
+      this.commitRename();
+    });
+    input.addEventListener("keydown", (keyEvent) => {
+      if (keyEvent.key === "Escape") {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        this.cancelRename(true);
+      } else if (keyEvent.key === "Enter") {
+        keyEvent.preventDefault();
+        keyEvent.stopPropagation();
+        this.commitRename();
+      }
+    });
+    input.addEventListener("blur", () => {
+      if (this.editing === state && !state.closing) this.commitRename();
+    });
+
+    input.focus({ preventScroll: true });
+    input.select();
+  }
+
+  private teardownRename(state: EditingRenameState, restoreFocus: boolean): void {
+    state.closing = true;
+    if (this.editing === state) this.editing = undefined;
+    state.form.remove();
+    delete state.row.dataset.noxRenaming;
+    if (restoreFocus && state.primary.isConnected) state.primary.focus({ preventScroll: true });
+  }
+
+  private cancelRename(restoreFocus: boolean): void {
+    const state = this.editing;
+    if (!state || state.closing) return;
+    this.teardownRename(state, restoreFocus);
+  }
+
+  private commitRename(): void {
+    const state = this.editing;
+    if (!state || state.closing) return;
+    const nextTitle = state.input.value.trim();
+    const { workspaceId, label, originalTitle } = state;
+    this.teardownRename(state, false);
+    if (!nextTitle || nextTitle === originalTitle) return;
+
+    label.textContent = nextTitle;
+    const body = new FormData();
+    body.set("title", nextTitle);
+    void fetch(`/workspaces/${encodeURIComponent(workspaceId)}/sidebar-title`, {
+      method: "POST",
+      headers: { Accept: "text/vnd.turbo-stream.html" },
+      body,
+    }).then((response) => {
+      if (!response.ok) throw new Error(`Could not rename thread: HTTP ${response.status}`);
+    }).catch((error) => {
+      console.error("Could not rename thread", error);
+      if (label.isConnected && label.textContent === nextTitle) label.textContent = originalTitle;
+    });
+  }
 
   private syncFilter(): void {
     const options = [...this.element.querySelectorAll<HTMLButtonElement>("[data-nox-project-option]")];

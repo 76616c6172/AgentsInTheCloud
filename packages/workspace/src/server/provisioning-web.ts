@@ -78,6 +78,6 @@ export function renderWorkspaceProvisioning(workspaceId: string, snapshot: Works
   const body = snapshot?.steps.map((step) => renderProvisionStep(workspaceId, step, snapshot.waiting, options.failureActions?.stepId === step.id ? options.failureActions : undefined)).join("") ?? "";
   const failure = snapshot?.error ?? (options.failed ? options.error : undefined);
   const error = snapshot?.steps.some((step) => step.error === failure) ? undefined : failure;
-  const progress = body || (options.failed ? "" : '<li class="status-list__item provision-step" aria-busy="true"><span class="status-list__marker"></span><div class="provision-step-content"><span class="provision-step-label">Preparing workspace</span></div></li>');
-  return `<section aria-label="Workspace preparation">${error ? `<pre class="provision-output-log">${escapeHtml(error)}</pre>` : ""}${progress ? `<ol class="status-list status-list--compact provision-list">${progress}</ol>` : ""}</section>`;
+  const progress = body || (options.failed ? "" : '<li class="status-list__item provision-step" aria-busy="true"><span class="status-list__marker"></span><div class="provision-step-content"><span class="provision-step-label">Preparing thread</span></div></li>');
+  return `<section aria-label="Thread preparation">${error ? `<pre class="provision-output-log">${escapeHtml(error)}</pre>` : ""}${progress ? `<ol class="status-list status-list--compact provision-list">${progress}</ol>` : ""}</section>`;
 }

@@ -49,7 +49,7 @@ export async function sendTurnNotification(ctx: AgentRenderContext, subscription
   const vapid = await vapidKeys();
   const title = await getWorkspaceTitle(ctx.workspaceId);
   const init = title ? undefined : await getWorkspaceInit(ctx.workspaceId);
-  const workspaceName = title || (isGitWorkspaceTemplateInit(init) ? init.name : undefined) || `Workspace ${ctx.workspaceId}`;
+  const workspaceName = title || (isGitWorkspaceTemplateInit(init) ? init.name : undefined) || `Thread ${ctx.workspaceId}`;
   try {
     await webPush.sendNotification(subscription, JSON.stringify({
       title: `${workspaceName} is ready`,

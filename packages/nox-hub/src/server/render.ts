@@ -143,7 +143,7 @@ function renderLaunchedWorkspacesBar(
     </a>`];
   });
   if (!pills.length) return "";
-  return `<div class="nox-hub-launched-bar" aria-label="Workspaces launched in this thread">${pills.join("")}</div>`;
+  return `<div class="nox-hub-launched-bar" aria-label="Launched threads">${pills.join("")}</div>`;
 }
 
 function renderEmptyWelcome(templates: readonly HubTemplateSummary[], workspaces: readonly HubWorkspaceSummary[]): string {
@@ -155,9 +155,9 @@ function renderEmptyWelcome(templates: readonly HubTemplateSummary[], workspaces
   return `<div class="nox-hub-welcome">
     <div class="nox-hub-welcome-mark">${noxHubIconHtml}</div>
     <h2 class="nox-hub-welcome-title">Hub</h2>
-    <p class="nox-hub-welcome-body">Coordinate parallel work across isolated workspaces. Ask Hub to spin up tasks, inspect active threads, or follow up with running agents.</p>
+    <p class="nox-hub-welcome-body">Coordinate parallel work across isolated threads. Ask Hub to spin up tasks, inspect active threads, or follow up with running agents.</p>
     <div class="nox-hub-welcome-stats">
-      <span>${activeCount} active workspace${activeCount === 1 ? "" : "s"}</span>
+      <span>${activeCount} active thread${activeCount === 1 ? "" : "s"}</span>
       ${runningCount ? `<span>· ${runningCount} running</span>` : ""}
       ${templates.length ? `<span>· ${templates.length} template${templates.length === 1 ? "" : "s"}</span>` : ""}
     </div>
@@ -297,7 +297,7 @@ export async function renderHubSurface(options: {
         <form id="${escapeHtml(thinkingFormId)}" method="post" action="/hub/threads/${encodeURIComponent(threadId)}/thinking-level" data-turbo-stream="true" hidden></form>
         <form id="${escapeHtml(composerFormId)}" class="nox-hub-composer-form" method="post" action="/hub/threads/${encodeURIComponent(threadId)}/messages" data-turbo-stream="true" data-action="submit->nox-hub#afterSubmit">
           <div class="composer-surface nox-hub-composer-surface">
-            <textarea class="composer-input nox-hub-composer-input" name="text" rows="2" placeholder="Ask Hub to launch, inspect, or coordinate workspaces…" aria-label="Message Hub" data-nox-hub-target="input" data-action="keydown->nox-hub#inputKeydown input->nox-hub#resizeInput"></textarea>
+            <textarea class="composer-input nox-hub-composer-input" name="text" rows="2" placeholder="Ask Hub to launch, inspect, or coordinate threads…" aria-label="Message Hub" data-nox-hub-target="input" data-action="keydown->nox-hub#inputKeydown input->nox-hub#resizeInput"></textarea>
             <div class="nox-hub-composer-footer">
               <div class="nox-hub-composer-selections">${selectionsHtml}</div>
               ${renderHubComposerControls(threadId, summary.busy)}
