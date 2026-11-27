@@ -22,30 +22,3 @@
   text-align: left;
 }
 .dictation-error[hidden] { display: none; }
-
-/* The session is shared with the desktop composer control; only its mobile placement changes. */
-.dictation-dock { display: none; }
-.dictation-mobile-control { position: relative; display: grid; width: min(240px, 100%); }
-.dictation-mobile-control > .button.icon-only { width: 100%; }
-@media (max-width: 700px), ((hover: none) and (pointer: coarse)) {
-  :is(.agent-composer-pane, .launch-composer) > .dictation-dock {
-    display: flex; align-items: center; justify-content: center; flex: none;
-    position: relative; z-index: 3; padding: 8px 12px max(8px, env(safe-area-inset-bottom));
-    background: var(--bg);
-  }
-  .agent-composer-pane:has(> .dictation-dock) { grid-template-rows: auto minmax(0, 1fr) auto auto; }
-  /* With the composer closed it floats over the transcript or terminal instead of taking a row;
-     an open composer keeps it underneath so it never covers the draft. */
-  .agent-composer-pane:not(.agent-composer-open) > .dictation-dock { position: absolute; left: 0; right: 0; bottom: 0; background: none; pointer-events: none; }
-  .agent-composer-pane:not(.agent-composer-open) > .dictation-dock > .dictation-mobile-control { pointer-events: auto; }
-  /* Typing straight into the terminal brings up its key bar where the button would float. */
-  html.software-keyboard-visible .agent-composer-pane:not(.agent-composer-open) > .dictation-dock { display: none; }
-  :is(.agent-composer-pane, .launch-composer) .composer-dictation { display: none; }
-  /* The composer lets taps through its empty space; this pill sits inside it. */
-  .launch-composer > .dictation-dock { background: none; pointer-events: auto; }
-  .dictation-mobile-control .dictation-error { width: min(320px, calc(100cqw - 24px)); right: 50%; transform: translateX(50%); }
-}
-
-@media (orientation: landscape) {
-  html.software-keyboard-visible .agent-composer-pane:has(> .dictation-dock) .composer-input-area > .composer-input { min-height: calc(1lh + 24px); }
-}

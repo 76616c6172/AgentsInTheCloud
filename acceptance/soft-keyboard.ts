@@ -211,8 +211,8 @@ function typingModeChecks(frame: Frame, label: string): ReturnType<typeof check>
   return [
     check(`${label}: D7 only send shows while typing`, frame.buttons.join() === "send", `visible composer buttons: ${frame.buttons.join(", ") || "none"}`),
     check(`${label}: D23 floating buttons hidden`, Object.keys(frame.floating).length === 0, `visible floating buttons: ${Object.keys(frame.floating).join(", ") || "none"}`),
-    check(`${label}: composer and voice dock sit above the keyboard, transcript above them`, frame.composer !== null && frame.dictationDock !== null && close(bottom(frame.composer), frame.dictationDock[1], 2) && close(bottom(frame.dictationDock), keyboardTop(frame), 2) && (frame.transcript === null || close(bottom(frame.transcript), frame.composer[1], 1)), `composer ${JSON.stringify(frame.composer)}, dock ${JSON.stringify(frame.dictationDock)}, keyboard top ${keyboardTop(frame)}, transcript ${JSON.stringify(frame.transcript)}`),
-    check(`${label}: voice remains a large tap target while typing`, frame.dictationButton !== null && frame.dictationButton[3] >= 60 && bottom(frame.dictationButton) <= keyboardTop(frame), JSON.stringify(frame.dictationButton)),
+    check(`${label}: composer sits above the keyboard, transcript above it`, frame.composer !== null && close(bottom(frame.composer), keyboardTop(frame), 2) && (frame.transcript === null || close(bottom(frame.transcript), frame.composer[1], 1)), `composer ${JSON.stringify(frame.composer)}, keyboard top ${keyboardTop(frame)}, transcript ${JSON.stringify(frame.transcript)}`),
+    check(`${label}: voice makes room for typing`, frame.dictationButton === null, JSON.stringify(frame.dictationButton)),
     check(`${label}: page not scrolled`, frame.pageScroll === 0 && frame.viewport[1] === 0, `scrollY ${frame.pageScroll}, visualViewport.offsetTop ${frame.viewport[1]}`),
   ];
 }
@@ -263,7 +263,7 @@ await scenario("ios-D12-D13-done", "D12/D13: dismissing the keyboard with Done r
   const { after } = await transition(recorder, "Done", () => tapDone());
   recorder.add(
     check("Keyboard down, composer stays open", !after.keyboard && after.composer !== null && !after.focus.includes("composer-input"), `arranged: ${after.keyboard}, composer ${JSON.stringify(after.composer)}, focus: ${after.focus || "body"}`),
-    check("D4: all four composer buttons back", after.buttons.join() === "close,attach,send", after.buttons.join(", ")),
+    check("D4: all four composer buttons back", after.buttons.join() === "close,attach,dictation,send", after.buttons.join(", ")),
   );
 });
 
@@ -328,7 +328,7 @@ await scenario("ios-composer-tap-and-column", "On the phone itself: a tap anywhe
   const { after } = await transition(recorder, "large paste lands 20 lines", () => set(Array.from({ length: 20 }, (_, index) => `Pasted sentence number ${index + 1}.`).join(" ")), { video: false });
   const long = await measure();
   recorder.add(
-    check("B: long text keeps the column", long.column && after.buttons.join() === "close,attach,send", `column: ${long.column}; slots ${after.buttons.join(", ")}`),
+    check("B: long text keeps the column", long.column && after.buttons.join() === "close,attach,dictation,send", `column: ${long.column}; slots ${after.buttons.join(", ")}`),
     check("H3: the composer stays within 40%", long.composer <= long.max + 1, `composer ${Math.round(long.composer)}px, max ${Math.round(long.max)}px`),
   );
   await set("");

@@ -1,4 +1,4 @@
-import { dictationComposerController, renderMobileDictationControl } from "@agents-in-the-cloud/dictation/server";
+import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
 import { activityButtonHtml } from "@agents-in-the-cloud/design-system/activity-button";
 import { buttonHtml } from "@agents-in-the-cloud/design-system/button";
 import { createPiModelRuntime, hasConnectedModelProvider, modelRefValue, parseModelRef, renderLaunchModelSettings, renderSharedComposerSelections, type ComposerModelOption } from "@agents-in-the-cloud/llm/server";
@@ -68,7 +68,6 @@ export async function renderAgentPane(ctx: AgentRenderContext, agent: Pick<Works
         attachments,
         initialText,
       })}
-      ${state.readOnly ? "" : renderMobileDictationControl()}
       ${state.readOnly ? "" : `<section class="agent-background-page" data-agent-background-target="page" data-action="click->agent-background#pageClicked" hidden><turbo-frame id="${ids.backgroundPage(ctx)}" refresh="morph" data-agent-background-target="frame"></turbo-frame></section>`}
     </div>
   </section>`;

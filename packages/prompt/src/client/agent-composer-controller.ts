@@ -10,15 +10,13 @@ const longPressMs = 500;
  */
 export function createAgentComposerController(Controller: WorkspaceClientControllerConstructor) {
   return class AgentComposerController extends Controller {
-    static targets = ["opener", "bottomControls"];
+    static targets = ["opener"];
     static values = { openOnSelect: { type: Boolean, default: true }, openOnCreate: Boolean };
     declare readonly openOnSelectValue: boolean;
     declare readonly openOnCreateValue: boolean;
     declare readonly element: HTMLElement;
     declare readonly openerTarget: HTMLButtonElement;
     declare readonly hasOpenerTarget: boolean;
-    declare readonly bottomControlsTarget: HTMLElement;
-    declare readonly hasBottomControlsTarget: boolean;
     private activeSelection = false;
     private pane!: HTMLElement;
     private longPress?: ReturnType<typeof setTimeout>;
@@ -155,9 +153,7 @@ export function createAgentComposerController(Controller: WorkspaceClientControl
     autosize(): void {
       const composer = this.composer;
       if (!composer || !this.input || !this.isOpen) return;
-      const below = this.hasBottomControlsTarget ? this.bottomControlsTarget.getBoundingClientRect().height : 0;
-      const available = this.element.clientHeight - below;
-      sizeComposer(composer, Math.floor(Math.min(composerViewportHeight() * composerMaxShare, available)));
+      sizeComposer(composer, Math.floor(Math.min(composerViewportHeight() * composerMaxShare, this.element.clientHeight)));
     }
 
     private updateDraftIndicator(): void {

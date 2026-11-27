@@ -63,8 +63,9 @@ export class PopupController extends Controller<HTMLElement> {
     if (item.getAttribute("role") === "menuitemradio") {
       for (const candidate of this.menu.querySelectorAll<HTMLElement>("[role='menuitemradio']")) candidate.setAttribute("aria-checked", String(candidate === item));
     }
+    const focusRemainsInMenu = this.menu.contains(document.activeElement);
     this.menu.hidePopover();
-    this.trigger.focus();
+    if (focusRemainsInMenu) this.trigger.focus();
   };
 
   private readonly keydown = (event: KeyboardEvent): void => navigateMenu(this.menu, event);

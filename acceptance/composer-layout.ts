@@ -61,6 +61,8 @@ const sel = {
   send: ".agent-composer-pane .composer-send button:not([data-action])",
   followLatest: '.floating-stack :is([data-agent-pane-target="transcriptEnd"], [data-cli-terminal-target="transcriptEnd"])',
   terminal: ".observable-terminal-host",
+  desktopMore: ".fixed-shell-agent-actions [data-nox-agent-menu]",
+  desktopMenu: ".fixed-shell-agent-actions .popup-menu",
   viewTranscript: '.floating-stack [data-action~="cli-terminal#showTranscript"], .nox-agent-transcript-action > button',
   showTerminal: '.floating-stack [data-cli-transcript-button="terminal"], .nox-agent-terminal-action > button',
   cliTranscript: ".cli-agent-body.cli-transcript-mode .cli-transcript-view .agent-transcript-content",
@@ -122,7 +124,7 @@ async function scrollPartway(): Promise<void> {
 
 async function openComposer(): Promise<void> {
   if (await page.visible(sel.close)) return;
-  await page.tap(sel.opener);
+  await runAgentAction(sel.opener);
   await Bun.sleep(400);
 }
 
@@ -137,9 +139,9 @@ async function closeComposer(): Promise<void> {
   }
 }
 
-async function switchAgentView(selector: string): Promise<void> {
-  if (!desktopActions && !await page.visible(selector)) {
-    await page.tap(".nox-phone-header [data-mobile-more]");
+async function runAgentAction(selector: string): Promise<void> {
+  if (!await page.visible(selector)) {
+    await page.tap(desktopActions ? sel.desktopMore : ".nox-phone-header [data-mobile-more]");
     await Bun.sleep(250);
   }
   await page.tap(selector);
@@ -159,13 +161,10 @@ function floatingStackChecks(frame: Frame, composerOpen: boolean, surface: Box =
     if (opener && follow) results.push(check("Mobile: Follow latest sits just above Open composer", close(bottom(follow), opener[1] - 4, 2), `follow bottom ${bottom(follow)}, opener top ${opener[1]}`));
   }
   if (desktopActions) {
-    const headerOpener = frame.toolbar[floatingLabel.opener];
-    const park = frame.toolbar["Park workspace"];
-    const headerActions = Object.entries(frame.toolbar).filter((entry): entry is [string, NonNullable<Box>] => entry[1] !== null);
     results.push(
       check("Desktop: only Follow latest floats over the content", shown.every(([label]) => label === floatingLabel.followLatest), JSON.stringify(frame.floating)),
-      check("Desktop: composer action is in the toolbar only while closed", Boolean(headerOpener) === !composerOpen, JSON.stringify(headerOpener ?? null)),
-      check("Desktop: agent actions align with Park and Delete", Boolean(park && frame.toolbar["Delete workspace"]) && headerActions.every(([, box]) => close(box[1] + box[3] / 2, park![1] + park![3] / 2, 1)), JSON.stringify(frame.toolbar)),
+      check("Desktop: More stays available in the header", Boolean(frame.toolbar["More"]), JSON.stringify(frame.toolbar)),
+      check("Desktop: secondary actions stay inside More", [floatingLabel.opener, "View transcript", "Back to terminal", "Park workspace", "Delete workspace"].every(label => !frame.toolbar[label]), JSON.stringify(frame.toolbar)),
     );
   }
   if (composerOpen) {
@@ -175,6 +174,22 @@ function floatingStackChecks(frame: Frame, composerOpen: boolean, surface: Box =
     results.push(check("The lowest floating button stays bottom right", close(bottom(lowest), bottom(surface) - floatingBottom, 2) && close(lowest[0] + lowest[2], surface[0] + surface[2] - floatingInset, 3), JSON.stringify(lowest)));
   }
   return results;
+}
+
+async function desktopMenuChecks(recorder: ScenarioRecorder, composerOpen: boolean, view: "builtin" | "terminal" | "transcript"): Promise<void> {
+  const state = `${view}, composer ${composerOpen ? "open" : "closed"}`;
+  const contentLayout = (frame: Frame): string => JSON.stringify([frame.transcript, frame.terminal, frame.composer, frame.scrollTop]);
+  const opened = await transition(recorder, `open More (${state})`, () => page.tap(sel.desktopMore), { expectChange: false });
+  const labels = await page.evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(`${sel.desktopMenu} button`)})].filter(e => e.checkVisibility()).map(e => e.getAttribute("aria-label") || e.innerText.trim())`);
+  recorder.add(
+    check("More opens without moving the content", contentLayout(opened.before) === contentLayout(opened.after), `${contentLayout(opened.before)} → ${contentLayout(opened.after)}`),
+    check("More offers Open composer only while closed", labels.includes("Open composer") === !composerOpen, labels.join(", ")),
+    check("More offers the appropriate view switch for the active agent", labels.includes("View transcript") === (view === "terminal") && labels.includes("Back to terminal") === (view === "transcript"), `${view}: ${labels.join(", ")}`),
+    check("Park and Delete remain available in More", labels.includes("Park workspace") && labels.includes("Delete workspace"), labels.join(", ")),
+  );
+  await recorder.file(`more-${view}-${composerOpen ? "open" : "closed"}.png`, await page.screenshot());
+  const closed = await transition(recorder, `dismiss More (${state})`, () => page.tap(sel.desktopMore), { expectChange: false });
+  recorder.add(check("More dismisses without moving the content", !await page.visible(sel.desktopMenu) && contentLayout(opened.before) === contentLayout(closed.after), `${contentLayout(opened.before)} → ${contentLayout(closed.after)}`));
 }
 
 async function stageDraft(text: string | null): Promise<void> {
@@ -211,23 +226,20 @@ await scenario("mobile-D1-selection", "D1/G1: selecting a workspace on mobile sh
   await page.navigate(builtinUrl, sel.transcript);
 });
 
-await scenario("mobile-voice-dock", "Voice stays large and at the bottom when the composer opens or closes; it does not duplicate a mobile composer control.", async (recorder) => {
+await scenario("mobile-composer-dictation", "Voice lives beside attach and send inside the composer, never over the transcript.", async (recorder) => {
   await closeComposer();
-  const baseline = (await transition(recorder, "voice ready while reading", async () => {}, { waitMs: 200, expectChange: false })).after;
-  const button = baseline.dictationButton;
+  const baseline = (await transition(recorder, "reading with composer closed", async () => {}, { waitMs: 200, expectChange: false })).after;
+  recorder.add(check("Voice is hidden with the composer closed", baseline.composer === null && baseline.dictationButton === null, `composer ${JSON.stringify(baseline.composer)}, voice ${JSON.stringify(baseline.dictationButton)}`));
+  const opened = await transition(recorder, "open composer with voice", () => page.tap(sel.opener));
+  const { composer, dictationButton: button } = opened.after;
   recorder.add(
-    check("Voice is available without opening the composer", baseline.composer === null && button !== null, `composer ${JSON.stringify(baseline.composer)}, voice ${JSON.stringify(button)}`),
-    check("Voice has a large touch target", button !== null && button[2] >= 180 && button[3] >= 60, JSON.stringify(button)),
-    check("Voice fits at the bottom of the viewport", baseline.dictationDock !== null && close(bottom(baseline.dictationDock), baseline.viewport[0] + baseline.viewport[1], 2), JSON.stringify(baseline.dictationDock)),
+    check("Voice fits inside the composer", composer !== null && button !== null && button[0] >= composer[0] && button[1] >= composer[1] && button[0] + button[2] <= composer[0] + composer[2] && bottom(button) <= bottom(composer), `composer ${JSON.stringify(composer)}, voice ${JSON.stringify(button)}`),
+    check("Voice is a compact, touch-friendly control", button !== null && button[2] >= 60 && button[3] >= 60 && close(button[2], button[3]), JSON.stringify(button)),
+    check("The mobile composer has close, attach, dictate and send", opened.after.buttons.join() === "close,attach,dictation,send", opened.after.buttons.join(", ")),
   );
-  const opened = await transition(recorder, "open typing beside voice", () => page.tap(sel.opener));
-  recorder.add(
-    check("Opening the composer does not move voice", JSON.stringify(opened.after.dictationButton) === JSON.stringify(button), `${JSON.stringify(button)} → ${JSON.stringify(opened.after.dictationButton)}`),
-    check("Voice sits outside and below the composer", opened.after.composer !== null && opened.after.dictationDock !== null && close(bottom(opened.after.composer), opened.after.dictationDock[1], 1), `composer ${JSON.stringify(opened.after.composer)}, dock ${JSON.stringify(opened.after.dictationDock)}`),
-    check("The mobile composer has only close, attach and send", opened.after.buttons.join() === "close,attach,send", opened.after.buttons.join(", ")),
-  );
-  const closed = await transition(recorder, "close typing beside voice", () => page.tap(sel.close));
-  recorder.add(check("Closing the composer leaves voice in place", JSON.stringify(closed.after.dictationButton) === JSON.stringify(button), `${JSON.stringify(button)} → ${JSON.stringify(closed.after.dictationButton)}`));
+  await recorder.file("voice-inside-composer.png", await page.screenshot());
+  const closed = await transition(recorder, "close composer with voice", () => page.tap(sel.close));
+  recorder.add(check("Closing the composer hides voice", closed.after.composer === null && closed.after.dictationButton === null, JSON.stringify(closed.after.dictationButton)));
 });
 
 await scenario("mobile-G2-D10-pinned", "G2/D10: with the transcript pinned to the bottom, opening and closing the composer pushes the transcript in one step.", async (recorder) => {
@@ -353,7 +365,7 @@ await scenario("mobile-D2-send", "D2: sending on mobile closes the composer in o
 
 await page.navigate(piUrl, sel.terminal);
 await Bun.sleep(2500);
-await switchAgentView(sel.viewTranscript);
+await runAgentAction(sel.viewTranscript);
 await Bun.sleep(500);
 if (!await page.visible(sel.cliTranscript)) {
   log("giving Pi a turn");
@@ -365,7 +377,7 @@ if (!await page.visible(sel.cliTranscript)) {
   await page.waitFor(sel.cliTranscript, 120_000);
   await page.evaluate<boolean>("(document.activeElement.blur(), true)");
 }
-await switchAgentView(sel.showTerminal);
+await runAgentAction(sel.showTerminal);
 await Bun.sleep(400);
 
 await scenario("mobile-D14-terminal-focus", "D14: focusing the Pi terminal collapses the open composer (keeping its draft) in one step; the terminal moves, never resizes.", async (recorder) => {
@@ -389,7 +401,7 @@ await scenario("mobile-D21-pi-floating", "Mobile: Open composer and Follow lates
   await page.evaluate<boolean>("(document.activeElement.blur(), true)");
   const terminal = await transition(recorder, "terminal", async () => {}, { waitMs: 200, expectChange: false });
   recorder.add(...floatingStackChecks(terminal.after, false, terminal.after.terminal));
-  await switchAgentView(sel.viewTranscript);
+  await runAgentAction(sel.viewTranscript);
   await page.waitFor(sel.cliTranscript, 15_000);
   await Bun.sleep(800);
   await page.wheel(".cli-transcript-view", -900);
@@ -397,12 +409,12 @@ await scenario("mobile-D21-pi-floating", "Mobile: Open composer and Follow lates
   const reading = await transition(recorder, "CLI transcript, scrolled up", async () => {}, { waitMs: 200, expectChange: false });
   recorder.add(...floatingStackChecks(reading.after, false));
   await recorder.file("pi-transcript.png", await page.screenshot());
-  await switchAgentView(sel.showTerminal);
+  await runAgentAction(sel.showTerminal);
   await Bun.sleep(800);
 });
 
 await scenario("mobile-D18-frozen-send", "D18: sending while the frozen transcript shows switches to the terminal instantly, in the same frame as the composer closing.", async (recorder) => {
-  await switchAgentView(sel.viewTranscript);
+  await runAgentAction(sel.viewTranscript);
   await page.waitFor(sel.cliTranscript, 15_000);
   await Bun.sleep(800);
   await openComposer();
@@ -421,7 +433,7 @@ await scenario("mobile-D18-frozen-send", "D18: sending while the frozen transcri
   await page.waitFor(sel.cliTranscript, 120_000);
   recorder.add(check("D18: transcript returns when the turn finishes", await page.visible(sel.cliTranscript), "Transcript shown; return action lives in More"));
   await recorder.file("pi-transcript-after-turn.png", await page.screenshot());
-  await switchAgentView(sel.showTerminal);
+  await runAgentAction(sel.showTerminal);
   await Bun.sleep(800);
 });
 
@@ -511,31 +523,42 @@ await scenario("desktop-H3-max", "H3: the composer grows to 40% of the window, t
   await Bun.sleep(8000);
 });
 
-await scenario("desktop-D21-D22-floating", "Desktop: composer lives in the header; only Follow latest floats, with the composer closed and open.", async (recorder) => {
+await scenario("desktop-D21-D22-floating", "Desktop: Open composer lives in More; only Follow latest floats, with the composer closed and open.", async (recorder) => {
   const closed = await transition(recorder, "close composer", () => page.tap(sel.close));
   recorder.add(...floatingStackChecks(closed.after, false));
   await scrollPartway();
   const reading = await transition(recorder, "reading, scrolled up", async () => {}, { waitMs: 200, expectChange: false });
   recorder.add(...floatingStackChecks(reading.after, false));
-  const opened = await transition(recorder, "open composer", () => page.tap(sel.opener));
-  recorder.add(...floatingStackChecks(opened.after, true));
+  await desktopMenuChecks(recorder, false, "builtin");
+  const opened = await transition(recorder, "open composer from More", () => runAgentAction(sel.opener));
+  recorder.add(
+    check("More opens the active agent's composer and focuses its input", opened.after.composer !== null && opened.after.focus.includes("composer-input"), `composer ${JSON.stringify(opened.after.composer)}, focus ${opened.after.focus}`),
+    ...floatingStackChecks(opened.after, true),
+  );
+  await desktopMenuChecks(recorder, true, "builtin");
 });
 
 await page.navigate(piUrl, sel.terminal);
 await Bun.sleep(3000);
-await scenario("desktop-pi-toolbar", "Desktop Pi: transcript and composer actions share the Park/Delete toolbar and operate the active agent.", async (recorder) => {
+await scenario("desktop-pi-toolbar", "Desktop Pi: More offers the active agent's transcript/terminal switch and composer alongside Park and Delete.", async (recorder) => {
   const terminal = await transition(recorder, "terminal ready", async () => {}, { expectChange: false });
   recorder.add(...floatingStackChecks(terminal.after, false, terminal.after.terminal));
-  recorder.add(check("View transcript is in the toolbar", Boolean(terminal.after.toolbar["View transcript"]), JSON.stringify(terminal.after.toolbar)));
-  const transcript = await transition(recorder, "view transcript from toolbar", () => page.tap(sel.viewTranscript));
-  recorder.add(check("Transcript opens and action becomes Back to terminal", Boolean(transcript.after.transcript && transcript.after.toolbar["Back to terminal"]), JSON.stringify(transcript.after.toolbar)));
-  const opened = await transition(recorder, "open composer from toolbar", () => page.tap(sel.opener));
-  recorder.add(...floatingStackChecks(opened.after, true));
-  const returned = await transition(recorder, "back to terminal from toolbar", () => page.tap(sel.showTerminal));
+  await desktopMenuChecks(recorder, false, "terminal");
+  const transcript = await transition(recorder, "view transcript from More", () => runAgentAction(sel.viewTranscript));
+  recorder.add(check("More opens the active Pi transcript", Boolean(transcript.after.transcript) && await page.visible(sel.cliTranscript), JSON.stringify(transcript.after.transcript)));
+  await desktopMenuChecks(recorder, false, "transcript");
+  const opened = await transition(recorder, "open composer from More", () => runAgentAction(sel.opener));
+  recorder.add(
+    check("More opens the active Pi composer's input", opened.after.composer !== null && opened.after.focus.includes("composer-input"), `composer ${JSON.stringify(opened.after.composer)}, focus ${opened.after.focus}`),
+    ...floatingStackChecks(opened.after, true),
+  );
+  await desktopMenuChecks(recorder, true, "transcript");
+  const returned = await transition(recorder, "back to terminal from More", () => runAgentAction(sel.showTerminal));
   recorder.add(
     check("Terminal returns and receives focus", Boolean(returned.after.terminal) && !returned.after.transcript && returned.after.focus.includes("gespenst"), `focus ${returned.after.focus}`),
     ...floatingStackChecks(returned.after, false, returned.after.terminal),
   );
+  await desktopMenuChecks(recorder, false, "terminal");
 });
 for (const layout of ["mobile", "desktop"] as const) {
   await page.layout(layout);

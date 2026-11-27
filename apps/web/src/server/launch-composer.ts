@@ -1,4 +1,4 @@
-import { dictationComposerController, renderMobileDictationControl } from "@agents-in-the-cloud/dictation/server";
+import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
 import { composerAttachmentAttributes, renderComposerBody } from "@agents-in-the-cloud/prompt/server";
 import type { WorkspaceTemplateSummary } from "@agents-in-the-cloud/workspace-templates";
 import { workspaceTemplateChoiceHtml, workspaceTemplateIconHtml } from "./workspace-template-presentation.ts";
@@ -60,7 +60,6 @@ export function renderLaunchComposer(options: { action: string; formId: string; 
       </form>
       <div class="composer-footer">${content.footerHtml}</div>
     </div>
-    ${renderMobileDictationControl()}
   </div>`;
 }
 

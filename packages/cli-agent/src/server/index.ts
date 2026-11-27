@@ -1,4 +1,4 @@
-import { dictationComposerController, renderMobileDictationControl } from "@agents-in-the-cloud/dictation/server";
+import { dictationComposerController } from "@agents-in-the-cloud/dictation/server";
 import { registerAgentTurnSettler, registerAgentTypeControl } from "@agents-in-the-cloud/agent/server";
 import { buildTranscript } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
@@ -63,7 +63,6 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
       </div>
       ${running ? renderTerminalKeyBar("cli-terminal") : ""}
       ${composer}
-      ${composer ? renderMobileDictationControl() : ""}
     </section>`;
   }
 

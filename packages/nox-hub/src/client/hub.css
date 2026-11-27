@@ -45,16 +45,19 @@ html[data-theme="daylight"] {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 12px 10px 8px 14px;
-  min-height: 44px;
+  /* Match the workspace sidebar header, including its transparent divider. */
+  padding: 0 10px 0 14px;
+  min-height: 36px;
+  flex-shrink: 0;
+  border-bottom: 1px solid transparent;
 }
 
 .nox-hub-rail-brand {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13.5px;
-  font-weight: 600;
+  font-size: 13px;
+  font-weight: 500;
   letter-spacing: -0.01em;
   color: var(--text);
 }
@@ -91,17 +94,6 @@ html[data-theme="daylight"] {
 
 .nox-hub-thread-row.is-active {
   background: color-mix(in srgb, var(--text-bright) 5%, transparent);
-}
-
-.nox-hub-thread-row.is-active::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 9px;
-  bottom: 9px;
-  width: 2.5px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 55%, var(--text-bright));
 }
 
 .nox-hub-thread-link {
@@ -196,8 +188,10 @@ html[data-theme="daylight"] {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 16px 6px;
-  min-height: 44px;
+  padding: 0 16px;
+  min-height: 36px;
+  flex-shrink: 0;
+  border-bottom: 1px solid transparent;
 }
 
 .nox-hub-header-left {
@@ -213,8 +207,8 @@ html[data-theme="daylight"] {
 
 .nox-hub-header-title {
   margin: 0;
-  font-size: 14px;
-  font-weight: 550;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -358,8 +352,16 @@ html[data-theme="daylight"] {
   gap: 8px;
   padding: 10px 12px 0;
   border-radius: 12px;
-  border: 1px solid var(--nox-hub-subtle-border);
   background: var(--nox-hub-composer-bg);
+}
+
+/* Keep Hub's outline quiet regardless of the shared composer's load order. */
+.composer-surface.nox-hub-composer-surface {
+  border: 1px solid var(--nox-hub-subtle-border);
+}
+
+.composer-surface.nox-hub-composer-surface:focus-within {
+  border-color: color-mix(in srgb, var(--text-bright) 14%, transparent);
 }
 
 .nox-hub-composer-input {

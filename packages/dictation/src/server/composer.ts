@@ -3,10 +3,10 @@ import { warningBannerHtml } from "@agents-in-the-cloud/design-system/warning-ba
 
 export const dictationComposerController = "dictation-composer";
 
-export function renderDictationComposerControl(mobile = false): string {
+export function renderDictationComposerControl(): string {
   const button = buttonHtml({
     type: "button",
-    variant: mobile ? "primary" : "secondary",
+    variant: "secondary",
     content: { kind: "icon-only", iconHtml: '<canvas class="voice-ribbon" data-dictation-composer-target="ribbon"></canvas>', label: "Speak" },
     attributesHtml: 'data-popular-button aria-pressed="false" data-state="idle" data-dictation-composer-target="button" data-action="dictation-composer#toggle"',
   });
@@ -16,8 +16,4 @@ export function renderDictationComposerControl(mobile = false): string {
     dismiss: { label: "Dismiss dictation error", buttonAttributesHtml: 'data-action="dictation-composer#cancel"' },
   });
   return `${button}<span class="dictation-status" data-dictation-composer-target="status" aria-live="polite">Dictate</span><div class="dictation-error" data-dictation-composer-target="error" hidden>${error}</div>`;
-}
-
-export function renderMobileDictationControl(): string {
-  return `<div class="dictation-dock" data-agent-composer-target="bottomControls"><div class="dictation-mobile-control">${renderDictationComposerControl(true)}</div></div>`;
 }
