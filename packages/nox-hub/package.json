@@ -1,0 +1,29 @@
+{
+  "name": "@agents-in-the-cloud/nox-hub",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./server": "./src/server/index.ts",
+    "./client": "./src/client/index.ts"
+  },
+  "dependencies": {
+    "@agents-in-the-cloud/agent": "workspace:*",
+    "@agents-in-the-cloud/builtin-agent": "workspace:*",
+    "@agents-in-the-cloud/core": "workspace:*",
+    "@agents-in-the-cloud/design-system": "workspace:*",
+    "@agents-in-the-cloud/llm": "workspace:*",
+    "@agents-in-the-cloud/markdown": "workspace:*",
+    "@agents-in-the-cloud/nox-projects": "workspace:*",
+    "@agents-in-the-cloud/shared": "workspace:*",
+    "@agents-in-the-cloud/workspace": "workspace:*",
+    "@earendil-works/chord": "catalog:",
+    "@earendil-works/pi-ai": "catalog:",
+    "@earendil-works/pi-durable": "catalog:",
+    "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
+    "proper-lockfile": "4.1.2",
+    "typebox": "^1.0.57"
+  },
+  "devDependencies": {
+    "@types/proper-lockfile": "4.1.4"
+  }
+}

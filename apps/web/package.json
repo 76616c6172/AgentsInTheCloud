@@ -46,6 +46,8 @@
     "@agents-in-the-cloud/builtin-agent": "workspace:*",
     "@agents-in-the-cloud/changes": "workspace:*",
     "@agents-in-the-cloud/codex-agent": "workspace:*",
-    "@agents-in-the-cloud/git-hosting": "workspace:*"
+    "@agents-in-the-cloud/git-hosting": "workspace:*",
+    "@agents-in-the-cloud/nox-hub": "workspace:*",
+    "@agents-in-the-cloud/nox-projects": "workspace:*"
   }
 }

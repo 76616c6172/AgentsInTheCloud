@@ -1,3 +1,6 @@
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { defineWorkspaceTool } from "../../agent/src/server/workspace-tool.ts";
 import { afterEach, expect, test } from "bun:test";
 import { createMcpExtension, createCodemodeExtension, type ExtensionAPI, type McpServerConfig, type ToolInfo, type ToolDefinition } from "@earendil-works/pi-coding-agent";
@@ -16,8 +19,9 @@ function fakePi() {
   const servers = new Map<string, McpServerConfig>();
   const executions: unknown[][] = [];
   const notices: string[] = [];
+  const sentMessages: Array<{ content: unknown; options: unknown }> = [];
   let active: string[] = [];
-  const partial: Pick<ExtensionAPI, "on" | "registerMcpServer" | "getMcpServers" | "registerCommand" | "registerTool" | "registerToolRenderer" | "getAllTools" | "getActiveTools" | "setActiveTools" | "exec"> = {
+  const partial: Pick<ExtensionAPI, "on" | "registerMcpServer" | "getMcpServers" | "registerCommand" | "registerTool" | "registerToolRenderer" | "getAllTools" | "getActiveTools" | "setActiveTools" | "exec" | "sendUserMessage"> = {
     on(name: string, handler: FakeHandler) {
       handlers.set(name, [...(handlers.get(name) ?? []), handler]);
       return () => { handlers.set(name, handlers.get(name)!.filter((entry) => entry !== handler)); };
@@ -31,6 +35,7 @@ function fakePi() {
     getActiveTools() { return active; },
     setActiveTools(names: string[]) { active = names; },
     async exec(...args: unknown[]) { executions.push(args); return { code: 0, stdout: "", stderr: "", killed: false, truncated: false }; },
+    async sendUserMessage(content, options) { sentMessages.push({ content, options }); },
   };
   // SAFETY: The protocol integrations under test use only the API members implemented here.
   const pi = partial as ExtensionAPI;
@@ -39,7 +44,7 @@ function fakePi() {
       cwd: process.cwd(), ui: { notify: (message: string) => notices.push(message) },
     });
   }
-  return { pi, tools, servers, handlers, executions, notices, emit };
+  return { pi, tools, servers, handlers, executions, notices, sentMessages, emit };
 }
 
 function fixture() {
@@ -110,4 +115,27 @@ test("Pi native MCP discovers AgentsInTheCloud tools and does not duplicate nati
   const failed = await f.tools.get("mcp__agents_in_the_cloud__fail")!.execute("call", {}, undefined, undefined, undefined!);
   expect(failed.structuredContent).toMatchObject({ isError: true, content: [{ type: "text", text: "deliberate failure" }] });
 
+});
+
+test("pi-agents-in-the-cloud delivers headless inbox messages via sendUserMessage and consumes files", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "pi-inbox-test-"));
+  const inboxDir = join(dir, "inbox");
+  cleanup.push(() => rm(dir, { recursive: true, force: true }));
+  const f = fakePi();
+  registerPiAgentsInTheCloud(f.pi, {
+    url: "http://localhost:2988/mcp",
+    token: "private",
+    turnSignalCommand: "/session/signal.sh",
+    instructions: "Guidance",
+    inboxDir,
+  });
+  cleanup.push(() => f.emit("session_shutdown"));
+  await f.emit("session_start");
+  await writeFile(join(inboxDir, "0001.json"), JSON.stringify({ text: "Check Linux tests", deliverAs: "steer" }), "utf8");
+  const deadline = Date.now() + 3000;
+  while (f.sentMessages.length === 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  expect(f.sentMessages).toEqual([{ content: "Check Linux tests", options: { deliverAs: "steer" } }]);
+  expect(await readdir(inboxDir)).toEqual([]);
 });

@@ -70,6 +70,9 @@ import { handleSettingsRequest } from "./settings/routes.ts";
 import { themeRegionHtml, themeRegionId } from "./settings/theme.ts";
 import { parseCloseWorkViewRequest, parseReorderWorkViewRequest } from "./work-view-api.ts";
 import { createWorkspaceDeletion } from "./workspace-deletion.ts";
+import { configureHubHost, hubHostId } from "@agents-in-the-cloud/nox-hub/server";
+import { configureProjectsHost, listProjects, resolveWorkspaceProjectId } from "@agents-in-the-cloud/nox-projects/server";
+import { createNoxHubBridge } from "./nox-hub-bridge.ts";
 import { workspaceModules as defaultWorkspaceModules } from "./workspace-modules.generated.ts";
 import { dismissWorkspaceParkConfirmationTurboStream, presentWorkViewTurboStream, renderAgentsInTheCloudBar, renderMobileWorkspaceBar, renderWorkspaceDeletionPresentation, renderWorkspacePane, renderWorkspaceParkConfirmation, renderWorkspacePresentation, presentInitialWorkspaceSelection, workspacePaneCollectionsRegions, type InitialWorkspaceSelection, type WorkspacePresentation as FixedWorkspacePresentation, type WorkPaneContribution, type WorkspacePanePresentation, type WorkspacePaneWorkspaceTemplate } from "./workspace-presentation.ts";
 import type { WorkspaceDeletionState, WorkspaceEntry, WorkspaceRegistry } from "./workspace-registry.ts";
@@ -354,7 +357,10 @@ export function createWebApp(deps: WebAppDeps): WebApp {
   }
 
   async function workspacePaneCollections(activeWorkspaceId: string): Promise<WorkspacePanePresentation> {
-    const { workspaceTemplates: savedWorkspaceTemplates } = await listWorkspaceTemplates();
+    const [{ workspaceTemplates: savedWorkspaceTemplates }, savedProjects] = await Promise.all([
+      listWorkspaceTemplates(),
+      listProjects(),
+    ]);
     const workspaceTemplates: WorkspacePaneWorkspaceTemplate[] = savedWorkspaceTemplates.map(({ id, name, lastUsedAt, swatchColor }) => ({ id, title: name, lastUsedAt, swatchColor }));
     const workspaceTemplatesById = new Map(workspaceTemplates.map((workspaceTemplate) => [workspaceTemplate.id, workspaceTemplate]));
     const workspaces = registry.list().map((entry) => {
@@ -362,12 +368,14 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       if (isGitWorkspaceTemplateInit(entry.init)) {
         workspaceTemplate = workspaceTemplatesById.get(workspaceTemplateIdFromInit(entry.init)) ?? { id: workspaceTemplateIdFromInit(entry.init), title: entry.init.name };
       }
+      const projectId = resolveWorkspaceProjectId(savedProjects, { workspaceId: entry.id, templateId: workspaceTemplate?.id });
       return {
         id: entry.id,
         title: workspaceTitle(entry),
         active: entry.id === activeWorkspaceId,
         parked: entry.parked,
         workspaceTemplate,
+        projectId,
         phase: entry.phase,
         busy: entry.phase.busy,
         requestingAttention: entry.requestingAttention,
@@ -378,7 +386,8 @@ export function createWebApp(deps: WebAppDeps): WebApp {
         warnings: entry.warnings,
       };
     });
-    return { workspaceTemplates, workspaces };
+    const projects = savedProjects.map(({ id, name }) => ({ id, name }));
+    return { workspaceTemplates, workspaces, projects };
   }
 
   function workViewPresentations(workspaceId: string, currentWorkViews: readonly WorkspaceWorkViewPresentation[], storedWorkViews: readonly WorkspaceWorkViewState[]): WorkPaneContribution[] {
@@ -584,6 +593,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
     | { kind: "module-modal"; dialogHtml: string }
     | { kind: "workspace-template-editor"; dialogHtml: string }
     | { kind: "template-settings"; html: string }
+    | { kind: "hub"; html: string }
     | { kind: "new-workspace"; workspaceTemplate?: WorkspaceTemplateSummary }
     | { kind: "settings"; request: Request; section: string | undefined; developerTools?: true }
     | { kind: "models"; focus: string | undefined };
@@ -600,7 +610,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       : `<turbo-frame id="${launchComposerFrameId}"></turbo-frame>`;
     return `<div class="app fixed-shell-app" data-controller="agents-in-the-cloud-shortcuts workspace-navigation mobile-swipe">
     ${renderWorkspacePane(pane, renderGlobalSidebarContributions(), workspaceModules.map((module) => module.renderWorkspacePaneActions?.() ?? "").join(""), launchComposerCommand.binding)}
-    <main class="fixed-shell-app-main">${await workspaceDetailHostHtml(pane, selectedId, initialSelection)}${surface?.kind === "template-settings" ? surface.html : `<div id="${templateSettingsHostId}"></div>`}<div id="app_settings_host">${surface?.kind === "settings" ? settings : ""}</div></main>
+    <main class="fixed-shell-app-main">${await workspaceDetailHostHtml(pane, selectedId, initialSelection)}${surface?.kind === "template-settings" ? surface.html : `<div id="${templateSettingsHostId}"></div>`}<div id="app_settings_host">${surface?.kind === "settings" ? settings : ""}</div><div id="${hubHostId}">${surface?.kind === "hub" ? surface.html : ""}</div></main>
     ${renderAgentsInTheCloudBar()}
   </div>
   ${workspaceTemplateEditor}
@@ -1304,6 +1314,37 @@ export function createWebApp(deps: WebAppDeps): WebApp {
 
     return textResponse("not found", { status: 404 });
   }
+
+  configureProjectsHost({
+    async listTemplates() {
+      const { workspaceTemplates } = await listWorkspaceTemplates();
+      return workspaceTemplates.map(({ id, name }) => ({ id, title: name }));
+    },
+    async listWorkspaces() {
+      const { workspaceTemplates } = await listWorkspaceTemplates();
+      const byId = new Map(workspaceTemplates.map(({ id, name }) => [id, name]));
+      return registry.list().map((entry) => {
+        const templateId = isGitWorkspaceTemplateInit(entry.init) ? workspaceTemplateIdFromInit(entry.init) : undefined;
+        return {
+          id: entry.id,
+          title: workspaceTitle(entry),
+          templateId,
+          templateTitle: templateId ? byId.get(templateId) ?? (isGitWorkspaceTemplateInit(entry.init) ? entry.init.name : undefined) : undefined,
+          parked: entry.parked,
+        };
+      });
+    },
+    invalidateShell() { invalidatePresentation(); },
+  });
+
+  configureHubHost(createNoxHubBridge({
+    events: deps.events,
+    registry,
+    createWorkspace: (command) => createWorkspaceFromCommand(command),
+    parkWorkspace: async (workspaceId, parked) => { await requestWorkspaceParkedState(workspaceId, parked, true); },
+    resolveTemplate: (reference) => workspaceTemplateRoutes.byReference(reference),
+    renderHubPage: async (html) => response(layout(await renderWorkspaceShell(undefined, { kind: "hub", html }))),
+  }));
 
   return {
     subscribeShell: (listener, shown) => shell.subscribe(listener, shown),

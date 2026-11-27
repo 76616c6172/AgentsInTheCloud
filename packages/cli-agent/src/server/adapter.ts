@@ -27,4 +27,5 @@ export interface CliAgentAdapter {
   turnSettled?(workspaceId: string, sessionId: string): Promise<boolean>;
   historyFiles?(workspaceId: string, sessionId: string): Promise<string[]>;
   loadTranscriptImage?(workspaceId: string, sessionId: string, entryId: string, contentIndex: number): Promise<Response>;
+  sendMessage?(workspaceId: string, sessionId: string, text: string, whenBusy?: "followUp" | "steer"): Promise<"started" | "queued" | "steered" | "sent">;
 }

@@ -1,14 +1,15 @@
 import { dictationComposerController, renderMobileDictationControl } from "@agents-in-the-cloud/dictation/server";
-import { registerAgentTurnSettler } from "@agents-in-the-cloud/agent/server";
+import { registerAgentTurnSettler, registerAgentTypeControl } from "@agents-in-the-cloud/agent/server";
+import { buildTranscript } from "@agents-in-the-cloud/agent/server/transcript";
 import { renderWorkspaceCompletionCatalog } from "@agents-in-the-cloud/agent/server/completion-catalog";
 import { renderTranscriptQuoteAction } from "@agents-in-the-cloud/agent/server/render-transcript";
 import { agentAttachmentDraftId, listStagedAttachments, renderComposerBody, renderFloatingStack, renderOpenComposerButton, agentComposerActions, composerAttachmentAttributes } from "@agents-in-the-cloud/prompt/server";
-import { observableTerminalStaticFiles, renderTerminalKeyBar, renderTerminalConnectionStatus } from "@agents-in-the-cloud/observable-terminal/server";
+import { observableTerminalStaticFiles, renderTerminalKeyBar, renderTerminalConnectionStatus, terminalProcessSession } from "@agents-in-the-cloud/observable-terminal/server";
 import { terminalProcessSocketPath } from "@agents-in-the-cloud/observable-terminal/shared";
 import { domId, escapeHtml, turboStream, turboStreamResponse, type WorkspaceModule } from "@agents-in-the-cloud/shared";
-import type { AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
+import { shellQuote, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
 import type { CliAgentAdapter } from "./adapter.ts";
-import { createCliAgents, type CliAgentTerminal } from "./agents.ts";
+import { checkedWorkspaceShell, createCliAgents, type CliAgentTerminal } from "./agents.ts";
 import { cliComposerRoutes } from "./composer-routes.ts";
 import { cliCompletionCatalogId, cliTranscriptAttributes, cliTranscriptChannel, cliTranscriptRoutes, renderCliTranscriptControls, renderCliTranscriptView } from "./transcript-routes.ts";
 
@@ -81,6 +82,36 @@ export function createCliAgentModule(adapter: CliAgentAdapter): WorkspaceModule 
     },
     initialize(context) {
       events = context.events;
+      registerAgentTypeControl({
+        agentTypeId: adapter.id,
+        async list(workspaceId) {
+          return agents.list(workspaceId).map(({ id, title }) => ({ id, agentTypeId: adapter.id, title }));
+        },
+        async readTranscript(workspaceId, agentId) {
+          if (!adapter.loadTranscript) return [];
+          const records = await adapter.loadTranscript(workspaceId, agentId);
+          return records ? buildTranscript(records) : [];
+        },
+        async sendMessage(workspaceId, agentId, options) {
+          const session = await agents.ready(workspaceId, agentId);
+          if (session.error) throw new Error(session.error);
+          const terminal = await agents.terminalState(workspaceId, session);
+          if (terminal.state !== "running") throw new Error(`${adapter.label} agent ${agentId} is not running (${terminal.state})`);
+          await agents.recordNamingPrompt(workspaceId, agentId, options.text);
+          if (adapter.sendMessage) {
+            const delivered = await adapter.sendMessage(workspaceId, agentId, options.text, options.whenBusy);
+            return { agentId, agentTypeId: adapter.id, delivered };
+          }
+          const tmuxTarget = session.tmuxSession ?? terminalProcessSession(agentId);
+          const bufferName = `hub_${crypto.randomUUID().replaceAll("-", "")}`;
+          await checkedWorkspaceShell(
+            workspaceId,
+            `set -eu\ntmux load-buffer -b ${shellQuote(bufferName)} -\ntmux paste-buffer -p -d -b ${shellQuote(bufferName)} -t ${shellQuote(tmuxTarget)}\ntmux send-keys -t ${shellQuote(tmuxTarget)} Enter`,
+            options.text,
+          );
+          return { agentId, agentTypeId: adapter.id, delivered: "sent" };
+        },
+      });
       if (adapter.turnSettled) registerAgentTurnSettler(agents.settleTurn);
       context.events.on("workspace_agent_turn_finished", ({ workspaceId, agentId }) => {
         if (agents.list(workspaceId).some((session) => session.id === agentId)) {

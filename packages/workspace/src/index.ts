@@ -38,6 +38,7 @@ export {
 } from "./presentation.ts";
 
 const workspaceTypeLabel = "com.agents-in-the-cloud.type";
+const allowedWorkspaceContainerTypes = new Set(["workspace", "hub"]);
 const namespaceLabel = "com.agents-in-the-cloud.namespace";
 const workspaceIdLabel = "com.agents-in-the-cloud.workspace-id";
 const titlePath = "title";
@@ -107,7 +108,7 @@ async function waitForWorkspaceStartup(id: string): Promise<string> {
 async function validateWorkspaceContainer(id: string): Promise<Record<string, string>> {
   assertValidWorkspaceId(id);
   const labels = await inspectLabels(id);
-  if (labels[workspaceTypeLabel] !== "workspace" || labels[namespaceLabel] !== namespace()) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${id}`);
+  if (!allowedWorkspaceContainerTypes.has(labels[workspaceTypeLabel] ?? "") || labels[namespaceLabel] !== namespace()) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${id}`);
   return labels;
 }
 
@@ -407,7 +408,7 @@ function workspaceInitScript(plan: WorkspaceDockerPlan): string {
   ].join("\n");
 }
 
-export async function createWorkspace(options: { id: string; events: AgentsInTheCloudEventBus; init?: WorkspaceInitInstruction; context?: WorkspaceCreationContext; run: WorkspaceProvisionRun }): Promise<void> {
+export async function createWorkspace(options: { id: string; events: AgentsInTheCloudEventBus; init?: WorkspaceInitInstruction; context?: WorkspaceCreationContext; run: WorkspaceProvisionRun; containerType?: "workspace" | "hub" }): Promise<void> {
   const { id, events, run } = options;
   if (!/^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/.test(id)) throw invalidArguments(`invalid workspace id: ${id}`);
   if (await isRetiredWorkspaceId(id)) throw invalidArguments(`workspace id has been permanently retired and cannot be reused: ${id}`);
@@ -421,7 +422,7 @@ export async function createWorkspace(options: { id: string; events: AgentsInThe
       await events.emit("workspace_source_prepare", { workspaceId: id, init, context, workHostPath: source.worktreePath, workContainerPath: workspaceRoot });
     }, "retry");
     const activePlan = await run.step("workspace.plan", "Prepare workspace container plan", async () => {
-      const labels = { [workspaceTypeLabel]: "workspace", [namespaceLabel]: namespace(), [workspaceIdLabel]: id, [workspaceConfigurationLabel]: "1" } satisfies Record<string, string>;
+      const labels = { [workspaceTypeLabel]: options.containerType ?? "workspace", [namespaceLabel]: namespace(), [workspaceIdLabel]: id, [workspaceConfigurationLabel]: "1" } satisfies Record<string, string>;
       const activePlan = baseWorkspacePlan(labels);
       plan = activePlan;
       const gatewayTokenPath = agentsInTheCloudDataPath(getAgentsInTheCloudRuntimeContext(), "workspaces", id, "gateway-token");
@@ -558,7 +559,7 @@ export async function deleteWorkspace(id: string, options: DeleteWorkspaceOption
       if (error instanceof AgentsInTheCloudCoreError && error.code === "workspace_not_found") return undefined;
       throw error;
     });
-    if (labels && (labels[workspaceTypeLabel] !== "workspace" || labels[namespaceLabel] !== namespace())) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${id}`);
+    if (labels && (!allowedWorkspaceContainerTypes.has(labels[workspaceTypeLabel] ?? "") || labels[namespaceLabel] !== namespace())) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${id}`);
     containerExists = labels !== undefined;
   } else {
     await resolveWorkspace(id);

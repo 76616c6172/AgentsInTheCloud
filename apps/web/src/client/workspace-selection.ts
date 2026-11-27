@@ -1,3 +1,5 @@
+// @ts-expect-error Turbo ships no TypeScript declarations.
+import { visit } from "@hotwired/turbo";
 import { restoreAppSettingsDestination } from "./app-settings-controller.ts";
 import { restoreTemplateSettingsDestination } from "./template-settings-controller.ts";
 import { markActiveWorkspaceRow } from "./workspace-presentation.ts";
@@ -171,6 +173,10 @@ class WorkspaceSelectionController extends Controller<HTMLElement> {
   };
   private readonly historyChanged = (): void => {
     if (restoreTemplateSettingsDestination() || restoreAppSettingsDestination()) return;
+    if (location.pathname === "/hub" || location.pathname.startsWith("/hub/")) {
+      if (!document.getElementById("nox_hub_surface")) visit(location.href, { action: "replace" });
+      return;
+    }
     const id = location.pathname.match(/^\/workspaces\/([^/]+)$/)?.[1];
     if (id) void this.selectWorkspace(decodeURIComponent(id), location.href, "none");
     else if (this.intended) this.unselectWorkspace(this.intended);

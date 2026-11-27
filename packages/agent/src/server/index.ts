@@ -6,3 +6,15 @@ export { prepareCliAgentConnection, type CliAgentConnection, revokeAgentMcp, con
 export { registerAgentTurnSettler, type AgentTurnFinishReason } from "./turn-lifecycle.ts";
 export { registerAgentToolPresentations, type AgentToolPresentation } from "./tool-presentations.ts";
 export { renderNoxUsageGauge } from "./nox-usage-gauge.ts";
+export {
+  registerAgentTypeControl,
+  clearAgentTypeControls,
+  listWorkspaceControlledAgents,
+  readWorkspaceAgentTranscript,
+  sendWorkspaceAgentMessage,
+  stopWorkspaceControlledAgent,
+  type AgentSendMessageOptions,
+  type AgentSendMessageResult,
+  type AgentTypeControl,
+  type ControlledAgentSummary,
+} from "./agent-control.ts";

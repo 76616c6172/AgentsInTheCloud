@@ -1,3 +1,4 @@
+import { registerAgentTypeControl } from "@agents-in-the-cloud/agent/server";
 import type { AgentsInTheCloudEventBus, JsonObject } from "@agents-in-the-cloud/core";
 import type { WorkspaceModule } from "@agents-in-the-cloud/shared";
 import type { createCliModelSettings } from "@agents-in-the-cloud/cli-agent/server";
@@ -23,6 +24,27 @@ export function createNativeAgentModule<Runtime extends NativeAgentRuntime>(opti
     id: options.id,
     initialize(context) {
       events = context.events;
+      registerAgentTypeControl({
+        agentTypeId: options.agentTypeId,
+        async list(workspaceId) {
+          return agents.list(workspaceId).map((record) => ({ id: record.id, agentTypeId: options.agentTypeId, title: record.title }));
+        },
+        async readTranscript(workspaceId, agentId) {
+          const runtime = await agents.ready(workspaceId, agentId);
+          return options.rendering.transcriptItems(runtime);
+        },
+        async sendMessage(workspaceId, agentId, sendOptions) {
+          const runtime = await agents.ready(workspaceId, agentId);
+          const wasBusy = runtime.isBusy || runtime.isTurnRunning;
+          await runtime.send({ text: sendOptions.text, images: [], attachmentNotes: [] }, sendOptions.requestId ?? crypto.randomUUID());
+          const delivered = wasBusy ? (sendOptions.whenBusy === "steer" ? "steered" : "queued") : "started";
+          return { agentId, agentTypeId: options.agentTypeId, delivered };
+        },
+        async stop(workspaceId, agentId) {
+          const runtime = await agents.ready(workspaceId, agentId);
+          await runtime.stop();
+        },
+      });
       context.events.on("agents_in_the_cloud_host_stopping", () => agents.disposeAll());
       context.events.on("workspace_deleting", ({ workspaceId }) => agents.disposeWorkspace(workspaceId));
       context.events.on("workspace_agent_turn_finished", ({ workspaceId, agentId }) => {

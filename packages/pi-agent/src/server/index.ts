@@ -6,7 +6,7 @@ import { installPiCliConfiguration } from "./pi-cli.ts";
 import { createPiCliCredentialTransform, piCliCredentialHosts } from "./pi-cli-bridge.ts";
 import { requirePiModels } from "./auth.ts";
 import { piLaunchScript } from "./launch-command.ts";
-import { preparePiSession } from "./session.ts";
+import { preparePiSession, sendPiInboxMessage } from "./session.ts";
 import { piModelSettings } from "./model-settings.ts";
 import { loadPiTranscript, loadPiTranscriptImage, piResumePath, piHistoryFiles } from "./transcript.ts";
 
@@ -21,6 +21,7 @@ const cliModule = createCliAgentModule({
   loadTranscript: loadPiTranscript,
   loadTranscriptImage: loadPiTranscriptImage,
   historyFiles: piHistoryFiles,
+  sendMessage: sendPiInboxMessage,
 });
 
 export const agentsInTheCloudServerModule: WorkspaceModule = {

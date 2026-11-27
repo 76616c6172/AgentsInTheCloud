@@ -1,18 +1,23 @@
+import { contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
+import { popupHtml } from "@agents-in-the-cloud/design-system/popup";
 import { renderNoxUsageGauge } from "@agents-in-the-cloud/agent/server";
-import { escapeHtml } from "@agents-in-the-cloud/shared";
+import { noxHubIconHtml, renderHubSidebarStatus } from "@agents-in-the-cloud/nox-hub/server";
+import { noxCheckIconHtml, noxFilterIconHtml, noxFolderIconHtml } from "@agents-in-the-cloud/nox-projects/server";
+import { escapeHtml, workspaceModuleModalFrameId } from "@agents-in-the-cloud/shared";
 import type { WorkspacePhase } from "./workspace-registry.ts";
 
-/* Nox: Whisper Minimal workspace sidebar — template grouping with within-group
- * attention -> working -> idle priority, quiet 2nd-line status on every row,
- * an inline status filter strip, centered Parked disclosure, and a unified
- * calm footer shared between desktop and mobile. */
+export interface NoxSidebarProject {
+  id: string;
+  name: string;
+}
 
 export interface NoxWorkspaceListEntry {
   id: string;
   title: string;
   parked: boolean;
   workspaceTemplate?: { id: string; title: string; swatchColor?: string };
+  projectId?: string;
   phase?: WorkspacePhase;
   busy?: boolean;
   requestingAttention?: boolean;
@@ -141,9 +146,77 @@ export function groupWorkspacesByTemplate<Entry extends NoxWorkspaceListEntry>(w
   return sortedGroups;
 }
 
+function renderProjectFilterPopup<Entry extends NoxWorkspaceListEntry>(
+  active: readonly Entry[],
+  projects: readonly NoxSidebarProject[],
+): string {
+  const noProjectCount = active.filter((ws) => !ws.projectId).length;
+  const counts = new Map<string, number>();
+  for (const ws of active) {
+    if (ws.projectId) counts.set(ws.projectId, (counts.get(ws.projectId) ?? 0) + 1);
+  }
+  const allRow = contentRowHtml({
+    width: "fill",
+    kind: "compact",
+    label: { kind: "text", text: "All Projects" },
+    trailingHtml: `<span class="nox-project-option__check" aria-hidden="true">${noxCheckIconHtml}</span>`,
+    element: {
+      tag: "button",
+      attributesHtml: 'type="button" role="menuitemradio" aria-checked="true" data-nox-project-option="" data-action="click->nox-workspace-list#selectProject" data-nox-workspace-list-project-param=""',
+    },
+  });
+  const noneRow = contentRowHtml({
+    width: "fill",
+    kind: "multiline",
+    leadingHtml: noxFolderIconHtml,
+    label: { kind: "text", text: "No Project" },
+    description: String(noProjectCount),
+    trailingHtml: `<span class="nox-project-option__check" aria-hidden="true">${noxCheckIconHtml}</span>`,
+    primary: {
+      tag: "button",
+      attributesHtml: 'type="button" role="menuitemradio" aria-checked="false" data-nox-project-option="none" data-action="click->nox-workspace-list#selectProject" data-nox-workspace-list-project-param="none"',
+    },
+  });
+  const projectRows = projects.map((project) => contentRowHtml({
+    width: "fill",
+    kind: "multiline",
+    leadingHtml: noxFolderIconHtml,
+    label: { kind: "text", text: project.name },
+    description: String(counts.get(project.id) ?? 0),
+    trailingHtml: `<span class="nox-project-option__check" aria-hidden="true">${noxCheckIconHtml}</span>`,
+    primary: {
+      tag: "button",
+      attributesHtml: `type="button" role="menuitemradio" aria-checked="false" data-nox-project-option="${escapeHtml(project.id)}" data-action="click->nox-workspace-list#selectProject" data-nox-workspace-list-project-param="${escapeHtml(project.id)}"`,
+    },
+  })).join("");
+  const manageLink = `<a class="nox-project-menu__manage" href="/projects/manage" data-turbo-frame="${workspaceModuleModalFrameId}">Manage</a>`;
+  const contentHtml = `<div class="nox-project-menu">
+    <div class="nox-project-menu__header">
+      <span class="nox-project-menu__title">Project</span>
+      ${manageLink}
+    </div>
+    ${allRow}
+    <hr class="popup-menu__separator">
+    ${noneRow}
+    ${projectRows}
+  </div>`;
+  return `<div class="nox-project-filter-anchor" data-nox-project-filter-anchor>${popupHtml({
+    id: "nox_project_filter_popup",
+    label: "Filter by project",
+    placement: "below",
+    trigger: {
+      variant: "quiet",
+      content: { kind: "icon-only", iconHtml: noxFilterIconHtml, label: "Filter by project" },
+      attributesHtml: 'data-nox-project-filter-trigger aria-pressed="false"',
+    },
+    contentHtml,
+  })}</div>`;
+}
+
 export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
   workspaces: readonly Entry[],
   renderRow: (workspace: Entry, index: number) => string,
+  projects: readonly NoxSidebarProject[] = [],
 ): string {
   const active = workspaces.filter((workspace) => !workspace.parked);
   const parked = workspaces.filter((workspace) => workspace.parked);
@@ -151,13 +224,14 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
   const runningCount = active.filter((workspace) => workspace.busy).length;
   const idleCount = active.filter((workspace) => !workspace.requestingAttention && !workspace.busy).length;
 
-  const statusStrip = active.length
+  const statusStrip = active.length || projects.length
     ? `<div class="nox-status-strip" role="toolbar" aria-label="Workspace status">
         <button type="button" class="nox-status-chip${doneCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="attention" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="attention" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--attention" aria-hidden="true"></i><span>${doneCount} Done</span></button>
         <button type="button" class="nox-status-chip${runningCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="running" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="running" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--running" aria-hidden="true"></i><span>${runningCount} Running</span></button>
         <button type="button" class="nox-status-chip${idleCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="idle" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="idle" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--idle" aria-hidden="true"></i><span>${idleCount} Idle</span></button>
         <span class="nox-status-strip__spacer" aria-hidden="true"></span>
         <button type="button" class="nox-status-clear" data-action="click->nox-workspace-list#clearFilter" aria-label="Clear filter" title="Clear filter">${Icons.Close}</button>
+        ${renderProjectFilterPopup(active, projects)}
       </div>`
     : "";
 
@@ -191,6 +265,16 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
     : "";
 
   return `${statusStrip}<div class="nox-workspace-groups">${groupsHtml}${emptyFilter}</div>${parkedHtml}`;
+}
+
+export function renderNoxHubSidebarButton(): string {
+  return `<div class="nox-hub-sidebar-slot" data-controller="nox-hub-sidebar">
+    <a class="nox-hub-sidebar-button" href="/hub" data-turbo-stream="true" data-nox-hub-sidebar-link>
+      <span class="nox-hub-sidebar-button__icon">${noxHubIconHtml}</span>
+      <span class="nox-hub-sidebar-button__label">Hub</span>
+      ${renderHubSidebarStatus({ busy: false, requestingAttention: false, runningCount: 0 })}
+    </a>
+  </div>`;
 }
 
 export function renderNoxWorkspaceListHeaderAction(hasWorkspaces: boolean): string {

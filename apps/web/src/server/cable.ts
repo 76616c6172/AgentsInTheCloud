@@ -83,6 +83,7 @@ export function createCableServer(options: CableServerOptions): CableServer {
   function authorize(identifier: CableIdentifier): void {
     if (identifier.channel === "shell") return;
     if (identifier.channel === "module") {
+      if (identifier.name === "nox-hub") return;
       if (!options.registry.get(identifier.workspaceId)) throw new AgentsInTheCloudCoreError("workspace_not_found", `workspace not found: ${identifier.workspaceId}`);
     }
   }

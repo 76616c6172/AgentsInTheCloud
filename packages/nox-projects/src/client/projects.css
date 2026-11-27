@@ -1,0 +1,116 @@
+.nox-projects-modal {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: min(460px, 84vw);
+}
+
+.nox-projects-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--bg));
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.nox-projects-create {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nox-projects-create .text-field {
+  flex: 1;
+}
+
+.nox-projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nox-projects-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nox-projects-rename {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nox-projects-row-icon {
+  display: inline-grid;
+  place-items: center;
+  color: var(--text-muted);
+  flex: none;
+}
+
+.nox-projects-name-input {
+  flex: 1;
+}
+
+.nox-projects-delete {
+  flex: none;
+}
+
+.nox-projects-empty {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.nox-projects-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.nox-projects-heading {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.nox-projects-assignments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nox-projects-assign-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.nox-projects-assign-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nox-projects-assign-label {
+  font-size: 13px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nox-projects-assign-note {
+  font-size: 11.5px;
+  color: var(--text-muted);
+}

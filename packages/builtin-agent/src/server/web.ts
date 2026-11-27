@@ -1,6 +1,8 @@
 import { AgentsInTheCloudCoreError, createKeyedOperationQueue, type AgentsInTheCloudEventBus } from "@agents-in-the-cloud/core";
 import { builtinAgentIconHtml } from "@agents-in-the-cloud/design-system/icons";
 import { launchComposerCommand, type WorkspaceAgentPane, type WorkspaceAgentTabProvider, type WorkspaceCommandContribution, type WorkspaceModule } from "@agents-in-the-cloud/shared";
+import { registerAgentTypeControl } from "@agents-in-the-cloud/agent/server";
+import { activeConversationView, durableViewState, projectDurableTranscript } from "./durable-transcript.ts";
 import { registerAgentEvents } from "./agent-events.ts";
 import { resolveAgent } from "./delegation.ts";
 import { removeWorkspaceInitialPromptDrafts } from "./initial-prompt-draft.ts";
@@ -187,6 +189,31 @@ export const builtinAgentWorkspaceModule: WorkspaceModule = {
     const events = context.events as AgentsInTheCloudEventBus;
     agentEvents = events;
     registerAgentEvents(events);
+    registerAgentTypeControl({
+      agentTypeId: "builtin",
+      async list(workspaceId) {
+        return (await listWorkspaceAgents(workspaceId)).map(({ agentId, title }) => ({ id: agentId, agentTypeId: "builtin", title }));
+      },
+      async readTranscript(workspaceId, agentId) {
+        const agent = await resolveAgent(workspaceId, agentId);
+        const controller = await getWorkspaceAgentController(agent, { events });
+        return projectDurableTranscript(activeConversationView(await controller.historyView()));
+      },
+      async sendMessage(workspaceId, agentId, options) {
+        const agent = await resolveAgent(workspaceId, agentId);
+        const controller = await getWorkspaceAgentController(agent, { events });
+        const wasBusy = Boolean(durableViewState(await controller.historyView()).live.run);
+        const whenBusy = options.whenBusy ?? "followUp";
+        await controller.submit({ requestId: options.requestId ?? crypto.randomUUID(), text: options.text, whenBusy });
+        const delivered = wasBusy ? (whenBusy === "steer" ? "steered" : "queued") : "started";
+        return { agentId, agentTypeId: "builtin", delivered };
+      },
+      async stop(workspaceId, agentId) {
+        const agent = await resolveAgent(workspaceId, agentId);
+        const controller = await getWorkspaceAgentController(agent, { events });
+        await controller.stop();
+      },
+    });
     events.on("workspace_agent_turn_finished", async ({ workspaceId, agentId }) => {
       const agent = (await listWorkspaceAgents(workspaceId)).find((item) => item.agentId === agentId);
       context.registry.requestSurfaceAttention(workspaceId, agentKey(agentId));

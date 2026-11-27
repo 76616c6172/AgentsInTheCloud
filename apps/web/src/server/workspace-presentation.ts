@@ -14,7 +14,7 @@ import { domId, escapeHtml, turboStream, workspaceWorkViewLabelDomId } from "@ag
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { agentPaneSlotDomId, renderAgentPane, renderMobileAgentAttention, type AgentPaneContribution } from "./agent-pane.ts";
 import { renderNoxPhoneHeader } from "./nox-phone-header.ts";
-import { noxWorkspaceSubtitle, renderNoxWorkspaceListBar, renderNoxWorkspaceListHeaderAction, renderNoxWorkspaceRows } from "./nox-workspace-list.ts";
+import { noxWorkspaceSubtitle, renderNoxHubSidebarButton, renderNoxWorkspaceListBar, renderNoxWorkspaceListHeaderAction, renderNoxWorkspaceRows, type NoxSidebarProject } from "./nox-workspace-list.ts";
 import { renderPwaReminder } from "./pwa-reminder.ts";
 import type { WorkspaceDeletionState, WorkspacePhase } from "./workspace-registry.ts";
 import { outdatedImageMessage } from "./workspace-warnings.ts";
@@ -33,6 +33,7 @@ export interface WorkspacePaneEntry {
   active?: boolean;
   parked: boolean;
   workspaceTemplate?: { id: string; title: string; swatchColor?: string };
+  projectId?: string;
   phase?: WorkspacePhase;
   busy?: boolean;
   requestingAttention?: boolean;
@@ -66,6 +67,7 @@ export interface WorkPaneContribution {
 export interface WorkspacePanePresentation {
   workspaceTemplates: readonly WorkspacePaneWorkspaceTemplate[];
   workspaces: readonly WorkspacePaneEntry[];
+  projects?: readonly NoxSidebarProject[];
 }
 
 export interface WorkspacePresentation {
@@ -110,6 +112,7 @@ function renderWorkspaceRow(workspace: WorkspacePaneEntry, index: number): strin
   const glyph = noxWorkspaceGlyph(workspace);
   const filterAttributes = [
     `data-nox-ws-state="${subtitle.state}"`,
+    `data-nox-project-id="${escapeHtml(workspace.projectId ?? "none")}"`,
     workspace.requestingAttention ? 'data-nox-ws-attention="true"' : "",
     workspace.busy ? 'data-nox-ws-busy="true"' : "",
     subtitle.timestamp !== undefined ? `data-nox-activity-at="${subtitle.timestamp}" data-nox-subtitle-base="${escapeHtml(subtitle.base)}"` : "",
@@ -138,7 +141,7 @@ const workspaceTemplateDialogTarget = 'data-turbo-frame="_top" data-turbo-stream
 function workspaceRowDomId(id: string): string { return domId("workspace_row", id); }
 
 function renderWorkspaceRows(presentation: WorkspacePanePresentation): string {
-  return renderNoxWorkspaceRows(presentation.workspaces, renderWorkspaceRow);
+  return renderNoxWorkspaceRows(presentation.workspaces, renderWorkspaceRow, presentation.projects ?? []);
 }
 
 function renderNewWorkspaceRow(presentation: WorkspacePanePresentation): string {
@@ -208,6 +211,7 @@ export function renderWorkspacePane(presentation: WorkspacePanePresentation, sid
       <div class="workspace-pane-header" data-workspace-pane-target="pickerHeader" hidden>${back}<span class="panel__title">New workspace</span></div>`,
     bodyHtml: `<div class="workspace-pane-viewport" data-workspace-pane-target="body"><div class="workspace-pane-slides">
       <section class="workspace-pane-slide" data-workspace-pane-target="workspaces" aria-label="Workspaces">
+        ${renderNoxHubSidebarButton()}
         <div class="fixed-shell-pane-collections" data-workspace-pane-collections>
           <div id="${workspacePaneScrollDomId}" class="fixed-shell-workspace-scroll" data-workspace-navigation-target="scroll">${renderWorkspaceRows(presentation)}</div>
           <section id="global_sidebar_contributions">${sidebarContributionsHtml}</section>

@@ -38,6 +38,8 @@
         "@agents-in-the-cloud/host": "workspace:*",
         "@agents-in-the-cloud/inline-content": "workspace:*",
         "@agents-in-the-cloud/llm": "workspace:*",
+        "@agents-in-the-cloud/nox-hub": "workspace:*",
+        "@agents-in-the-cloud/nox-projects": "workspace:*",
         "@agents-in-the-cloud/pi-agent": "workspace:*",
         "@agents-in-the-cloud/prompt": "workspace:*",
         "@agents-in-the-cloud/proxy-egress": "workspace:*",
@@ -397,6 +399,38 @@
         "typebox": "^1.0.57",
       },
     },
+    "packages/nox-hub": {
+      "name": "@agents-in-the-cloud/nox-hub",
+      "dependencies": {
+        "@agents-in-the-cloud/agent": "workspace:*",
+        "@agents-in-the-cloud/builtin-agent": "workspace:*",
+        "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/design-system": "workspace:*",
+        "@agents-in-the-cloud/llm": "workspace:*",
+        "@agents-in-the-cloud/markdown": "workspace:*",
+        "@agents-in-the-cloud/nox-projects": "workspace:*",
+        "@agents-in-the-cloud/shared": "workspace:*",
+        "@agents-in-the-cloud/workspace": "workspace:*",
+        "@earendil-works/chord": "catalog:",
+        "@earendil-works/pi-ai": "catalog:",
+        "@earendil-works/pi-durable": "catalog:",
+        "@hotwired/stimulus": "github:hotwired/dev-builds#339df548999c34d440e04c24b59ad9dc57ce3eb1",
+        "proper-lockfile": "4.1.2",
+        "typebox": "^1.0.57",
+      },
+      "devDependencies": {
+        "@types/proper-lockfile": "4.1.4",
+      },
+    },
+    "packages/nox-projects": {
+      "name": "@agents-in-the-cloud/nox-projects",
+      "dependencies": {
+        "@agents-in-the-cloud/core": "workspace:*",
+        "@agents-in-the-cloud/design-system": "workspace:*",
+        "@agents-in-the-cloud/shared": "workspace:*",
+        "typebox": "^1.0.57",
+      },
+    },
     "packages/nox-workspace": {
       "name": "@agents-in-the-cloud/nox-workspace",
       "version": "0.1.0",
@@ -635,6 +669,10 @@
     "@agents-in-the-cloud/markdown": ["@agents-in-the-cloud/markdown@workspace:packages/markdown"],
 
     "@agents-in-the-cloud/native-agent": ["@agents-in-the-cloud/native-agent@workspace:packages/native-agent"],
+
+    "@agents-in-the-cloud/nox-hub": ["@agents-in-the-cloud/nox-hub@workspace:packages/nox-hub"],
+
+    "@agents-in-the-cloud/nox-projects": ["@agents-in-the-cloud/nox-projects@workspace:packages/nox-projects"],
 
     "@agents-in-the-cloud/nox-workspace": ["@agents-in-the-cloud/nox-workspace@workspace:packages/nox-workspace"],
 
