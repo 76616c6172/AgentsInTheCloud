@@ -290,7 +290,7 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
 
 export function renderNoxHubSidebarButton(): string {
   return `<div class="nox-hub-sidebar-slot" data-controller="nox-hub-sidebar">
-    <a class="nox-hub-sidebar-button" href="/hub" data-turbo-stream="true" data-nox-hub-sidebar-link>
+    <a class="nox-hub-sidebar-button" href="/hub" title="Open Hub" aria-expanded="false" aria-controls="nox_hub_host" data-turbo-stream="true" data-nox-hub-sidebar-link>
       <span class="nox-hub-sidebar-button__icon">${noxHubIconHtml}</span>
       <span class="nox-hub-sidebar-button__label">Hub</span>
       ${renderHubSidebarStatus({ busy: false, requestingAttention: false, runningCount: 0 })}

@@ -260,13 +260,6 @@ export async function renderHubSurface(options: {
     attributesHtml: 'data-action="click->nox-hub#toggleRail"',
   });
 
-  const closeButton = buttonHtml({
-    type: "button",
-    variant: "quiet",
-    content: { kind: "icon-only", iconHtml: Icons.Close, label: "Close Hub" },
-    attributesHtml: 'data-action="click->nox-hub#close"',
-  });
-
   const launchedBar = renderLaunchedWorkspacesBar(summary.launchedWorkspaceIds, workspaces);
   const threadUrl = `/hub/${encodeURIComponent(threadId)}`;
   const scopedWorkspaces = summary.projectId ? workspaces.filter((ws) => ws.projectId === summary.projectId) : workspaces;
@@ -292,7 +285,6 @@ export async function renderHubSurface(options: {
         </div>
         <div class="nox-hub-header-right">
           ${projectScopeHtml}
-          ${closeButton}
         </div>
       </header>
       ${launchedBar}

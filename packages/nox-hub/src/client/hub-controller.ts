@@ -2,6 +2,16 @@ import { CableTopics, type CableSubscription, type WorkspaceClientControllerCons
 
 const hubWorkspaceId = "__nox_hub__";
 
+function syncHubSidebarButton(): void {
+  const button = document.querySelector<HTMLElement>("[data-nox-hub-sidebar-link]");
+  if (!button) return;
+  const active = Boolean(document.getElementById("nox_hub_surface"));
+  if (active) button.setAttribute("aria-current", "page");
+  else button.removeAttribute("aria-current");
+  button.setAttribute("aria-expanded", String(active));
+  button.title = active ? "Close Hub" : "Open Hub";
+}
+
 export function createHubController(Controller: WorkspaceClientControllerConstructor) {
   return class NoxHubController extends Controller {
     static targets = ["scroll", "transcript", "input", "rail"];
@@ -32,7 +42,7 @@ export function createHubController(Controller: WorkspaceClientControllerConstru
       }
       document.dispatchEvent(new Event("agents-in-the-cloud:workspace-pane-hidden"));
       this.element.closest(".fixed-shell-app")?.classList.remove("is-mobile-workspace-pane-open");
-      this.markSidebarButton(true);
+      syncHubSidebarButton();
 
       const url = new URL(this.locationValue || "/hub", location.href).href;
       if (location.href !== url) history.pushState({}, "", url);
@@ -67,7 +77,7 @@ export function createHubController(Controller: WorkspaceClientControllerConstru
       document.removeEventListener("workspace-selection:before-select", this.beforeWorkspaceSelect);
       document.removeEventListener("click", this.outsideClick, true);
       window.removeEventListener("popstate", this.historyChanged);
-      this.markSidebarButton(false);
+      syncHubSidebarButton();
 
       queueMicrotask(() => {
         if (document.getElementById("nox_hub_surface")) return;
@@ -86,13 +96,6 @@ export function createHubController(Controller: WorkspaceClientControllerConstru
       if (!cable || !this.threadIdValue) return;
       const identifier = CableTopics.module("nox-hub", hubWorkspaceId, { threadId: this.threadIdValue });
       this.subscription = cable.subscribe(identifier, { shownIn: this.element });
-    }
-
-    private markSidebarButton(active: boolean): void {
-      const button = document.querySelector<HTMLElement>("[data-nox-hub-sidebar-link]");
-      if (!button) return;
-      if (active) button.setAttribute("aria-current", "page");
-      else button.removeAttribute("aria-current");
     }
 
     private readonly onScroll = (): void => {
@@ -173,7 +176,10 @@ export function createHubController(Controller: WorkspaceClientControllerConstru
       if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
       const target = event.target instanceof Element ? event.target.closest("a, button, summary, [data-action]") : null;
       if (!target || this.element.contains(target)) return;
-      if (target.closest("[data-nox-hub-sidebar-link]")) return;
+      if (target.closest("[data-nox-hub-sidebar-link]")) {
+        this.close(event);
+        return;
+      }
       if (target.closest(".fixed-shell-workspace-pane")) {
         if (target.matches('[href^="/workspaces/"], [href="/settings"], [href="/models"], [data-action*="openPicker"]')) {
           this.element.remove();
@@ -193,6 +199,7 @@ export function createHubSidebarController(Controller: WorkspaceClientController
     private subscription?: CableSubscription;
 
     connect(): void {
+      syncHubSidebarButton();
       const cable = window.AgentsInTheCloudCable;
       if (!cable) return;
       const identifier = CableTopics.module("nox-hub", hubWorkspaceId, {});

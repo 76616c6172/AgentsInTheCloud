@@ -329,7 +329,7 @@ html[data-theme="daylight"] {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 10px 12px 8px;
+  padding: 10px 12px 0;
   border-radius: 12px;
   border: 1px solid var(--nox-hub-subtle-border);
   background: var(--nox-hub-composer-bg);
@@ -350,6 +350,8 @@ html[data-theme="daylight"] {
 }
 
 .nox-hub-composer-footer {
+  /* The shared composer surface clears bottom padding without its own footer. */
+  padding-bottom: 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
