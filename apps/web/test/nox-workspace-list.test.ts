@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import {
+  countNoxWorkspaceStatuses,
   formatNoxRelativeTime,
   groupWorkspacesByTemplate,
   noxWorkspaceSubtitle,
@@ -83,4 +84,21 @@ test("template group plus actions open the launch composer directly without auto
   expect(html).toContain('href="/launch-composer" data-turbo="true" data-turbo-frame="launch_composer"');
   expect(html).not.toContain("openPickerFor");
   expect(html).not.toContain("autoSelect");
+});
+
+test("counts Done, Running, and Idle workspaces across all projects or within a project filter", () => {
+  const workspaces: NoxWorkspaceListEntry[] = [
+    { id: "a-done", title: "A Done", parked: false, projectId: "proj-a", requestingAttention: true },
+    { id: "a-both", title: "A Both", parked: false, projectId: "proj-a", requestingAttention: true, busy: true },
+    { id: "a-idle", title: "A Idle", parked: false, projectId: "proj-a" },
+    { id: "a-parked", title: "A Parked", parked: true, projectId: "proj-a", requestingAttention: true, busy: true },
+    { id: "b-run", title: "B Running", parked: false, projectId: "proj-b", busy: true },
+    { id: "none-idle", title: "No Project Idle", parked: false },
+  ];
+
+  expect(countNoxWorkspaceStatuses(workspaces)).toEqual({ done: 2, running: 2, idle: 2 });
+  expect(countNoxWorkspaceStatuses(workspaces, "proj-a")).toEqual({ done: 2, running: 1, idle: 1 });
+  expect(countNoxWorkspaceStatuses(workspaces, "proj-b")).toEqual({ done: 0, running: 1, idle: 0 });
+  expect(countNoxWorkspaceStatuses(workspaces, "none")).toEqual({ done: 0, running: 0, idle: 1 });
+  expect(countNoxWorkspaceStatuses(workspaces, "proj-empty")).toEqual({ done: 0, running: 0, idle: 0 });
 });

@@ -264,27 +264,6 @@ html[data-theme="daylight"] {
 .nox-status-chip__dot--running { background: var(--success); }
 .nox-status-chip__dot--idle { background: color-mix(in srgb, var(--text-muted) 65%, transparent); }
 .nox-status-strip__spacer { flex: 1; }
-.nox-status-clear {
-  display: none;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted);
-  place-items: center;
-  cursor: pointer;
-  flex: none;
-}
-.nox-status-clear:is(:hover, :focus-visible) {
-  outline: none;
-  background: var(--nox-row-hover);
-  color: var(--text-bright);
-}
-.nox-status-clear svg { width: 13px; height: 13px; }
-.fixed-shell-workspace-pane[data-nox-list-filter] .nox-status-clear,
-.fixed-shell-workspace-pane[data-nox-project-filter] .nox-status-clear { display: inline-grid; }
 
 .nox-project-filter-anchor {
   display: inline-flex;
@@ -409,9 +388,10 @@ html[data-theme="daylight"] {
   color: color-mix(in srgb, var(--text-muted) 70%, transparent);
   font-size: 12.5px;
 }
-.fixed-shell-workspace-pane[data-nox-list-filter="attention"] .nox-workspace-groups:not(:has([data-nox-ws-attention="true"])) > .nox-list-empty-filter,
-.fixed-shell-workspace-pane[data-nox-list-filter="running"] .nox-workspace-groups:not(:has([data-nox-ws-busy="true"])) > .nox-list-empty-filter,
-.fixed-shell-workspace-pane[data-nox-list-filter="idle"] .nox-workspace-groups:not(:has([data-nox-ws-state="idle"])) > .nox-list-empty-filter {
+.fixed-shell-workspace-pane[data-nox-project-filter] .nox-workspace-groups:not(:has([data-nox-project-id]:not([data-nox-project-hidden]))) > .nox-list-empty-filter,
+.fixed-shell-workspace-pane[data-nox-list-filter="attention"] .nox-workspace-groups:not(:has([data-nox-ws-attention="true"]:not([data-nox-project-hidden]))) > .nox-list-empty-filter,
+.fixed-shell-workspace-pane[data-nox-list-filter="running"] .nox-workspace-groups:not(:has([data-nox-ws-busy="true"]:not([data-nox-project-hidden]))) > .nox-list-empty-filter,
+.fixed-shell-workspace-pane[data-nox-list-filter="idle"] .nox-workspace-groups:not(:has([data-nox-ws-state="idle"]:not([data-nox-project-hidden]))) > .nox-list-empty-filter {
   display: block;
 }
 

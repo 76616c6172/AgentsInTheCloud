@@ -66,6 +66,30 @@ export function noxWorkspaceRowState(workspace: NoxWorkspaceListEntry): NoxWorks
   return "idle";
 }
 
+export interface NoxWorkspaceStatusCounts {
+  done: number;
+  running: number;
+  idle: number;
+}
+
+export function countNoxWorkspaceStatuses(
+  workspaces: readonly NoxWorkspaceListEntry[],
+  projectFilter = "",
+): NoxWorkspaceStatusCounts {
+  let done = 0;
+  let running = 0;
+  let idle = 0;
+  for (const workspace of workspaces) {
+    if (workspace.parked) continue;
+    const projectId = workspace.projectId || "none";
+    if (projectFilter && projectId !== projectFilter) continue;
+    if (workspace.requestingAttention) done++;
+    if (workspace.busy) running++;
+    if (!workspace.requestingAttention && !workspace.busy) idle++;
+  }
+  return { done, running, idle };
+}
+
 export function noxWorkspaceSubtitle(workspace: NoxWorkspaceListEntry, now = Date.now()): NoxWorkspaceSubtitle {
   const state = noxWorkspaceRowState(workspace);
   let base: string;
@@ -220,17 +244,14 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
 ): string {
   const active = workspaces.filter((workspace) => !workspace.parked);
   const parked = workspaces.filter((workspace) => workspace.parked);
-  const doneCount = active.filter((workspace) => workspace.requestingAttention).length;
-  const runningCount = active.filter((workspace) => workspace.busy).length;
-  const idleCount = active.filter((workspace) => !workspace.requestingAttention && !workspace.busy).length;
+  const { done: doneCount, running: runningCount, idle: idleCount } = countNoxWorkspaceStatuses(active);
 
   const statusStrip = active.length || projects.length
     ? `<div class="nox-status-strip" role="toolbar" aria-label="Workspace status">
-        <button type="button" class="nox-status-chip${doneCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="attention" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="attention" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--attention" aria-hidden="true"></i><span>${doneCount} Done</span></button>
-        <button type="button" class="nox-status-chip${runningCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="running" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="running" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--running" aria-hidden="true"></i><span>${runningCount} Running</span></button>
-        <button type="button" class="nox-status-chip${idleCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="idle" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="idle" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--idle" aria-hidden="true"></i><span>${idleCount} Idle</span></button>
+        <button type="button" class="nox-status-chip${doneCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="attention" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="attention" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--attention" aria-hidden="true"></i><span data-nox-filter-chip-label>${doneCount} Done</span></button>
+        <button type="button" class="nox-status-chip${runningCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="running" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="running" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--running" aria-hidden="true"></i><span data-nox-filter-chip-label>${runningCount} Running</span></button>
+        <button type="button" class="nox-status-chip${idleCount === 0 ? " is-zero" : ""}" data-nox-filter-chip="idle" data-action="click->nox-workspace-list#toggleFilter" data-nox-workspace-list-filter-param="idle" aria-pressed="false"><i class="nox-status-chip__dot nox-status-chip__dot--idle" aria-hidden="true"></i><span data-nox-filter-chip-label>${idleCount} Idle</span></button>
         <span class="nox-status-strip__spacer" aria-hidden="true"></span>
-        <button type="button" class="nox-status-clear" data-action="click->nox-workspace-list#clearFilter" aria-label="Clear filter" title="Clear filter">${Icons.Close}</button>
         ${renderProjectFilterPopup(active, projects)}
       </div>`
     : "";
