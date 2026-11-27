@@ -18,7 +18,7 @@ export const clientEntrypoints = {
 } satisfies Record<string, StaticFileEntry>;
 
 export const fingerprintedStaticFiles: StaticFileRegistry = {
-  "/brand/artwork.png": { url: new URL("../../public/brand/artwork.png", import.meta.url), contentType: "image/png" },
+  "/brand/nox-hero.jpg": { url: new URL("../../../../docs/readme/hero.jpg", import.meta.url), contentType: "image/jpeg" },
   "/favicon.ico": { url: new URL("../../public/favicon.ico", import.meta.url), contentType: "image/x-icon" },
   "/favicon-32x32.png": { url: new URL("../../public/favicon-32x32.png", import.meta.url), contentType: "image/png" },
   "/favicon-16x16.png": { url: new URL("../../public/favicon-16x16.png", import.meta.url), contentType: "image/png" },
