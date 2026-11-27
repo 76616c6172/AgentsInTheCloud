@@ -2,6 +2,7 @@ import { posix } from "node:path";
 import { parseFileReference, workspaceFileOpenUrl, workspaceProxyUrl, type WorkspaceFileTarget } from "@agents-in-the-cloud/shared";
 
 const workspaceRoot = "/work";
+const appRouteHref = /^\/(?:workspaces\/|hub(?:\/|[?#]|$))/;
 
 interface MarkdownFileTarget extends WorkspaceFileTarget {
   suffix: string;
@@ -12,7 +13,7 @@ function workspaceFileTarget(rawHref: string, sourcePath?: string): MarkdownFile
   try {
     url = new URL(rawHref);
   } catch {
-    if (rawHref.startsWith("#") || rawHref.startsWith("?") || rawHref.startsWith("//")) return undefined;
+    if (rawHref.startsWith("#") || rawHref.startsWith("?") || rawHref.startsWith("//") || appRouteHref.test(rawHref)) return undefined;
   }
   if (url) {
     const isFileUrl = url.protocol === "file:" && (url.hostname === "" || url.hostname === "localhost");

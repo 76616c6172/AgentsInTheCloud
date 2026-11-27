@@ -446,6 +446,25 @@ html[data-theme="daylight"] {
   font-weight: var(--weight-medium);
   color: var(--text-bright);
 }
+/* While Hub is open, Hub owns the primary sidebar's active highlight so the
+ * previously viewed workspace doesn't look simultaneously selected. */
+.fixed-shell-app:has(#nox_hub_surface) .fixed-shell-workspace-scroll .content-row:has(> .content-row__primary[aria-current="page"]):not(:hover):not(:focus-visible):not(:has(:focus-visible)) {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text);
+}
+.fixed-shell-app:has(#nox_hub_surface) .fixed-shell-workspace-scroll .content-row:has(> .content-row__primary[aria-current="page"]):hover {
+  background: var(--nox-row-hover);
+  border-color: transparent;
+  color: var(--text-bright);
+}
+.fixed-shell-app:has(#nox_hub_surface) .fixed-shell-workspace-scroll .content-row:has(> .content-row__primary[aria-current="page"]) .content-row__label {
+  font-weight: 450;
+  color: inherit;
+}
+.fixed-shell-app:has(#nox_hub_surface) .fixed-shell-workspace-scroll .content-row:has(> .content-row__primary[aria-current="page"]) .nox-workspace-glyph__badge {
+  box-shadow: 0 0 0 2px var(--nox-sidebar-bg);
+}
 .fixed-shell-workspace-scroll .content-row--multiline .content-row__description {
   margin-top: 2px;
   white-space: nowrap;

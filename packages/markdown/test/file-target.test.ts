@@ -30,10 +30,11 @@ test("keeps page anchors on file links", () => {
   expect(target("/work/report.html")?.searchParams.has("fragment")).toBe(false);
 });
 
-test("does not treat external URLs, anchors, or invalid paths as local files", () => {
-  for (const href of ["https://example.com/image.png", "javascript:alert(1)", "data:text/html,test", "file://remote/work/image.png", "//example.com/image.png", "#section", "?query=1", "/work/%ZZ.png", "/work/%00.png", "agents-in-the-cloud://file/work/%00.png"]) {
+test("does not treat external URLs, app routes, anchors, or invalid paths as local files", () => {
+  for (const href of ["https://example.com/image.png", "javascript:alert(1)", "data:text/html,test", "file://remote/work/image.png", "//example.com/image.png", "#section", "?query=1", "/workspaces/ws-1", "/workspaces/ws-1?agent=a1", "/hub", "/hub/thread-1", "/work/%ZZ.png", "/work/%00.png", "agents-in-the-cloud://file/work/%00.png"]) {
     expect(target(href)).toBeUndefined();
   }
+  expect(renderMarkdown("__nox_hub__", "[Fix flaky tests](/workspaces/ws-1)")).toBe('<p><a href="/workspaces/ws-1">Fix flaky tests</a></p>');
 });
 
 test("resolves workspace image files to proxy URLs independent of image format", () => {
