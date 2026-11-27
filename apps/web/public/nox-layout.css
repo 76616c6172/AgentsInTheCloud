@@ -164,6 +164,13 @@ html[data-theme] {
 html[data-theme="nox-oscura"] {
   --nox-sidebar-bg: #090a0e;
 }
+/* Original Oscura, with the work surface just two RGB steps below the agent canvas. */
+html[data-theme="nox-oscura"] .fixed-shell-work-pane {
+  --bg: #111217;
+  --panel: var(--bg);
+  --fixed-shell-bg: var(--bg);
+  --fixed-shell-raised: var(--panel);
+}
 html[data-theme="daylight"] {
   --nox-sidebar-bg: color-mix(in srgb, var(--bg) 93%, var(--text-bright));
 }
