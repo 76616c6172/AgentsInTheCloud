@@ -164,12 +164,13 @@ export function renderNoxWorkspaceRows<Entry extends NoxWorkspaceListEntry>(
   let index = 0;
   const groupsHtml = groupWorkspacesByTemplate(active).map((group) => {
     const addLabel = group.id ? `New workspace from ${group.label}` : "New empty workspace";
+    const addHref = group.id ? `/launch-composer?workspaceTemplate=${encodeURIComponent(group.id)}` : "/launch-composer";
     const rowsHtml = group.workspaces.map((workspace) => renderRow(workspace, index++)).join("");
     return `<section class="nox-template-group" data-nox-template-group="${escapeHtml(group.id)}">
       <div class="nox-template-group__header">
         <span class="nox-template-group__name">${escapeHtml(group.label)}</span>
         <span class="nox-template-group__rule" aria-hidden="true"></span>
-        <button type="button" class="nox-template-group__add" title="${escapeHtml(addLabel)}" aria-label="${escapeHtml(addLabel)}" data-action="workspace-pane#openPickerFor" data-workspace-pane-workspace-template-param="${escapeHtml(group.id)}">${Icons.Plus}</button>
+        <a class="nox-template-group__add" href="${escapeHtml(addHref)}" data-turbo="true" data-turbo-frame="launch_composer" title="${escapeHtml(addLabel)}" aria-label="${escapeHtml(addLabel)}">${Icons.Plus}</a>
       </div>
       <div class="nox-template-group__rows">${rowsHtml}</div>
     </section>`;

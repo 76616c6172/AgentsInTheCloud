@@ -72,3 +72,15 @@ test("renders status counts, template groups, and centered parked disclosure", (
   expect(html).toContain('id="workspace_pane_parked"');
   expect(html).toContain("Parked (1)");
 });
+
+test("template group plus actions open the launch composer directly without autoSelect", () => {
+  const html = renderNoxWorkspaceRows([
+    { id: "w1", title: "One", parked: false, workspaceTemplate: { id: "tpl/a", title: "repo" } },
+    { id: "w2", title: "Scratch", parked: false },
+  ], (workspace) => `<div data-row="${workspace.id}"></div>`);
+
+  expect(html).toContain('href="/launch-composer?workspaceTemplate=tpl%2Fa" data-turbo="true" data-turbo-frame="launch_composer"');
+  expect(html).toContain('href="/launch-composer" data-turbo="true" data-turbo-frame="launch_composer"');
+  expect(html).not.toContain("openPickerFor");
+  expect(html).not.toContain("autoSelect");
+});

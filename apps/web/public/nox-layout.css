@@ -318,6 +318,7 @@ html[data-theme="daylight"] {
   border-radius: 6px;
   background: transparent;
   color: color-mix(in srgb, var(--text-muted) 65%, transparent);
+  text-decoration: none;
   display: inline-grid;
   place-items: center;
   cursor: pointer;
