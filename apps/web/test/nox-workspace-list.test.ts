@@ -61,11 +61,13 @@ test("renders status counts, template groups, and centered parked disclosure", (
   const html = renderNoxWorkspaceRows([
     { id: "w1", title: "One", parked: false, requestingAttention: true, busy: false, workspaceTemplate: { id: "t1", title: "repo" } },
     { id: "w2", title: "Two", parked: false, busy: true, workspaceTemplate: { id: "t1", title: "repo" } },
-    { id: "w3", title: "Three", parked: true, workspaceTemplate: { id: "t1", title: "repo" } },
+    { id: "w3", title: "Three", parked: false, workspaceTemplate: { id: "t1", title: "repo" } },
+    { id: "w4", title: "Four", parked: true, workspaceTemplate: { id: "t1", title: "repo" } },
   ], (workspace) => `<div data-row="${workspace.id}"></div>`);
 
-  expect(html).toContain("1 Need You");
+  expect(html).toContain("1 Done");
   expect(html).toContain("1 Running");
+  expect(html).toContain("1 Idle");
   expect(html).toContain('data-nox-template-group="t1"');
   expect(html).toContain('id="workspace_pane_parked"');
   expect(html).toContain("Parked (1)");

@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus";
 
-type ListFilter = "attention" | "running";
+type ListFilter = "attention" | "running" | "idle";
 
 const relativeTimeTickMs = 60_000;
 const shortDateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
@@ -31,7 +31,7 @@ export class NoxWorkspaceListController extends Controller<HTMLElement> {
   }
 
   toggleFilter({ params }: { params: { filter?: string } }): void {
-    const requested = params.filter === "attention" || params.filter === "running" ? params.filter : undefined;
+    const requested = params.filter === "attention" || params.filter === "running" || params.filter === "idle" ? params.filter : undefined;
     this.filter = requested && this.filter !== requested ? requested : undefined;
     this.syncFilter();
   }

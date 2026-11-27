@@ -191,10 +191,10 @@ html[data-theme="daylight"] {
 
 /* Subtle, minimal New button in the desktop header. */
 .nox-header-new {
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: 7px;
   border: 1px solid transparent;
   background: var(--nox-subtle-cta-bg);
   color: var(--text-muted);
@@ -211,13 +211,13 @@ html[data-theme="daylight"] {
   color: var(--text-bright);
 }
 .nox-header-new:active { transform: scale(.95); }
-.nox-header-new svg { width: 15px; height: 15px; }
+.nox-header-new svg { width: 14px; height: 14px; }
 
-/* Inline status filter strip ("0 Need You   1 Running"). */
+/* Inline status filter strip ("0 Done   1 Running   2 Idle"). */
 .nox-status-strip {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 2px 2px 8px;
 }
 .nox-status-chip {
@@ -225,13 +225,14 @@ html[data-theme="daylight"] {
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 12px;
-  padding: 3px 7px;
+  font-size: 11.5px;
+  padding: 3px 6px;
   border-radius: 7px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+  white-space: nowrap;
   transition: background 140ms ease, color 140ms ease;
   -webkit-tap-highlight-color: transparent;
 }
@@ -254,6 +255,7 @@ html[data-theme="daylight"] {
 }
 .nox-status-chip__dot--attention { background: var(--warning); }
 .nox-status-chip__dot--running { background: var(--success); }
+.nox-status-chip__dot--idle { background: color-mix(in srgb, var(--text-muted) 65%, transparent); }
 .nox-status-strip__spacer { flex: 1; }
 .nox-status-clear {
   display: none;
@@ -327,8 +329,10 @@ html[data-theme="daylight"] {
 /* CSS-driven status filtering (survives Turbo Stream morphs). */
 .fixed-shell-workspace-pane[data-nox-list-filter="attention"] .nox-template-group__rows > :not([data-nox-ws-attention="true"]),
 .fixed-shell-workspace-pane[data-nox-list-filter="running"] .nox-template-group__rows > :not([data-nox-ws-busy="true"]),
+.fixed-shell-workspace-pane[data-nox-list-filter="idle"] .nox-template-group__rows > :not([data-nox-ws-state="idle"]),
 .fixed-shell-workspace-pane[data-nox-list-filter="attention"] .nox-template-group:not(:has([data-nox-ws-attention="true"])),
-.fixed-shell-workspace-pane[data-nox-list-filter="running"] .nox-template-group:not(:has([data-nox-ws-busy="true"])) {
+.fixed-shell-workspace-pane[data-nox-list-filter="running"] .nox-template-group:not(:has([data-nox-ws-busy="true"])),
+.fixed-shell-workspace-pane[data-nox-list-filter="idle"] .nox-template-group:not(:has([data-nox-ws-state="idle"])) {
   display: none;
 }
 .nox-list-empty-filter {
@@ -339,7 +343,8 @@ html[data-theme="daylight"] {
   font-size: 12.5px;
 }
 .fixed-shell-workspace-pane[data-nox-list-filter="attention"] .nox-workspace-groups:not(:has([data-nox-ws-attention="true"])) > .nox-list-empty-filter,
-.fixed-shell-workspace-pane[data-nox-list-filter="running"] .nox-workspace-groups:not(:has([data-nox-ws-busy="true"])) > .nox-list-empty-filter {
+.fixed-shell-workspace-pane[data-nox-list-filter="running"] .nox-workspace-groups:not(:has([data-nox-ws-busy="true"])) > .nox-list-empty-filter,
+.fixed-shell-workspace-pane[data-nox-list-filter="idle"] .nox-workspace-groups:not(:has([data-nox-ws-state="idle"])) > .nox-list-empty-filter {
   display: block;
 }
 
@@ -670,9 +675,9 @@ html[data-theme="daylight"] {
     --nox-pane-border: color-mix(in srgb, var(--line) 70%, var(--bg));
   }
 
-  /* Flush, square panes: the sidebar separates by tone alone; Work keeps a hairline. */
+  /* Flush, square panes: no vertical dividers between sidebar, Agent and Work. */
   .fixed-shell-workspace-pane { box-sizing: border-box; border-right: 0; }
-  .fixed-shell-work-pane { box-sizing: border-box; border-left: 1px solid var(--nox-pane-border); }
+  .fixed-shell-work-pane { box-sizing: border-box; border-left: 0; }
 
   /* Quiet chrome, after Amp: low headers that share the pane's surface, muted ghost icons,
    * and a smaller type scale. Secondary text keeps --text-code (12px). */
@@ -684,8 +689,7 @@ html[data-theme="daylight"] {
   :is(.fixed-shell-workspace-main, .fixed-shell-agent-pane, .fixed-shell-work-pane) > .panel > .panel__header .button.icon-only { --button-foreground: var(--text-muted); }
   :is(.fixed-shell-workspace-main, .fixed-shell-agent-pane, .fixed-shell-work-pane) > .panel > .panel__header strong.panel__title { font-weight: var(--weight-medium); }
   .fixed-shell-workspace-main > .panel > .panel__header {
-    min-height: 44px;
-    padding: 8px 10px 4px;
+    padding-inline: 10px;
   }
   .fixed-shell-workspace-pane .workspace-pane-header[data-workspace-pane-target="workspacesHeader"] > .panel__title {
     visibility: hidden;
@@ -700,7 +704,8 @@ html[data-theme="daylight"] {
   /* The transcript reads as one centered column; the scrollbar stays at the pane's edge. */
   .agent-transcript-surface { max-width: 660px; margin-inline: auto; }
   /* The sidebar button and More are the Agent header's only controls; give them room to hit. */
-  :is([data-show-workspace-pane], [data-collapse-workspace-pane], [data-nox-agent-menu]).button.icon-only { width: 32px; height: 32px; --button-icon-size: 18px; }
+  :is([data-show-workspace-pane], [data-nox-agent-menu]).button.icon-only { width: 32px; height: 32px; --button-icon-size: 18px; }
+  [data-collapse-workspace-pane].button.icon-only { width: 26px; height: 26px; min-height: 26px; --button-icon-size: 15px; }
   /* Pinning swaps the sidebar icon instead of painting a pressed highlight behind it. */
   .nox-sidebar-icon-unpinned,
   .nox-sidebar-icon-pinned { display: inline-flex; }
@@ -866,7 +871,7 @@ html[data-theme="daylight"] {
   /* The agent's right edge is Work's left edge at every stop. */
   .fixed-workspace-presentation > .fixed-shell-main > .fixed-shell-agent-pane {
     left: calc(-1 * var(--nox-spread-b) * var(--nox-spread-agent-width)); right: auto; width: var(--nox-spread-agent-width);
-    border-inline-end: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+    border-inline-end: 0;
   }
   .fixed-workspace-presentation > .fixed-shell-main > .fixed-shell-work-pane {
     left: calc((1 - var(--nox-spread-b)) * var(--nox-spread-agent-width)); right: auto;
