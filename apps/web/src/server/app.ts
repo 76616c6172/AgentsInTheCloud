@@ -28,7 +28,6 @@ import {
   parseWorkspaceFileTarget,
   turboStreamResponse,
   workspaceModuleModalFrameId,
-  launchComposerCommand,
   placeLiveRegions,
   CableTopics,
   type CableIdentifier,
@@ -609,7 +608,7 @@ export function createWebApp(deps: WebAppDeps): WebApp {
       ? await renderLaunchComposerFrame(surface.workspaceTemplate)
       : `<turbo-frame id="${launchComposerFrameId}"></turbo-frame>`;
     return `<div class="app fixed-shell-app" data-controller="agents-in-the-cloud-shortcuts workspace-navigation mobile-swipe">
-    ${renderWorkspacePane(pane, renderGlobalSidebarContributions(), workspaceModules.map((module) => module.renderWorkspacePaneActions?.() ?? "").join(""), launchComposerCommand.binding)}
+    ${renderWorkspacePane(pane, renderGlobalSidebarContributions(), workspaceModules.map((module) => module.renderWorkspacePaneActions?.() ?? "").join(""))}
     <main class="fixed-shell-app-main">${await workspaceDetailHostHtml(pane, selectedId, initialSelection)}${surface?.kind === "template-settings" ? surface.html : `<div id="${templateSettingsHostId}"></div>`}<div id="app_settings_host">${surface?.kind === "settings" ? settings : ""}</div><div id="${hubHostId}">${surface?.kind === "hub" ? surface.html : ""}</div></main>
     ${renderAgentsInTheCloudBar()}
   </div>

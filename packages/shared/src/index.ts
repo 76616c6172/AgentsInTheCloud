@@ -429,7 +429,6 @@ export const launchComposerCommand = {
   id: "agent.open-launch-composer",
   label: "New thread",
   description: "Open the launch composer, using the selected thread’s template when available.",
-  binding: "Control+KeyN",
 } as const;
 
 export interface WorkspaceClientCommand {

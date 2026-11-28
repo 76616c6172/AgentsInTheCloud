@@ -42,7 +42,6 @@ const terminalWorkspaceCommands: WorkspaceCommandContribution[] = [
     label: "Open Terminal",
     description: "Open the first existing Terminal view, or create one if none exists.",
     scope: "workspace",
-    surfaces: { shortcut: { defaultBinding: "Control+KeyT" } },
   },
   {
     id: "terminal.create",

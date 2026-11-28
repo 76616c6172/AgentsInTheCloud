@@ -36,7 +36,6 @@ export const vscodeWorkspaceCommands: WorkspaceCommandContribution[] = [
     scope: "workspace",
     surfaces: {
       ui: { placement: "work-launcher", iconHtml: Icons.Code, label: "VS Code" },
-      shortcut: { defaultBinding: "Control+KeyV" },
     },
   },
 ];

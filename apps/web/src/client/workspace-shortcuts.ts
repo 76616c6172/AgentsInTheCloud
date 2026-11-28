@@ -1,23 +1,19 @@
 import { contentRowElement, contentRowHtml } from "@agents-in-the-cloud/design-system/content-row";
 import { dialogHtml } from "@agents-in-the-cloud/design-system/dialog";
 import { Icons } from "@agents-in-the-cloud/design-system/icons";
-import { escapeHtml, isApplePlatform, phoneLayoutMediaQuery, type WorkspaceClientCommand, type WorkspacePaletteItem } from "@agents-in-the-cloud/shared";
+import { escapeHtml, isApplePlatform, type WorkspaceClientCommand, type WorkspacePaletteItem } from "@agents-in-the-cloud/shared";
 import { Controller } from "@hotwired/stimulus";
 import { formatShortcutBinding } from "../shortcut-binding.ts";
 import { submitFormWithFirstButton } from "./form-submission.ts";
 import { clientHooks, type PaletteResult } from "./workspace-client-hooks.ts";
-import { registerWorkspaceControllers, workspaceSelectionController, workspaceNavigationController } from "./workspace-controller-registry.ts";
+import { controllerForElement, registerWorkspaceControllers, workspaceSelectionController, workspaceNavigationController } from "./workspace-controller-registry.ts";
 
 type WorkspaceCommandRegistration = Omit<WorkspaceClientCommand, "run">;
 
 const shortcutAliases = new Map([
   ["agents-in-the-cloud.open-palette", ["Control+KeyO", "Control+KeyK"]],
-  ["dictation.toggle", ["Control+Alt+Backslash"]],
-  ["changes.open", ["Control+Digit1"]],
-  ["browser.open", ["Control+Digit2"]],
-  ["terminal.open", ["Control+Digit3"]],
-  ["files.open", ["Control+Digit4"]],
-  ["work-pane.toggle-focus", ["Shift+Backquote"]],
+  ["workspace-pane.toggle", ["F1"]],
+  ["work-pane.toggle-focus", ["F3"]],
 ]);
 
 function commandBindings(command: WorkspaceClientCommand): readonly string[] {
@@ -78,12 +74,9 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     if (event.repeat || event.isComposing || event.getModifierState("AltGraph")) return;
     const metaAlt = event.metaKey && event.altKey && !event.ctrlKey;
     const control = event.ctrlKey && !event.metaKey && (!event.altKey || !isApplePlatform());
-    const desktopWorkFocus = !event.metaKey && !event.ctrlKey && !event.altKey && event.shiftKey
-      && this.matchesShortcutKey(event, "Backquote")
-      && !window.matchMedia(phoneLayoutMediaQuery).matches
-      && !document.querySelector("dialog[open]")
-      && this.canToggleWorkPaneFocus();
-    if (!metaAlt && !control && !desktopWorkFocus) return;
+    const functionKey = !event.metaKey && !event.ctrlKey && !event.altKey && !event.shiftKey
+      && /^F([1-9]|1[0-2])$/.test(event.code || event.key);
+    if (!metaAlt && !control && !functionKey) return;
 
     if (event.key === "Meta" || event.key === "Alt" || event.key === "Control") {
       if (metaAlt) this.scheduleShortcutOverlay();
@@ -112,28 +105,24 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       id: "workspace.open-previous",
       label: "Open previous thread",
       scope: "global",
-      binding: "Control+Comma",
       run: () => this.openAdjacentWorkspace(-1),
     });
     clientHooks.registerCommand({
       id: "workspace.open-next",
       label: "Open next thread",
       scope: "global",
-      binding: "Control+Period",
       run: () => this.openAdjacentWorkspace(1),
     });
     clientHooks.registerCommand({
       id: "workspace.open-oldest-attention",
       label: "Open oldest thread needing attention",
       scope: "global",
-      binding: "Control+Slash",
       run: () => this.openOldestAttentionWorkspace(),
     });
     clientHooks.registerCommand({
       id: "work-view.open-previous",
       label: "Open previous Work view",
       scope: "workspace",
-      binding: "Control+BracketLeft",
       run: () => this.openAdjacentWorkView(-1),
     });
     clientHooks.registerCommand({
@@ -146,7 +135,6 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       id: "agent.open-previous",
       label: "Open previous Agent",
       scope: "workspace",
-      binding: "Control+Shift+Tab",
       run: () => this.openAdjacentAgent(-1),
     });
     clientHooks.registerCommand({
@@ -164,10 +152,24 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       run: () => this.openPalette(),
     });
     clientHooks.registerCommand({
+      id: "workspace-pane.toggle",
+      label: "Toggle sidebar",
+      scope: "global",
+      binding: "Control+KeyB",
+      run: () => workspaceNavigationController()?.toggleWorkspacePane(),
+    });
+    clientHooks.registerCommand({
+      id: "agent.focus",
+      label: "Focus Agent",
+      scope: "workspace",
+      binding: "F2",
+      run: () => this.focusSelectedAgent(),
+    });
+    clientHooks.registerCommand({
       id: "work-pane.toggle-focus",
       label: "Toggle Work pane focus",
       scope: "workspace",
-      binding: "Control+KeyF",
+      binding: "Control+Slash",
       run: () => this.visibleWorkspacePresentation()?.querySelector<HTMLButtonElement>("[data-collapse-work-pane]")?.click(),
     });
     clientHooks.registerCommand({
@@ -219,14 +221,12 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
       label: "Delete thread",
       description: "Delete the current thread",
       scope: "workspace",
-      binding: "Meta+Alt+Backspace",
       run: () => this.deleteVisibleWorkspace(),
     }, {
       id: "workspace.force-delete",
       label: "Force delete thread",
       description: "Delete the current thread without checking for outstanding changes",
       scope: "workspace",
-      binding: "Meta+Alt+Shift+Backspace",
       run: () => this.deleteVisibleWorkspace(true),
     }];
   }
@@ -260,11 +260,6 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     return document.querySelector(".workspace-detail-mount.visible .fixed-workspace-presentation");
   }
 
-  private canToggleWorkPaneFocus(): boolean {
-    const presentation = this.visibleWorkspacePresentation();
-    return Boolean(presentation?.querySelector('[data-workspace-pane-role="work"]'));
-  }
-
   private workspaceCommands(): WorkspaceCommandRegistration[] {
     const presentation = this.visibleWorkspacePresentation();
     if (presentation) {
@@ -281,6 +276,22 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
     const activeIndex = selectors.findIndex((selector) => selector.getAttribute("aria-selected") === "true");
     if (activeIndex < 0 || selectors.length < 2) return;
     selectors[(activeIndex + direction + selectors.length) % selectors.length]!.click();
+  }
+
+  private focusSelectedAgent(): void {
+    const presentation = this.visibleWorkspacePresentation();
+    if (!presentation) return;
+    const controller = controllerForElement<{
+      selectedAgentId(): string | undefined;
+      selectAgentById(agentId: string): void;
+      focusSelectedAgent(): void;
+    }>(presentation, "workspace-presentation");
+    if (!controller) return;
+    const agentId = controller.selectedAgentId();
+    if (agentId && !presentation.querySelector("[data-workspace-pane-role='agent'][data-workspace-logically-visible='true']")) {
+      controller.selectAgentById(agentId);
+    }
+    controller.focusSelectedAgent();
   }
 
   private openAdjacentWorkView(direction: -1 | 1): void {
@@ -371,6 +382,7 @@ class AgentsInTheCloudShortcutsController extends Controller<HTMLElement> {
 
   private matchesShortcutKey(event: KeyboardEvent, code: string): boolean {
     if (event.code === code) return true;
+    if (/^F([1-9]|1[0-2])$/.test(code)) return event.key === code;
     switch (code) {
       case "Comma": return event.key === ",";
       case "Period": return event.key === ".";

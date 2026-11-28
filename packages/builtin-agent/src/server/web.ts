@@ -75,7 +75,6 @@ const launchComposerCommandContribution: WorkspaceCommandContribution = {
   label: launchComposerCommand.label,
   description: launchComposerCommand.description,
   scope: "global",
-  surfaces: { shortcut: { defaultBinding: launchComposerCommand.binding } },
 };
 
 async function applyNewAgentSettings(agent: WorkspaceAgentInfo, source: WorkspaceAgentInfo | undefined, events?: AgentsInTheCloudEventBus): Promise<void> {

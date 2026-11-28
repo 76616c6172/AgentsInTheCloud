@@ -79,17 +79,12 @@ The helper fetches both remotes, refuses diverged `main` or an outdated `nox`, f
 | Shortcut | Action |
 | --- | --- |
 | **Ctrl+P**, **Ctrl+K**, **Ctrl+O** | Open the command palette. |
-| **Ctrl+N** | Create a workspace. |
-| **Ctrl+T** | Open the first Terminal view, or create one if none exists. |
-| **Ctrl+B** / **Ctrl+E** / **Ctrl+X** | Open Browser / Files / Changes. |
-| **Ctrl+1** / **Ctrl+2** / **Ctrl+3** / **Ctrl+4** | Open Changes / Browser / Terminal / Files. |
-| **Ctrl+F** | Toggle Work pane focus. |
-| **Ctrl+Tab** / **Ctrl+Shift+Tab** | Select the next / previous Agent. |
-| **Ctrl+,** / **Ctrl+.** | Select the previous / next workspace. |
-| **Ctrl+[** | Select the previous Work view. |
-| **Ctrl+/** | Select the oldest workspace needing attention. |
+| **Ctrl+B**, **F1** | Toggle the left sidebar. |
+| **F2** | Focus the active Agent. |
+| **Ctrl+Tab** | Select the next Agent. |
+| **Ctrl+/**, **F3** | Toggle Work pane focus. |
 
-App shortcuts apply when the browser delivers key events to the app; browser-reserved shortcuts may not reach it. Embedded websites and editors retain control while their iframe has focus. Copy/paste and word-deletion shortcuts remain untouched. Other actions are available from the command palette.
+App shortcuts apply when the browser delivers key events to the app; browser-reserved shortcuts may not reach it. Embedded websites and editors retain control while their iframe has focus. Other actions are available from the command palette.
 
 ### Build and promote
 

@@ -9,22 +9,12 @@ type FullscreenMediaElement = HTMLIFrameElement | HTMLImageElement | HTMLVideoEl
 type FullscreenViewer = { element: HTMLElement; disconnect?: () => void };
 type FullscreenSession = { owner: AgentsInTheCloudFullscreenController; close(): void };
 
-let hoveredFullscreenControllers: AgentsInTheCloudFullscreenController[] = [];
 let fullscreenControllerCount = 0;
 let activeFullscreenSession: FullscreenSession | undefined;
 
-function editableShortcutTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && Boolean(target.closest("input, textarea, select, [contenteditable=''], [contenteditable='true']"));
-}
-
 function consumeFullscreenShortcut(event: KeyboardEvent): boolean {
   if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || event.repeat || event.isComposing) return false;
-  if (event.key.toLowerCase() === "f") {
-    if (!activeFullscreenSession && !hoveredFullscreenControllers.at(-1)) return false;
-    if (editableShortcutTarget(event.target)) return false;
-  } else if (event.key !== "Escape" || !activeFullscreenSession) {
-    return false;
-  }
+  if (event.key !== "Escape" || !activeFullscreenSession) return false;
   event.preventDefault();
   event.stopImmediatePropagation();
   return true;
@@ -32,17 +22,7 @@ function consumeFullscreenShortcut(event: KeyboardEvent): boolean {
 
 function documentFullscreenKeydown(event: KeyboardEvent): void {
   if (!consumeFullscreenShortcut(event)) return;
-  if (activeFullscreenSession) activeFullscreenSession.close();
-  else hoveredFullscreenControllers.at(-1)!.open();
-}
-
-function pushFullscreenHover(controller: AgentsInTheCloudFullscreenController): void {
-  hoveredFullscreenControllers = hoveredFullscreenControllers.filter((candidate) => candidate !== controller);
-  hoveredFullscreenControllers.push(controller);
-}
-
-function removeFullscreenHover(controller: AgentsInTheCloudFullscreenController): void {
-  hoveredFullscreenControllers = hoveredFullscreenControllers.filter((candidate) => candidate !== controller);
+  activeFullscreenSession?.close();
 }
 
 class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
@@ -51,11 +31,8 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
   declare readonly viewKeyValue: string;
   declare readonly titleValue: string;
   declare readonly paneHeaderValue: boolean;
-  private hoverTarget!: HTMLElement;
   private fullscreenTitle?: HTMLElement;
   private iframeLoadTargets: HTMLIFrameElement[] = [];
-  private readonly pointerenter = (): void => pushFullscreenHover(this);
-  private readonly pointerleave = (): void => removeFullscreenHover(this);
   private readonly iframeLoaded = (event: Event): void => {
     // SAFETY: The server-rendered DOM and connected controller contract establish this element shape.
     const frame = event.currentTarget as HTMLIFrameElement;
@@ -64,9 +41,6 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
   };
 
   connect(): void {
-    this.hoverTarget = this.paneHeaderValue ? this.element.closest<HTMLElement>(".panel__header")! : this.element;
-    this.hoverTarget.addEventListener("pointerenter", this.pointerenter);
-    this.hoverTarget.addEventListener("pointerleave", this.pointerleave);
     if (fullscreenControllerCount++ === 0) document.addEventListener("keydown", documentFullscreenKeydown, true);
   }
 
@@ -75,10 +49,7 @@ class AgentsInTheCloudFullscreenController extends Controller<HTMLElement> {
   }
 
   disconnect(): void {
-    removeFullscreenHover(this);
     this.detachIframeShortcuts();
-    this.hoverTarget.removeEventListener("pointerenter", this.pointerenter);
-    this.hoverTarget.removeEventListener("pointerleave", this.pointerleave);
     if (--fullscreenControllerCount === 0) document.removeEventListener("keydown", documentFullscreenKeydown, true);
     if (activeFullscreenSession?.owner === this) activeFullscreenSession.close();
   }

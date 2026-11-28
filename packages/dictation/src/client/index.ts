@@ -21,7 +21,6 @@ export const agentsInTheCloudClientModule: WorkspaceClientModule = {
       label: "Start or stop dictation",
       description: "Toggle microphone dictation in the active composer.",
       scope: "agent",
-      binding: "Meta+Alt+Backslash",
       run: () => activeDictationButton()?.click(),
     });
   },

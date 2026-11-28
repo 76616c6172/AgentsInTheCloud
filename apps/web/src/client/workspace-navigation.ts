@@ -237,6 +237,19 @@ class WorkspaceNavigationController extends Controller<HTMLElement> {
     this.setWorkspacePaneCollapsed(false);
   }
 
+  toggleWorkspacePane(): void {
+    clearTimeout(this.revealTimer);
+    if (window.matchMedia(phoneLayoutMediaQuery).matches) {
+      if (this.element.classList.contains("is-mobile-workspace-pane-open")) this.closeWorkspacePane();
+      else this.showWorkspacePane();
+      return;
+    }
+    const open = !this.element.classList.contains("is-workspace-pane-collapsed");
+    this.workspacePanePinned = !open;
+    localStorage.setItem("agents-in-the-cloud:workspace-pane-pinned", String(this.workspacePanePinned));
+    this.setWorkspacePaneCollapsed(open);
+  }
+
   revealWorkspacePane(event: PointerEvent): void {
     if (event.pointerType !== "mouse" || window.matchMedia(phoneLayoutMediaQuery).matches) return;
     if (!this.element.classList.contains("is-workspace-pane-collapsed")) return;

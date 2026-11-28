@@ -5,6 +5,7 @@ interface WorkspaceNavigationControllerSurface {
   setActiveWorkspace(workspaceId?: string): void;
   showWorkspacePane(): void;
   closeWorkspacePane(): void;
+  toggleWorkspacePane(): void;
 }
 
 interface WorkspaceSelectionControllerSurface {

@@ -165,7 +165,7 @@ const filesWorkspaceModule: WorkspaceModule = {
       workViews: listFilesViews(workspaceId).map(filesWorkViewPresentation),
       commands: [
         { id: "files.create", label: "New Files", scope: "workspace", surfaces: { ui: { placement: "work-launcher", shortcutCommandId: "files.open", iconHtml: Icons.Files, label: "Files" } } },
-        { id: "files.open", label: "Open Files", description: "Open the existing Files view, or create one if none exists.", scope: "workspace", surfaces: { shortcut: { defaultBinding: "Control+KeyE" } } },
+        { id: "files.open", label: "Open Files", description: "Open the existing Files view, or create one if none exists.", scope: "workspace" },
       ],
       overlayHtml: [renderFilesRefreshSignal(workspaceId)],
     };
