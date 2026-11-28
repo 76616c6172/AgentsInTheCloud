@@ -42,12 +42,19 @@ export function normalizeSlug(value: string): string | undefined {
   return slug || undefined;
 }
 
+export async function resolveTitleModel(runtime: Awaited<ReturnType<typeof createPiModelRuntime>>, selectedModel?: ModelRef): Promise<Model<Api> | undefined> {
+  if (selectedModel) {
+    const model = await cheapestAvailableProviderModel(runtime, selectedModel.provider);
+    if (model) return model;
+  }
+  const fallback = await resolveNewWorkspaceAgentModel();
+  return fallback ? await cheapestAvailableProviderModel(runtime, fallback.provider) : undefined;
+}
+
 export async function suggestAgentSlug(userPrompt: string, selectedModel?: ModelRef): Promise<string | undefined> {
   if (!userPrompt.trim()) return undefined;
-  const modelRef = selectedModel ?? await resolveNewWorkspaceAgentModel();
-  if (!modelRef) return undefined;
   const runtime = await createPiModelRuntime();
-  const model = await cheapestAvailableProviderModel(runtime, modelRef.provider);
+  const model = await resolveTitleModel(runtime, selectedModel);
   if (!model || !(await runtime.checkAuth(model.provider))) return undefined;
   const response = await runtime.completeSimple(model, {
     messages: [{ role: "user", content: promptFor(userPrompt), timestamp: Date.now() }],

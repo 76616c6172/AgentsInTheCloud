@@ -2,9 +2,9 @@ import { createKeyedOperationQueue, type AgentsInTheCloudEventBus } from "@agent
 import { errorMessage } from "@agents-in-the-cloud/shared";
 import { getWorkspaceTitle, listWorkspaces, setWorkspaceTitle } from "@agents-in-the-cloud/workspace";
 import { resolveNewWorkspaceAgentModel } from "@agents-in-the-cloud/agent/server/model-state";
-import { cheapestAvailableProviderModel, createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
+import { createPiModelRuntime, type ModelRef } from "@agents-in-the-cloud/llm/server";
 import { listWorkspaceAgents, setWorkspaceAgentTitle, untitledAgentTitle, type WorkspaceAgentInfo } from "./agent-store.ts";
-import { agentTitleRequestOptions, normalizeSlug, promptFor, textFromResponse } from "@agents-in-the-cloud/agent/server/slug-suggestion";
+import { agentTitleRequestOptions, normalizeSlug, promptFor, resolveTitleModel, textFromResponse } from "@agents-in-the-cloud/agent/server/slug-suggestion";
 
 export function createAutomaticWorkspaceNamingGate() {
   const active = new Set<string>();
@@ -99,7 +99,7 @@ function suggestAgentTitle(agent: { workspaceId: string; agentId?: string }, use
       if (!titleModelRef && !agent.agentId) titleModelRef = await resolveNewWorkspaceAgentModel();
       if (!titleModelRef) return fail(undefined, "agent model is not selected");
       const runtime = await createPiModelRuntime();
-      const model = await cheapestAvailableProviderModel(runtime, titleModelRef.provider);
+      const model = await resolveTitleModel(runtime, titleModelRef);
       if (!model) return fail(titleModelRef, "provider has no models available");
       titleModelRef = { provider: model.provider, id: model.id };
       if (!(await runtime.checkAuth(model.provider))) return fail(titleModelRef, "model authentication is not configured");

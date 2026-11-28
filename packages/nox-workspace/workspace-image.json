@@ -69,6 +69,11 @@
       "from": "home-defaults/.pi",
       "to": "/opt/agents-in-the-cloud/home-defaults/.pi",
       "afterRun": true
+    },
+    {
+      "from": "home-defaults/.antigravity",
+      "to": "/opt/agents-in-the-cloud/home-defaults/.antigravity",
+      "afterRun": true
     }
   ],
   "run": [
